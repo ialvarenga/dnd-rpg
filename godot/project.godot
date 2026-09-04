@@ -1,0 +1,30 @@
+; Engine configuration file.
+; Godot 4.6 project. Jolt is the selected new-project default; see ADR-002.
+config_version=5
+
+[application]
+config/name="Deterministic Tactical RPG"
+run/main_scene="res://scenes/test_arena.tscn"
+
+[display]
+
+[display/window]
+size/viewport_width=1280
+size/viewport_height=720
+size/window_width_override=1280
+size/window_height_override=720
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+
+[physics/3d]
+physics_engine="JoltPhysics3D"
+
+[layer_names/3d_physics]
+layer_1="terrain"
+layer_2="character"
+layer_3="interactable"
+layer_4="cover"
+layer_5="trigger"
+layer_6="projectile"

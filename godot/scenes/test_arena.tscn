@@ -1,0 +1,53 @@
+[gd_scene load_steps=7 format=3]
+
+[sub_resource type="StandardMaterial3D" id="FloorMaterial"]
+albedo_color = Color(0.18, 0.28, 0.2, 1)
+
+[sub_resource type="BoxMesh" id="FloorMesh"]
+material = SubResource("FloorMaterial")
+size = Vector3(64, 0.2, 64)
+
+[sub_resource type="BoxShape3D" id="FloorShape"]
+size = Vector3(64, 0.2, 64)
+
+[sub_resource type="BoxMesh" id="CubeMesh"]
+size = Vector3(2, 2, 2)
+
+[sub_resource type="BoxMesh" id="WallMesh"]
+size = Vector3(20, 3, 0.5)
+
+[sub_resource type="BoxMesh" id="DoorMesh"]
+size = Vector3(1.4, 2.4, 0.25)
+
+[node name="TestArena" type="Node3D"]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-55, -35, 0)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="Floor" type="StaticBody3D" parent="."]
+collision_layer = 1
+
+[node name="Mesh" type="MeshInstance3D" parent="Floor"]
+mesh = SubResource("FloorMesh")
+
+[node name="Collision" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("FloorShape")
+
+[node name="CubeA" type="MeshInstance3D" parent="."]
+position = Vector3(-8, 1, -4)
+mesh = SubResource("CubeMesh")
+
+[node name="CubeB" type="MeshInstance3D" parent="."]
+position = Vector3(5, 1, 7)
+mesh = SubResource("CubeMesh")
+
+[node name="NorthWall" type="MeshInstance3D" parent="."]
+position = Vector3(0, 1.5, -16)
+mesh = SubResource("WallMesh")
+
+[node name="DoorPlaceholder" type="MeshInstance3D" parent="."]
+position = Vector3(0, 1.2, -15.65)
+mesh = SubResource("DoorMesh")
+
