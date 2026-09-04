@@ -2,10 +2,9 @@
 
 This directory contains the Godot 4.6 runtime for the tactical RPG. The
 current implementation covers the A0 foundation, deterministic A-0 simulation
-spike, and the A1 camera/locomotion prototype. The playable 64×64 m test arena
-now has a tactical camera, navigation region, obstacle route, and a direct
-click-to-move CharacterBody3D controller. This controller is explicitly
-presentation-side only; A2 will replace it with Command/Event playback.
+spike, A1 camera/locomotion prototype, and A2 simulation-to-presentation
+integration. The playable 64×64 m test arena has a tactical camera, navigation
+region, obstacle route, and click-to-move playback through Command/Event.
 
 The main architectural rule is that authoritative gameplay state belongs in
 `sim/`, independently of scenes and Godot nodes. Engine-facing code will live
@@ -28,7 +27,8 @@ Contains hand-authored Godot scenes.
   floor, cubes, wall, door placeholder, collision, and directional light, plus
   the A1 `CameraRig -> Pivot -> Camera3D` hierarchy, a visible capsule
   character, navigation mesh, a central pathfinding obstacle, and destination/
-  path debug visuals.
+  path debug visuals. A2 adds `EventPlayer`; the character is now a
+  presentation-only `CharacterView`.
 
 ### `sim/`
 
@@ -67,8 +67,8 @@ Core files:
 
 Defines the interfaces the pure simulation needs from the engine-facing
 world. `nav_provider.gd` abstracts path queries and movement cost, while
-`los_provider.gd` abstracts line-of-sight queries. Concrete Godot adapters will
-be added under `world/`; tests use fakes.
+`los_provider.gd` abstracts line-of-sight queries. Concrete Godot adapters live
+under `world/`; tests use fakes.
 
 ### `tests/`
 
@@ -79,22 +79,25 @@ Contains the lightweight headless test runner and its suites.
 - `test_helpers.gd` creates repeatable battle fixtures, applies resolution
   results, and serializes event logs consistently.
 - `unit/test_simulation.gd` checks cloning, deterministic resolution,
-  non-mutation, event application, and rejection behavior.
+  snapshot-hash purity, serialization round-trips, event application, and
+  navigation rejection behavior.
 - `deterministic/test_replay.gd` runs independent seed-42 simulations 1,000
   times and compares their event-log hashes. It also verifies that seed 43 can
   produce a different result.
 - `integration/test_headless_contract.gd` exercises command resolution and
   application together without a scene.
+- `integration/test_arena_runtime.gd` exercises terrain-input Command creation,
+  EventPlayer/CharacterView playback, replacement, rejection, and obstacle
+  routing in the main scene.
 - `fakes/` contains predictable navigation and line-of-sight implementations
   used by the test suites.
 
 ### Reserved directories
 
-- `world/` contains the A1 direct prototype controller and an engine-independent
-  locomotion follower, and is reserved for later Godot-backed navigation,
-  line-of-sight, physics, terrain, and other world adapters.
-- `view/` contains the A1 tactical camera and is reserved for later animation,
-  visual effects, UI, and other presentation code.
+- `world/` contains the A2 Godot navigation and line-of-sight provider adapters,
+  the arena input/composition controller, and the A1 path-following utility.
+- `view/` contains the tactical camera plus `EventPlayer` and `CharacterView`.
+  It interpolates accepted movement events but does not make simulation rules.
 - `ai/` is reserved for enemy decision-making built on top of simulation
   commands.
 - `data/actors/`, `data/abilities/`, and `data/conditions/` are reserved for
@@ -115,7 +118,9 @@ Open `res://scenes/test_arena.tscn` to inspect the current arena. In play mode:
 
 - `W`, `A`, `S`, `D` pan the camera;
 - middle-mouse drag pans; mouse wheel zooms; `Q`/`E` rotate;
-- left-click terrain to set or replace the character destination.
+- left-click terrain to create or replace a move Command. Accepted events update
+  the authoritative state immediately; `EventPlayer` then interpolates the
+  exact resolved path on the character view.
 
 The `NavigationRegion3D` holds the authored navigation mesh; enable navigation
 debug visibility in the editor to inspect its walkable surface and the gap

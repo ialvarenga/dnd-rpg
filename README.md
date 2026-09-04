@@ -1,8 +1,8 @@
 # Deterministic Tactical RPG
 
-The current milestone is A0 plus Spike A-0: a headless, deterministic combat
-simulation and a hand-built 64×64 m test arena. It deliberately contains no
-camera, navigation-server integration, or gameplay presentation yet.
+The current milestone is A2: a headless, deterministic simulation integrated
+with a hand-built 64×64 m playable test arena. Terrain clicks resolve to
+commands and events; Godot presentation plays only accepted movement paths.
 
 ## Requirements
 
@@ -24,8 +24,8 @@ headless checks. It exits non-zero on failure.
 ## Layout
 
 - `godot/sim/` is the authoritative pure simulation.
-- `godot/world/` will contain engine-backed provider adapters in later phases.
-- `godot/view/` is reserved for presentation.
+- `godot/world/` contains engine-backed navigation/LOS adapters and arena input.
+- `godot/view/` contains presentation-only camera and event playback.
 - `docs/ADR/` records architectural decisions.
 
 See [implementation_plan.md](implementation_plan.md) for the project plan.

@@ -1937,6 +1937,8 @@ Movimento robusto com:
 
 # Fase A2 — Integração simulação ↔ apresentação
 
+**Status:** implementação concluída — integração de movimento por Command/Event, adapters Godot e testes headless implementados; a validação requer Godot 4.6.x.
+
 ## Refatoração
 
 Antes:
@@ -1971,13 +1973,13 @@ CharacterView
 
 ## Implementar
 
-- production BattleState;
-- ActorState;
-- Resolver;
-- ResolutionResult;
-- GodotNavProvider;
-- GodotLosProvider;
-- EventPlayer.
+- [x] production BattleState;
+- [x] ActorState;
+- [x] Resolver;
+- [x] ResolutionResult;
+- [x] GodotNavProvider;
+- [x] GodotLosProvider;
+- [x] EventPlayer.
 
 ---
 
@@ -1990,6 +1992,8 @@ hash(state before)
 ==
 hash(state after resolve)
 ```
+
+- [x] snapshot/hash before and after resolve are identical.
 
 ---
 
@@ -2007,6 +2011,8 @@ from_dict
 same semantic state
 ```
 
+- [x] BattleState, Command, ResolutionResult and Event JSON round-trips preserve semantic data.
+
 ---
 
 ### Navigation reject
@@ -2017,6 +2023,8 @@ Target completamente não navegável:
 command_rejected
 ```
 
+- [x] non-navigable targets emit `command_rejected` without moving state or view.
+
 ---
 
 ## DoD
@@ -2024,6 +2032,9 @@ command_rejected
 Visualmente A1 continua funcionando.
 
 Arquiteturalmente nenhum clique move Node diretamente.
+
+- [x] accepted movement reaches `CharacterView` through `EventPlayer`.
+- [x] target replacement remains on the Command/Event path.
 
 ---
 

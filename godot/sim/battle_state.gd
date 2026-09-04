@@ -59,5 +59,42 @@ func stable_snapshot() -> Dictionary:
 		"phase": String(phase),
 		"rng_seed": rng_seed,
 		"rng_state": rng_state,
+		"world_flags": SimulationSerialization.value_to_data(world_flags),
 	}
 
+
+func to_dict() -> Dictionary:
+	var actor_data: Array[Dictionary] = []
+	var actor_ids: Array = actors.keys()
+	actor_ids.sort()
+	for actor_id_variant in actor_ids:
+		actor_data.append((actors[actor_id_variant] as ActorState).to_dict())
+	return {
+		"actors": actor_data,
+		"initiative_order": initiative_order.duplicate(),
+		"current_turn_index": current_turn_index,
+		"round_number": round_number,
+		"phase": String(phase),
+		"rng_seed": rng_seed,
+		"rng_state": rng_state,
+		"world_flags": SimulationSerialization.value_to_data(world_flags),
+	}
+
+
+static func from_dict(data: Dictionary) -> BattleState:
+	var state := BattleState.new()
+	for actor_data in data.get("actors", []):
+		if actor_data is Dictionary:
+			var actor := ActorState.from_dict(actor_data)
+			state.actors[actor.id] = actor
+	for actor_id in data.get("initiative_order", []):
+		state.initiative_order.append(int(actor_id))
+	state.current_turn_index = int(data.get("current_turn_index", 0))
+	state.round_number = int(data.get("round_number", 1))
+	state.phase = StringName(str(data.get("phase", "exploration")))
+	state.rng_seed = int(data.get("rng_seed", 0))
+	state.rng_state = int(data.get("rng_state", 0))
+	var restored_flags: Variant = SimulationSerialization.data_to_value(data.get("world_flags", {}))
+	if restored_flags is Dictionary:
+		state.world_flags = restored_flags
+	return state

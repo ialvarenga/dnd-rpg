@@ -62,3 +62,63 @@ func clone() -> ActorState:
 func is_alive() -> bool:
 	return hp > 0 and not conditions.has(&"dead")
 
+
+func to_dict() -> Dictionary:
+	return {
+		"id": id,
+		"side": String(side),
+		"position": SimulationSerialization.value_to_data(position),
+		"hp": hp,
+		"max_hp": max_hp,
+		"armor_class": armor_class,
+		"strength": strength,
+		"dexterity": dexterity,
+		"constitution": constitution,
+		"intelligence": intelligence,
+		"wisdom": wisdom,
+		"charisma": charisma,
+		"proficiency_bonus": proficiency_bonus,
+		"movement_speed": movement_speed,
+		"movement_remaining": movement_remaining,
+		"action_available": action_available,
+		"bonus_action_available": bonus_action_available,
+		"reaction_available": reaction_available,
+		"conditions": SimulationSerialization.value_to_data(conditions),
+		"disengaged": disengaged,
+		"attack_bonus": attack_bonus,
+		"damage_die": damage_die,
+		"damage_modifier": damage_modifier,
+	}
+
+
+static func from_dict(data: Dictionary) -> ActorState:
+	var actor := ActorState.new()
+	actor.id = int(data.get("id", -1))
+	actor.side = StringName(str(data.get("side", "neutral")))
+	var restored_position: Variant = SimulationSerialization.data_to_value(data.get("position", {}))
+	if restored_position is Vector3:
+		actor.position = restored_position
+	actor.hp = int(data.get("hp", 1))
+	actor.max_hp = int(data.get("max_hp", 1))
+	actor.armor_class = int(data.get("armor_class", 10))
+	actor.strength = int(data.get("strength", 10))
+	actor.dexterity = int(data.get("dexterity", 10))
+	actor.constitution = int(data.get("constitution", 10))
+	actor.intelligence = int(data.get("intelligence", 10))
+	actor.wisdom = int(data.get("wisdom", 10))
+	actor.charisma = int(data.get("charisma", 10))
+	actor.proficiency_bonus = int(data.get("proficiency_bonus", 2))
+	actor.movement_speed = float(data.get("movement_speed", 9.0))
+	actor.movement_remaining = float(data.get("movement_remaining", 9.0))
+	actor.action_available = bool(data.get("action_available", true))
+	actor.bonus_action_available = bool(data.get("bonus_action_available", true))
+	actor.reaction_available = bool(data.get("reaction_available", true))
+	var restored_conditions: Variant = SimulationSerialization.data_to_value(data.get("conditions", []))
+	if restored_conditions is Array:
+		for condition in restored_conditions:
+			actor.conditions.append(StringName(str(condition)))
+	actor.disengaged = bool(data.get("disengaged", false))
+	actor.attack_bonus = int(data.get("attack_bonus", 0))
+	actor.damage_die = int(data.get("damage_die", 6))
+	actor.damage_modifier = int(data.get("damage_modifier", 0))
+	return actor

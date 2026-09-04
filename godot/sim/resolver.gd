@@ -10,9 +10,9 @@ static func resolve(state: BattleState, cmd: Command, nav: NavProvider, los: Los
 
 	if not state.actors.has(cmd.actor_id):
 		return _rejected(result, cmd, "unknown_actor")
-	if state.phase != &"combat":
+	if cmd.type != &"move" and state.phase != &"combat":
 		return _rejected(result, cmd, "not_in_combat")
-	if state.current_actor_id() != cmd.actor_id:
+	if state.phase == &"combat" and state.current_actor_id() != cmd.actor_id:
 		return _rejected(result, cmd, "not_current_actor")
 
 	match cmd.type:
@@ -34,18 +34,20 @@ static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, re
 	if path.is_empty() or not nav.is_reachable(actor.position, cmd.target_pos):
 		return _rejected(result, cmd, "unreachable")
 	var cost := nav.path_cost(path)
-	if cost > actor.movement_remaining + 0.0001:
+	if state.phase == &"combat" and cost > actor.movement_remaining + 0.0001:
 		return _rejected(result, cmd, "insufficient_movement")
+	var resolved_destination: Vector3 = path[path.size() - 1]
 	result.events.append(Event.create(&"movement_segment", {
 		"actor_id": actor.id,
 		"from": actor.position,
-		"to": cmd.target_pos,
+		"to": resolved_destination,
 		"path": path,
 	}))
-	result.events.append(Event.create(&"movement_spent", {
-		"actor_id": actor.id,
-		"amount": cost,
-	}))
+	if state.phase == &"combat":
+		result.events.append(Event.create(&"movement_spent", {
+			"actor_id": actor.id,
+			"amount": cost,
+		}))
 	return result
 
 
@@ -157,4 +159,3 @@ static func apply(state: BattleState, event: Event) -> void:
 			turn_actor.bonus_action_available = event.data["bonus_action_available"]
 			turn_actor.reaction_available = event.data["reaction_available"]
 			turn_actor.disengaged = event.data["disengaged"]
-

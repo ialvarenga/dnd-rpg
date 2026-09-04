@@ -1,8 +1,9 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://world/test_arena_controller.gd" id="1_arena"]
 [ext_resource type="Script" path="res://view/tactical_camera_rig.gd" id="2_camera"]
-[ext_resource type="Script" path="res://world/prototype_character_controller.gd" id="3_character"]
+[ext_resource type="Script" path="res://view/character_view.gd" id="3_character"]
+[ext_resource type="Script" path="res://view/event_player.gd" id="4_event_player"]
 
 [sub_resource type="StandardMaterial3D" id="FloorMaterial"]
 albedo_color = Color(0.18, 0.28, 0.2, 1)
@@ -127,11 +128,8 @@ shape = SubResource("CharacterShape")
 [node name="Mesh" type="MeshInstance3D" parent="PlayerCharacter"]
 mesh = SubResource("CharacterMesh")
 
-[node name="NavigationAgent3D" type="NavigationAgent3D" parent="PlayerCharacter"]
-path_desired_distance = 0.3
-target_desired_distance = 0.3
-path_height_offset = 0.0
-avoidance_enabled = false
+[node name="EventPlayer" type="Node" parent="."]
+script = ExtResource("4_event_player")
 
 [node name="CameraRig" type="Node3D" parent="."]
 script = ExtResource("2_camera")
@@ -160,8 +158,8 @@ material_override = SubResource("PathMaterial")
 offset_left = 16.0
 offset_top = 16.0
 offset_right = 310.0
-offset_bottom = 76.0
+offset_bottom = 94.0
 
 [node name="Label" type="Label" parent="DebugOverlay/Panel"]
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
-text = "Destination: --\nVelocity: --"
+text = "Command: --\nDestination: --\nVelocity: --"
