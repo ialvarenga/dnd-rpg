@@ -4,7 +4,8 @@ This directory contains the Godot 4.6 runtime for the tactical RPG. The
 current implementation covers the A0 foundation, deterministic A-0 simulation
 spike, A1 camera/locomotion prototype, A2 simulation-to-presentation
 integration, A3 authoritative movement budgets, A4 authoritative turns, and
-A5 actions/combat, plus A6's bounded utility enemy AI.
+A5 actions/combat, A6's bounded utility enemy AI, A7's data-driven
+ability/condition definitions, and A8's save/load/replay.
 The playable 64×64 m test arena has a tactical camera, navigation region,
 obstacle route, hover preview, and click-to-move playback through
 Command/Event.
@@ -72,6 +73,24 @@ Core files:
 - `polyline.gd` provides the pure path-length and exact-distance clamp helpers
   used as the authoritative movement-cost source.
 - `dice.gd` provides deterministic dice rolls from an explicit RNG state.
+- `save_game.gd` is the authoritative save snapshot: `schema_version`,
+  `game_version`, `rules_version`, `content_version`, `map_id`,
+  `battle_state`, and a `world_state` placeholder reserved for A9
+  interactable state. `is_compatible()` checks all three version stamps
+  before a caller trusts a loaded save.
+- `replay_log.gd` is a separate, non-authoritative debug/regression
+  artifact: an `initial_snapshot`, the exact `commands` resolved against it,
+  and a hash of the resulting events after each one. `find_divergences()`
+  re-resolves the same commands from a fresh clone and flags any command
+  whose replayed hash no longer matches what was recorded.
+
+#### `sim/definitions/`
+
+Data-driven ability/condition content (A7). `AbilityDefinition` and
+`ConditionDefinition` are Godot Resources with a stable id, explicit costs,
+and typed effects/modifiers; `DefinitionLibrary` indexes them from a fixed
+manifest (no directory scanning) and is the single place the resolver and
+`ActorState` look up content instead of branching on ids.
 
 #### `sim/ports/`
 
@@ -112,13 +131,24 @@ Contains the lightweight headless test runner and its suites.
 - `integration/test_arena_runtime.gd` exercises terrain-input Command creation,
   EventPlayer/CharacterView playback, replacement, rejection, and obstacle
   routing in the main scene.
+- `unit/test_save_game.gd` checks `SaveGame` round-tripping a mid-combat
+  state (HP, position, movement, action/bonus/reaction resources,
+  conditions, `disengaged`, RNG state, `world_flags`/`world_state`) and
+  `is_compatible()` detecting schema/rules/content version drift.
+- `deterministic/test_replay_log.gd` records a `ReplayLog` through a short
+  combat sequence, checks that `find_divergences()` reports nothing for a
+  clean replay and exactly the tampered index for a corrupted hash, and
+  that the log still replays clean after a serialization round-trip.
+- `integration/test_save_load_service.gd` exercises real `FileAccess`/
+  `DirAccess` under `user://`, cleaning up the slot it wrote afterward.
 - `fakes/` contains predictable navigation and line-of-sight implementations
   used by the test suites.
 
 ### Reserved directories
 
-- `world/` contains the A2 Godot navigation and line-of-sight provider adapters,
-  the arena input/composition controller, and the A1 path-following utility.
+- `world/` contains the A2 Godot navigation and line-of-sight provider
+  adapters, the arena input/composition controller, the A1 path-following
+  utility, and the A8 `SaveLoadService` file I/O adapter.
 - `view/` contains the tactical camera plus `EventPlayer` and `CharacterView`.
   It interpolates accepted movement events but does not make simulation rules.
 - `data/actors/`, `data/abilities/`, and `data/conditions/` are reserved for

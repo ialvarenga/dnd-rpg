@@ -4,6 +4,12 @@ extends RefCounted
 ## A5 remains a pure command resolver. Movement reactions use a clone solely
 ## to determine subsequent events; callers change BattleState only via apply.
 
+## Bumped whenever resolution/rule semantics change in a way that could alter
+## outcomes for the same state+command, so saves and replay logs (A8) can
+## detect an incompatible resolver instead of silently reinterpreting old
+## commands/state under new rules.
+const RULES_VERSION: int = 1
+
 const ATTACK_RANGE_METERS := 1.5
 const THREAT_RANGE_METERS := 1.5
 const MOVEMENT_EPSILON := 0.0001

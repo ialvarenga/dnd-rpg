@@ -68,7 +68,7 @@ func _candidate_commands(actor: ActorState, targets: Array[ActorState]) -> Array
 				attack.target_id = target.id
 				commands.append(attack)
 	for target in targets:
-		var destination := _useful_approach_destination(actor, target)
+		var destination: Variant = _useful_approach_destination(actor, target)
 		if destination != null:
 			var move := Command.create(&"move", actor.id)
 			move.target_pos = destination

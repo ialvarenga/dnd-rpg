@@ -2616,6 +2616,21 @@ modifiers:
 
 # Fase A8 — Save / Load / Replay
 
+**Status:** implementação concluída — `SaveGame` (snapshot autoritativo,
+`sim/save_game.gd`) e `ReplayLog` (artefato de replay/debug,
+`sim/replay_log.gd`) como classes puras em `sim/`, com `to_dict`/`from_dict`
+reaproveitando `BattleState`/`Command`/`Event` e `SimulationSerialization`
+já existentes de A2; `world/save_load_service.gd` isola toda a I/O de
+arquivo (`FileAccess`/`DirAccess` sob `user://saves` e `user://replays`),
+mantendo `sim/` livre de I/O. Suíte headless completa
+(`godot --headless --script res://tests/test_runner.gd`, validada nesta
+sessão com Godot 4.6.3) verde, incluindo `unit/test_save_game`,
+`deterministic/test_replay_log` e `integration/test_save_load_service`
+(novos). Também corrigido nesta sessão um bug pré-existente em A6
+(`ai/enemy_ai.gd`) que quebrava silenciosamente `EnemyAI` — a suíte
+`unit/test_enemy_ai` reportava PASS mesmo com todo `EnemyAI.new()` falhando
+em runtime.
+
 ## Snapshot save
 
 Formato primário:
@@ -2703,6 +2718,34 @@ Save mid-combat restaura:
 - reactions;
 - RNG state;
 - interactable state.
+
+## Implementado
+
+- [x] `SaveGame` como snapshot autoritativo (`schema_version`, `game_version`,
+  `rules_version`, `content_version`, `map_id`, `battle_state`,
+  `world_state`), serializado via `to_dict`/`from_dict` sobre o
+  `BattleState.to_dict`/`from_dict` já existente de A2;
+- [x] `world_state` reservado como campo de topo vazio, pronto para os
+  estados de interactable de A9 sem quebra de schema;
+- [x] `SaveGame.is_compatible()` valida `schema_version`, `rules_version`
+  (`Resolver.RULES_VERSION`, novo) e `content_version`
+  (`DefinitionLibrary.CONTENT_VERSION`) antes de confiar num save carregado;
+- [x] `ReplayLog` como artefato de replay/debug separado
+  (`initial_snapshot`, `commands`, `event_hashes`), com
+  `append_command()` gravado a cada comando realmente resolvido durante o
+  jogo e `find_divergences()` re-resolvendo a partir de um clone do
+  snapshot inicial para comparar hashes -- detector de regressão de
+  resolver/conteúdo;
+- [x] `world/save_load_service.gd` isola toda I/O (`FileAccess`/`DirAccess`
+  sob `user://saves` e `user://replays`) fora de `sim/`, seguindo a mesma
+  separação de `GodotNavProvider`/`GodotLosProvider`;
+- [x] round-trip de save mid-combate cobre HP, posições, turno/rodada,
+  movimento restante, recursos de ação/bônus/reação, condições,
+  `disengaged` e `rng_state`, incluindo o caso de round-trip pelo disco via
+  `SaveLoadService`;
+- [x] testes headless novos (`unit/test_save_game`,
+  `deterministic/test_replay_log`, `integration/test_save_load_service`),
+  suíte completa A2-A8 validada com Godot 4.6.3 nesta sessão.
 
 ---
 
