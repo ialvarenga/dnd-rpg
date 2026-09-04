@@ -2519,6 +2519,16 @@ Enemy:
 
 # Fase A7 — Data-driven definitions
 
+**Status:** implementação concluída — `AbilityDefinition`/`ConditionDefinition`
+como Godot Resources (`.tres`) sob `data/abilities` e `data/conditions`,
+indexados por `DefinitionLibrary`; Resolver executa efeitos genéricos
+(`add_base_movement`, `apply_disengage`, `apply_condition`,
+`remove_condition`, `perform_attack`) em vez de ramificar por id de
+habilidade/condição. Decisão de formato registrada em
+`docs/ADR/ADR-004-data-driven-definitions.md`; suíte headless completa
+(`godot --headless --script res://tests/test_runner.gd`) validada nesta
+sessão, incluindo `unit/test_definitions` (novo) e regressão A3-A6.
+
 ## Goal
 
 Separar regra genérica de conteúdo.
@@ -2571,6 +2581,36 @@ modifiers:
   attack_roll:
     disadvantage: true
 ```
+
+---
+
+## Implementado
+
+- [x] `AbilityDefinition`/`AbilityEffect`/`ConditionDefinition` como Godot
+  Resources (`sim/definitions/`), com id estável, custos explícitos
+  (action/bonus_action/reaction/movement) e modificadores tipados;
+- [x] `DefinitionLibrary` como fonte única de verdade, indexada por id,
+  carregada de um manifesto fixo de `.tres` sob `data/abilities` e
+  `data/conditions` (sem scan de diretório, determinístico);
+- [x] Basic Attack, Dash, Disengage, Poisoned, Prone, Unconscious e Dead
+  migrados como conteúdo de dados;
+- [x] Resolver executa `effects` por tipo genérico
+  (`add_base_movement`, `apply_disengage`, `apply_condition`,
+  `remove_condition`, `perform_attack`) em vez de ramificar por id de
+  habilidade; modificadores de condição (disadvantage, advantage, prone,
+  unconscious, dead) lidos via `DefinitionLibrary` em vez de
+  `conditions.has(&"poisoned")` literais;
+- [x] `Resolver.resolve()` aceita um `DefinitionLibrary` opcional
+  (default = biblioteca padrão), preservando todos os call sites A2-A6
+  sem alteração e permitindo testes com bibliotecas alternativas;
+- [x] ids de habilidade/condição desconhecidos rejeitados deterministicamente
+  (`command_rejected` com motivo `unknown_ability_definition`; ids de
+  condição desconhecidos são ignorados de forma segura nos modificadores);
+- [x] `BattleState.content_version` (default = `DefinitionLibrary.CONTENT_VERSION`)
+  serializado em `to_dict`/`from_dict`, pronto para validação em A8;
+- [x] testes headless novos (`unit/test_definitions`) e replay determinístico
+  estendido (`deterministic/test_replay`) cobrindo dash/poisoned via dados,
+  ids desconhecidos e paridade de hash/RNG; suíte completa A3-A7 verde.
 
 ---
 

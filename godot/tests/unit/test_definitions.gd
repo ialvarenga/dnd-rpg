@@ -1,0 +1,148 @@
+class_name TestDefinitions
+extends RefCounted
+
+## A7: proves abilities/conditions are actually resolved from data (not
+## hardcoded ids), that unknown definition ids are rejected deterministically,
+## and that BattleState carries a content_version.
+
+static func run() -> Dictionary:
+	var failures: Array[String] = []
+	_test_dash_resolved_from_default_definition(failures)
+	_test_dash_effect_magnitude_comes_from_definition_data(failures)
+	_test_poisoned_resolved_from_default_definition(failures)
+	_test_poisoned_modifier_comes_from_definition_data(failures)
+	_test_unknown_ability_definition_is_rejected_deterministically(failures)
+	_test_unknown_condition_id_is_ignored_safely(failures)
+	_test_definition_library_ignores_definitions_with_missing_id(failures)
+	_test_content_version_round_trip(failures)
+	return {"name": "unit/test_definitions", "failures": failures}
+
+
+static func _test_dash_resolved_from_default_definition(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle()
+	var hero: ActorState = state.actors[1]
+	var result := Resolver.resolve(state, Command.create(&"dash", 1), FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(result.events.size() == 2 and result.events[0].type == &"action_spent" and result.events[1].type == &"movement_gained", "dash did not resolve action/movement events from its definition", failures)
+	_expect(is_equal_approx(float(result.events[1].data["amount"]), hero.movement_speed), "dash's default definition did not grant a full movement_speed of movement", failures)
+
+
+static func _test_dash_effect_magnitude_comes_from_definition_data(failures: Array[String]) -> void:
+	# A custom library with a "dash" whose multiplier is data-authored to 2.0
+	# proves the resolver reads the amount from the definition instead of a
+	# hardcoded "+movement_speed" branch keyed on the ability id.
+	var custom := DefinitionLibrary.new()
+	custom.add_ability(_make_ability(&"dash", true, [_make_effect(&"add_base_movement", 2.0)]))
+	var state := TestHelpers.make_battle()
+	var hero: ActorState = state.actors[1]
+	var result := Resolver.resolve(state, Command.create(&"dash", 1), FakeNavProvider.new(), FakeLosProvider.new(), custom)
+	_expect(is_equal_approx(float(result.events[1].data["amount"]), hero.movement_speed * 2.0), "dash did not use the injected definition's multiplier", failures)
+
+
+static func _test_poisoned_resolved_from_default_definition(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle()
+	(state.actors[1] as ActorState).conditions.append(&"poisoned")
+	var attack := Command.create(&"attack", 1)
+	attack.target_id = 2
+	var result := Resolver.resolve(state, attack, FakeNavProvider.new(), FakeLosProvider.new())
+	var rolls: Array = result.events[0].data["rolls"]
+	_expect(result.events[0].data["disadvantage"] and rolls.size() == 2, "poisoned's default definition did not apply attack-roll disadvantage", failures)
+
+
+static func _test_poisoned_modifier_comes_from_definition_data(failures: Array[String]) -> void:
+	# A custom library redefines "poisoned" WITHOUT the disadvantage modifier.
+	# If the resolver still branched on the literal id this would still show
+	# disadvantage; reading the definition means it must not.
+	var custom := DefinitionLibrary.new()
+	var condition := ConditionDefinition.new()
+	condition.id = &"poisoned"
+	condition.attack_roll_disadvantage = false
+	custom.add_condition(condition)
+	custom.add_ability(_make_ability(&"basic_attack", true, [_make_attack_effect()]))
+	var state := TestHelpers.make_battle()
+	(state.actors[1] as ActorState).conditions.append(&"poisoned")
+	var attack := Command.create(&"attack", 1)
+	attack.target_id = 2
+	var result := Resolver.resolve(state, attack, FakeNavProvider.new(), FakeLosProvider.new(), custom)
+	var rolls: Array = result.events[0].data["rolls"]
+	_expect(not result.events[0].data["disadvantage"] and rolls.size() == 1, "poisoned kept disadvantage even though the injected definition removed it", failures)
+
+
+static func _test_unknown_ability_definition_is_rejected_deterministically(failures: Array[String]) -> void:
+	var empty_library := DefinitionLibrary.new()
+	var state := TestHelpers.make_battle()
+	var before_hash := JSON.stringify(state.stable_snapshot()).md5_text()
+	var first := Resolver.resolve(state, Command.create(&"dash", 1), FakeNavProvider.new(), FakeLosProvider.new(), empty_library)
+	var second := Resolver.resolve(state, Command.create(&"dash", 1), FakeNavProvider.new(), FakeLosProvider.new(), empty_library)
+	_expect(first.events.size() == 1 and first.events[0].type == &"command_rejected" and first.events[0].data["reason"] == &"unknown_ability_definition", "missing ability definition was not rejected deterministically", failures)
+	_expect(TestHelpers.event_log_entry(first) == TestHelpers.event_log_entry(second), "missing ability definition rejection was not deterministic across identical calls", failures)
+	_expect(JSON.stringify(state.stable_snapshot()).md5_text() == before_hash, "unknown ability definition rejection mutated BattleState", failures)
+
+	var unknown_attack_state := TestHelpers.make_battle()
+	var attack := Command.create(&"attack", 1)
+	attack.target_id = 2
+	var attack_rejection := Resolver.resolve(unknown_attack_state, attack, FakeNavProvider.new(), FakeLosProvider.new(), empty_library)
+	_expect(attack_rejection.events[0].data["reason"] == &"unknown_ability_definition", "missing basic_attack definition was not rejected deterministically", failures)
+
+
+static func _test_unknown_condition_id_is_ignored_safely(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle()
+	var enemy: ActorState = state.actors[2]
+	enemy.conditions.append(&"not_a_real_condition")
+	_expect(enemy.is_alive() and enemy.is_conscious() and not enemy.is_prone(), "an unrecognized condition id changed actor eligibility", failures)
+	var attack := Command.create(&"attack", 1)
+	attack.target_id = 2
+	var result := Resolver.resolve(state, attack, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(not result.events[0].data["advantage"] and not result.events[0].data["disadvantage"], "an unrecognized condition id affected attack-roll modifiers", failures)
+
+
+static func _test_definition_library_ignores_definitions_with_missing_id(failures: Array[String]) -> void:
+	var library := DefinitionLibrary.new()
+	library.add_ability(_make_ability(&"", true, []))
+	library.add_condition(ConditionDefinition.new())
+	_expect(library.abilities.is_empty() and library.conditions.is_empty(), "DefinitionLibrary stored a definition with an empty stable id", failures)
+
+
+static func _test_content_version_round_trip(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle()
+	_expect(state.content_version == DefinitionLibrary.CONTENT_VERSION, "BattleState did not default to the current content_version", failures)
+	var restored := BattleState.from_dict(_json_dictionary(state.to_dict()))
+	_expect(restored.content_version == state.content_version, "content_version did not survive a to_dict/from_dict round trip", failures)
+	var default_library := DefinitionLibrary.get_default()
+	_expect(default_library.is_compatible_content_version(state.content_version), "default library rejected its own content_version", failures)
+	_expect(not default_library.is_compatible_content_version(state.content_version + 1), "default library accepted a mismatched content_version", failures)
+
+
+static func _make_effect(type: StringName, multiplier: float) -> AbilityEffect:
+	var effect := AbilityEffect.new()
+	effect.type = type
+	effect.multiplier = multiplier
+	return effect
+
+
+static func _make_attack_effect() -> AbilityEffect:
+	var effect := AbilityEffect.new()
+	effect.type = &"perform_attack"
+	effect.range_meters = 1.5
+	effect.is_ranged = false
+	effect.attack_kind = &"basic"
+	return effect
+
+
+static func _make_ability(id: StringName, costs_action: bool, effects: Array[AbilityEffect]) -> AbilityDefinition:
+	var ability := AbilityDefinition.new()
+	ability.id = id
+	ability.costs_action = costs_action
+	ability.effects = effects
+	return ability
+
+
+static func _json_dictionary(data: Dictionary) -> Dictionary:
+	var parsed: Variant = JSON.parse_string(JSON.stringify(data))
+	if parsed is Dictionary:
+		return parsed
+	return {}
+
+
+static func _expect(condition: bool, message: String, failures: Array[String]) -> void:
+	if not condition:
+		failures.append(message)

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ConditionDefinition" format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/condition_definition.gd" id="1_jgnpd"]
+
+[resource]
+script = ExtResource("1_jgnpd")
+id = &"poisoned"
+display_name = "Poisoned"
+tags = Array[StringName]([&"condition.poisoned"])
+attack_roll_disadvantage = true

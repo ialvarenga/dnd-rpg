@@ -60,17 +60,27 @@ func clone() -> ActorState:
 
 
 func is_alive() -> bool:
-	return hp > 0 and not conditions.has(&"dead")
+	return hp > 0 and not _has_condition_flag(&"ends_life")
 
 
 func is_conscious() -> bool:
-	return is_alive() and not conditions.has(&"unconscious")
+	return is_alive() and not _has_condition_flag(&"prevents_actions")
 
 
 func is_prone() -> bool:
-	# Unconscious actors are prone for the small A5 ruleset without needing a
-	# second, redundant condition entry in their serialized state.
-	return conditions.has(&"prone") or conditions.has(&"unconscious")
+	# Both "prone" and "unconscious" flag counts_as_prone in their
+	# ConditionDefinition, so an unconscious actor is prone here without
+	# needing a second, redundant condition entry in their serialized state.
+	return _has_condition_flag(&"counts_as_prone")
+
+
+func _has_condition_flag(flag_name: StringName) -> bool:
+	var library := DefinitionLibrary.get_default()
+	for condition_id in conditions:
+		var definition := library.get_condition(condition_id)
+		if definition != null and bool(definition.get(flag_name)):
+			return true
+	return false
 
 
 func to_dict() -> Dictionary:

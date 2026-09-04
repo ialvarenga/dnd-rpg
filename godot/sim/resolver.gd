@@ -12,8 +12,25 @@ const EncounterRules = preload("res://sim/rules/encounter.gd")
 const InitiativeRules = preload("res://sim/rules/initiative.gd")
 const TurnOrderRules = preload("res://sim/rules/turn_order.gd")
 
+## Command type -> AbilityDefinition id. Command types stay a small, fixed
+## routing vocabulary; the actual ability content (costs/effects) always comes
+## from the looked-up AbilityDefinition, never from branching on this id.
+const COMMAND_ABILITY_IDS := {
+	&"attack": &"basic_attack",
+	&"basic_attack": &"basic_attack",
+	&"dash": &"dash",
+	&"disengage": &"disengage",
+}
 
-static func resolve(state: BattleState, cmd: Command, nav: NavProvider, los: LosProvider) -> ResolutionResult:
+const EFFECT_ADD_BASE_MOVEMENT := &"add_base_movement"
+const EFFECT_APPLY_CONDITION := &"apply_condition"
+const EFFECT_REMOVE_CONDITION := &"remove_condition"
+const EFFECT_APPLY_DISENGAGE := &"apply_disengage"
+const EFFECT_PERFORM_ATTACK := &"perform_attack"
+
+
+static func resolve(state: BattleState, cmd: Command, nav: NavProvider, los: LosProvider, defs: DefinitionLibrary = null) -> ResolutionResult:
+	var definitions := defs if defs != null else DefinitionLibrary.get_default()
 	var result := ResolutionResult.new()
 	result.next_rng_state = state.rng_state
 	if not state.actors.has(cmd.actor_id):
@@ -23,18 +40,18 @@ static func resolve(state: BattleState, cmd: Command, nav: NavProvider, los: Los
 	if cmd.type == &"end_combat":
 		return _resolve_end_combat(state, cmd, result)
 	if cmd.type == &"move" and state.phase == EncounterRules.EXPLORATION:
-		return _resolve_move(state, cmd, nav, los, result)
+		return _resolve_move(state, cmd, nav, los, definitions, result)
 	if state.phase != EncounterRules.COMBAT:
 		return _rejected(result, cmd, "not_in_combat")
 	if state.current_actor_id() != cmd.actor_id:
 		return _rejected(result, cmd, "not_current_actor")
-	match cmd.type:
-		&"move": return _resolve_move(state, cmd, nav, los, result)
-		&"attack", &"basic_attack": return _resolve_attack(state, cmd, los, result)
-		&"dash": return _resolve_dash(state, cmd, result)
-		&"disengage": return _resolve_disengage(state, cmd, result)
-		&"end_turn": return _resolve_end_turn(state, cmd, result)
-		_: return _rejected(result, cmd, "unsupported_command")
+	if cmd.type == &"move":
+		return _resolve_move(state, cmd, nav, los, definitions, result)
+	if cmd.type == &"end_turn":
+		return _resolve_end_turn(state, cmd, result)
+	if COMMAND_ABILITY_IDS.has(cmd.type):
+		return _resolve_ability_command(state, cmd, los, definitions, result, COMMAND_ABILITY_IDS[cmd.type])
+	return _rejected(result, cmd, "unsupported_command")
 
 
 static func _resolve_start_combat(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
@@ -64,7 +81,7 @@ static func _resolve_end_combat(state: BattleState, cmd: Command, result: Resolu
 	return result
 
 
-static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, los: LosProvider, result: ResolutionResult) -> ResolutionResult:
+static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult) -> ResolutionResult:
 	var actor: ActorState = state.actors[cmd.actor_id]
 	if not actor.is_conscious():
 		return _rejected(result, cmd, "actor_cannot_act")
@@ -81,11 +98,12 @@ static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, lo
 
 	var working := state.clone()
 	var working_actor: ActorState = working.actors[cmd.actor_id]
-	if working_actor.is_prone():
+	var standing_condition := _condition_requiring_stand(working_actor, definitions)
+	if standing_condition != &"":
 		var stand_cost := working_actor.movement_speed * 0.5
 		if working_actor.movement_remaining + MOVEMENT_EPSILON < stand_cost:
 			return _rejected(result, cmd, "insufficient_movement_to_stand")
-		_append_and_apply(result, working, Event.create(&"condition_removed", {"actor_id": working_actor.id, "condition": &"prone"}))
+		_append_and_apply(result, working, Event.create(&"condition_removed", {"actor_id": working_actor.id, "condition": standing_condition}))
 		_append_movement_spent(result, working, working_actor.id, stand_cost)
 
 	var available := maxf(0.0, (working.actors[cmd.actor_id] as ActorState).movement_remaining)
@@ -121,7 +139,7 @@ static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, lo
 		var reactor: ActorState = working.actors[reactor_id]
 		var mover: ActorState = working.actors[cmd.actor_id]
 		_append_and_apply(result, working, Event.create(&"reaction_triggered", {"actor_id": reactor_id, "target_id": mover.id, "reaction": &"opportunity_attack"}))
-		_resolve_attack_between(working, reactor, mover, los, result, false, true, &"opportunity")
+		_resolve_attack_between(working, reactor, mover, los, definitions, result, false, true, &"opportunity")
 		if not (working.actors[cmd.actor_id] as ActorState).is_alive():
 			break
 		# Remaining enemies at this same boundary have distance zero; their spent
@@ -129,45 +147,76 @@ static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, lo
 	return result
 
 
-static func _resolve_dash(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
+static func _resolve_ability_command(state: BattleState, cmd: Command, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult, ability_id: StringName) -> ResolutionResult:
 	var actor: ActorState = state.actors[cmd.actor_id]
 	if not actor.is_conscious(): return _rejected(result, cmd, "actor_cannot_act")
-	if not actor.action_available: return _rejected(result, cmd, "action_unavailable")
-	result.events.append(Event.create(&"action_spent", {"actor_id": actor.id, "action": &"dash"}))
-	result.events.append(Event.create(&"movement_gained", {"actor_id": actor.id, "amount": actor.movement_speed, "movement_remaining_before": actor.movement_remaining, "movement_remaining_after": actor.movement_remaining + actor.movement_speed}))
+	var ability := definitions.get_ability(ability_id)
+	if ability == null: return _rejected(result, cmd, "unknown_ability_definition")
+	for effect in ability.effects:
+		if effect.type == EFFECT_PERFORM_ATTACK:
+			return _resolve_attack_effect(state, cmd, ability, effect, los, definitions, result)
+	if ability.costs_action and not actor.action_available: return _rejected(result, cmd, "action_unavailable")
+	if ability.costs_bonus_action and not actor.bonus_action_available: return _rejected(result, cmd, "bonus_action_unavailable")
+	if ability.costs_reaction and not actor.reaction_available: return _rejected(result, cmd, "reaction_unavailable")
+	if ability.movement_cost > 0.0 and actor.movement_remaining + MOVEMENT_EPSILON < ability.movement_cost:
+		return _rejected(result, cmd, "insufficient_movement")
+	_spend_ability_cost(result, actor, ability)
+	for effect in ability.effects:
+		_apply_generic_effect(result, actor, effect)
 	return result
 
 
-static func _resolve_disengage(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
-	var actor: ActorState = state.actors[cmd.actor_id]
-	if not actor.is_conscious(): return _rejected(result, cmd, "actor_cannot_act")
-	if not actor.action_available: return _rejected(result, cmd, "action_unavailable")
-	result.events.append(Event.create(&"action_spent", {"actor_id": actor.id, "action": &"disengage"}))
-	result.events.append(Event.create(&"disengage_applied", {"actor_id": actor.id}))
-	return result
+static func _spend_ability_cost(result: ResolutionResult, actor: ActorState, ability: AbilityDefinition) -> void:
+	if ability.costs_action:
+		result.events.append(Event.create(&"action_spent", {"actor_id": actor.id, "action": ability.id}))
+	if ability.costs_bonus_action:
+		result.events.append(Event.create(&"bonus_action_spent", {"actor_id": actor.id, "action": ability.id}))
+	if ability.costs_reaction:
+		result.events.append(Event.create(&"reaction_triggered", {"actor_id": actor.id, "target_id": -1, "reaction": ability.id}))
+	if ability.movement_cost > 0.0:
+		result.events.append(Event.create(&"movement_spent", {
+			"actor_id": actor.id, "amount": ability.movement_cost, "path_cost": ability.movement_cost,
+			"movement_remaining_before": actor.movement_remaining,
+			"movement_remaining_after": maxf(0.0, actor.movement_remaining - ability.movement_cost),
+		}))
 
 
-static func _resolve_attack(state: BattleState, cmd: Command, los: LosProvider, result: ResolutionResult) -> ResolutionResult:
+static func _apply_generic_effect(result: ResolutionResult, actor: ActorState, effect: AbilityEffect) -> void:
+	match effect.type:
+		EFFECT_ADD_BASE_MOVEMENT:
+			var amount := actor.movement_speed * effect.multiplier
+			result.events.append(Event.create(&"movement_gained", {"actor_id": actor.id, "amount": amount, "movement_remaining_before": actor.movement_remaining, "movement_remaining_after": actor.movement_remaining + amount}))
+		EFFECT_APPLY_DISENGAGE:
+			result.events.append(Event.create(&"disengage_applied", {"actor_id": actor.id}))
+		EFFECT_APPLY_CONDITION:
+			result.events.append(Event.create(&"condition_added", {"actor_id": actor.id, "condition": effect.condition_id}))
+		EFFECT_REMOVE_CONDITION:
+			result.events.append(Event.create(&"condition_removed", {"actor_id": actor.id, "condition": effect.condition_id}))
+		_:
+			push_error("Unknown ability effect type: %s" % effect.type)
+
+
+static func _resolve_attack_effect(state: BattleState, cmd: Command, ability: AbilityDefinition, effect: AbilityEffect, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult) -> ResolutionResult:
 	if not state.actors.has(cmd.target_id): return _rejected(result, cmd, "unknown_target")
 	var attacker: ActorState = state.actors[cmd.actor_id]
 	var target: ActorState = state.actors[cmd.target_id]
 	if cmd.target_id == cmd.actor_id or attacker.side == target.side or not attacker.is_conscious() or not target.is_alive():
 		return _rejected(result, cmd, "invalid_target")
-	if not attacker.action_available: return _rejected(result, cmd, "action_unavailable")
+	if ability.costs_action and not attacker.action_available: return _rejected(result, cmd, "action_unavailable")
 	if not los.has_line_of_sight(attacker.position, target.position): return _rejected(result, cmd, "no_line_of_sight")
-	var attack_range := maxf(ATTACK_RANGE_METERS, float(cmd.metadata.get("range_meters", ATTACK_RANGE_METERS)))
-	var is_ranged := bool(cmd.metadata.get("is_ranged", false))
+	var attack_range := maxf(effect.range_meters, float(cmd.metadata.get("range_meters", effect.range_meters)))
+	var is_ranged := bool(cmd.metadata.get("is_ranged", effect.is_ranged))
 	if attacker.position.distance_to(target.position) > attack_range + MOVEMENT_EPSILON:
 		return _rejected(result, cmd, "target_out_of_range")
 	var working := state.clone()
-	_resolve_attack_between(working, working.actors[attacker.id], working.actors[target.id], los, result, true, false, &"basic", attack_range, is_ranged)
+	_resolve_attack_between(working, working.actors[attacker.id], working.actors[target.id], los, definitions, result, ability.costs_action, false, effect.attack_kind, attack_range, is_ranged)
 	return result
 
 
-static func _resolve_attack_between(working: BattleState, attacker: ActorState, target: ActorState, los: LosProvider, result: ResolutionResult, spends_action: bool, spends_reaction: bool, attack_kind: StringName, attack_range: float = ATTACK_RANGE_METERS, is_ranged: bool = false) -> void:
+static func _resolve_attack_between(working: BattleState, attacker: ActorState, target: ActorState, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult, spends_action: bool, spends_reaction: bool, attack_kind: StringName, attack_range: float = ATTACK_RANGE_METERS, is_ranged: bool = false) -> void:
 	if not los.has_line_of_sight(attacker.position, target.position) or attacker.position.distance_to(target.position) > attack_range + MOVEMENT_EPSILON:
 		return
-	var roll_result := _roll_attack_d20(working.rng_state, attacker, target, is_ranged)
+	var roll_result := _roll_attack_d20(working.rng_state, attacker, target, is_ranged, definitions)
 	var roll: int = roll_result["roll"]
 	var critical := roll == 20
 	var hit := roll != 1 and (critical or (roll + attacker.attack_bonus >= target.armor_class))
@@ -196,10 +245,12 @@ static func _resolve_attack_between(working: BattleState, attacker: ActorState, 
 	result.next_rng_state = working.rng_state
 
 
-static func _roll_attack_d20(rng_state: int, attacker: ActorState, target: ActorState, is_ranged: bool) -> Dictionary:
+static func _roll_attack_d20(rng_state: int, attacker: ActorState, target: ActorState, is_ranged: bool, definitions: DefinitionLibrary) -> Dictionary:
 	var target_is_close := attacker.position.distance_to(target.position) <= ATTACK_RANGE_METERS + MOVEMENT_EPSILON
-	var advantage := not is_ranged and target.is_prone() and target_is_close
-	var disadvantage := attacker.conditions.has(&"poisoned") or (is_ranged and target.is_prone() and not target_is_close)
+	var attacker_flags := _condition_flags(attacker, definitions)
+	var target_flags := _condition_flags(target, definitions)
+	var advantage: bool = not is_ranged and target_flags["melee_advantage_when_close"] and target_is_close
+	var disadvantage: bool = attacker_flags["attack_roll_disadvantage"] or (is_ranged and target_flags["ranged_disadvantage_when_not_close"] and not target_is_close)
 	if advantage and disadvantage:
 		advantage = false
 		disadvantage = false
@@ -228,6 +279,25 @@ static func _resolve_end_turn(state: BattleState, cmd: Command, result: Resoluti
 
 static func _turn_started_event(actor: ActorState, turn_index: int, round_number: int) -> Event:
 	return Event.create(&"turn_started", {"actor_id": actor.id, "turn_index": turn_index, "round_number": round_number, "phase": EncounterRules.COMBAT, "movement_remaining": actor.movement_speed, "action_available": true, "bonus_action_available": true, "reaction_available": true, "disengaged": false})
+
+
+static func _condition_flags(actor: ActorState, definitions: DefinitionLibrary) -> Dictionary:
+	var flags := {"attack_roll_disadvantage": false, "melee_advantage_when_close": false, "ranged_disadvantage_when_not_close": false}
+	for condition_id in actor.conditions:
+		var definition := definitions.get_condition(condition_id)
+		if definition == null: continue
+		flags["attack_roll_disadvantage"] = flags["attack_roll_disadvantage"] or definition.attack_roll_disadvantage
+		flags["melee_advantage_when_close"] = flags["melee_advantage_when_close"] or definition.melee_advantage_when_close
+		flags["ranged_disadvantage_when_not_close"] = flags["ranged_disadvantage_when_not_close"] or definition.ranged_disadvantage_when_not_close
+	return flags
+
+
+static func _condition_requiring_stand(actor: ActorState, definitions: DefinitionLibrary) -> StringName:
+	for condition_id in actor.conditions:
+		var definition := definitions.get_condition(condition_id)
+		if definition != null and definition.half_speed_required_to_stand:
+			return condition_id
+	return &""
 
 
 static func _next_opportunity_reaction(state: BattleState, mover_id: int, path: PackedVector3Array, los: LosProvider) -> Dictionary:
@@ -314,6 +384,7 @@ static func apply(state: BattleState, event: Event) -> void:
 			moving_actor.movement_remaining = maxf(0.0, moving_actor.movement_remaining - event.data["amount"])
 		&"movement_gained": (state.actors[event.data["actor_id"]] as ActorState).movement_remaining += event.data["amount"]
 		&"action_spent": (state.actors[event.data["actor_id"]] as ActorState).action_available = false
+		&"bonus_action_spent": (state.actors[event.data["actor_id"]] as ActorState).bonus_action_available = false
 		&"disengage_applied": (state.actors[event.data["actor_id"]] as ActorState).disengaged = true
 		&"reaction_triggered": (state.actors[event.data["actor_id"]] as ActorState).reaction_available = false
 		&"attack_rolled":

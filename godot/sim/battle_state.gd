@@ -10,6 +10,11 @@ var rng_seed: int = 0
 var rng_state: int = 0
 var world_flags: Dictionary = {}
 
+## Identifies which AbilityDefinition/ConditionDefinition content this state
+## was produced under (see DefinitionLibrary.CONTENT_VERSION), so a future
+## save/load pass (A8) can validate compatibility alongside rules_version.
+var content_version: int = DefinitionLibrary.CONTENT_VERSION
+
 
 func clone() -> BattleState:
 	var copy := BattleState.new()
@@ -25,6 +30,7 @@ func clone() -> BattleState:
 	copy.rng_seed = rng_seed
 	copy.rng_state = rng_state
 	copy.world_flags = world_flags.duplicate(true)
+	copy.content_version = content_version
 	return copy
 
 
@@ -60,6 +66,7 @@ func stable_snapshot() -> Dictionary:
 		"rng_seed": rng_seed,
 		"rng_state": rng_state,
 		"world_flags": SimulationSerialization.value_to_data(world_flags),
+		"content_version": content_version,
 	}
 
 
@@ -78,6 +85,7 @@ func to_dict() -> Dictionary:
 		"rng_seed": rng_seed,
 		"rng_state": rng_state,
 		"world_flags": SimulationSerialization.value_to_data(world_flags),
+		"content_version": content_version,
 	}
 
 
@@ -94,6 +102,7 @@ static func from_dict(data: Dictionary) -> BattleState:
 	state.phase = StringName(str(data.get("phase", "exploration")))
 	state.rng_seed = int(data.get("rng_seed", 0))
 	state.rng_state = int(data.get("rng_state", 0))
+	state.content_version = int(data.get("content_version", DefinitionLibrary.CONTENT_VERSION))
 	var restored_flags: Variant = SimulationSerialization.data_to_value(data.get("world_flags", {}))
 	if restored_flags is Dictionary:
 		state.world_flags = restored_flags

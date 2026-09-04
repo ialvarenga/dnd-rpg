@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ConditionDefinition" format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/condition_definition.gd" id="1_28ppb"]
+
+[resource]
+script = ExtResource("1_28ppb")
+id = &"prone"
+display_name = "Prone"
+tags = Array[StringName]([&"condition.prone"])
+melee_advantage_when_close = true
+ranged_disadvantage_when_not_close = true
+counts_as_prone = true
+half_speed_required_to_stand = true

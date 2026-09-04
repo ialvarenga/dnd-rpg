@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ConditionDefinition" format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/condition_definition.gd" id="1_7q1fp"]
+
+[resource]
+script = ExtResource("1_7q1fp")
+id = &"unconscious"
+display_name = "Unconscious"
+tags = Array[StringName]([&"condition.unconscious"])
+melee_advantage_when_close = true
+ranged_disadvantage_when_not_close = true
+prevents_actions = true
+counts_as_prone = true

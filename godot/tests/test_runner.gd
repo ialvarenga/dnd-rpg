@@ -6,7 +6,7 @@ func _init() -> void:
 
 func _run() -> void:
 	var failure_count := 0
-	var suites := [TestSimulation, TestEnemyAI, TestReplay, TestHeadlessContract, TestPrototypeLocomotion]
+	var suites := [TestSimulation, TestDefinitions, TestEnemyAI, TestReplay, TestHeadlessContract, TestPrototypeLocomotion]
 	for suite in suites:
 		var report: Dictionary = suite.run()
 		var failures: Array = report["failures"]

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ConditionDefinition" format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/condition_definition.gd" id="1_4l4ow"]
+
+[resource]
+script = ExtResource("1_4l4ow")
+id = &"dead"
+display_name = "Dead"
+tags = Array[StringName]([&"condition.dead"])
+ends_life = true

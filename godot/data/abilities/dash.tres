@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/ability_effect.gd" id="1_jolw2"]
+[ext_resource type="Script" path="res://sim/definitions/ability_definition.gd" id="2_qf1ot"]
+
+[sub_resource type="Resource" id="Resource_5ecbe"]
+script = ExtResource("1_jolw2")
+type = &"add_base_movement"
+
+[resource]
+script = ExtResource("2_qf1ot")
+id = &"dash"
+display_name = "Dash"
+costs_action = true
+effects = Array[ExtResource("1_jolw2")]([SubResource("Resource_5ecbe")])
