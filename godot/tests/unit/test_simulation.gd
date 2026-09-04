@@ -2,6 +2,7 @@ class_name TestSimulation
 extends RefCounted
 
 const PolylineUtil = preload("res://sim/polyline.gd")
+const InitiativeRules = preload("res://sim/rules/initiative.gd")
 
 static func run() -> Dictionary:
 	var failures: Array[String] = []
@@ -17,6 +18,12 @@ static func run() -> Dictionary:
 	_test_exploration_move_ignores_budget(failures)
 	_test_zero_budget_and_empty_segment_reject_without_mutation(failures)
 	_test_move_preview_resolution_is_pure(failures)
+	_test_initiative_is_deterministic_and_pure(failures)
+	_test_initiative_ties_prefer_higher_dexterity(failures)
+	_test_initiative_ties_use_stable_actor_id(failures)
+	_test_combat_start_and_end_apply_lifecycle(failures)
+	_test_only_current_actor_can_move_or_end_turn(failures)
+	_test_end_turn_advances_wraps_and_restores_resources(failures)
 	_test_serialization_round_trip(failures)
 	return {"name": "unit/test_simulation", "failures": failures}
 
@@ -179,6 +186,86 @@ static func _test_move_preview_resolution_is_pure(failures: Array[String]) -> vo
 	var preview_result := Resolver.resolve(state, command, FakeNavProvider.new(), FakeLosProvider.new())
 	_expect(preview_result.events.size() == 2 and preview_result.events[0].type == &"movement_segment", "movement preview did not resolve a usable result", failures)
 	_expect(JSON.stringify(state.stable_snapshot()).md5_text() == before_hash, "movement preview resolution mutated BattleState", failures)
+
+
+static func _test_initiative_is_deterministic_and_pure(failures: Array[String]) -> void:
+	var first_state := TestHelpers.make_battle(42)
+	first_state.phase = &"exploration"
+	var second_state := first_state.clone()
+	var before_hash := JSON.stringify(first_state.stable_snapshot()).md5_text()
+	var command := Command.create(&"start_combat", 1)
+	var first_result := Resolver.resolve(first_state, command, FakeNavProvider.new(), FakeLosProvider.new())
+	var second_result := Resolver.resolve(second_state, command, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(first_result.events.size() == 3, "combat start did not emit lifecycle and first-turn events", failures)
+	_expect(first_result.events[1].type == &"initiative_established", "combat start did not establish initiative", failures)
+	_expect(TestHelpers.event_log_entry(first_result) == TestHelpers.event_log_entry(second_result), "same seed produced different initiative events", failures)
+	_expect(JSON.stringify(first_state.stable_snapshot()).md5_text() == before_hash, "initiative resolution mutated BattleState", failures)
+
+
+static func _test_initiative_ties_prefer_higher_dexterity(failures: Array[String]) -> void:
+	var entries: Array[Dictionary] = [{
+		"actor_id": 1, "roll": 12, "dexterity": 12, "dexterity_modifier": 1, "total": 13,
+	}, {
+		"actor_id": 2, "roll": 10, "dexterity": 16, "dexterity_modifier": 3, "total": 13,
+	}]
+	var sorted_entries := InitiativeRules.sort_entries(entries)
+	_expect(sorted_entries[0]["actor_id"] == 2, "initiative tie did not prefer higher DEX", failures)
+
+
+static func _test_initiative_ties_use_stable_actor_id(failures: Array[String]) -> void:
+	var entries: Array[Dictionary] = [{
+		"actor_id": 9, "roll": 12, "dexterity": 14, "dexterity_modifier": 2, "total": 14,
+	}, {
+		"actor_id": 4, "roll": 12, "dexterity": 14, "dexterity_modifier": 2, "total": 14,
+	}]
+	var sorted_entries := InitiativeRules.sort_entries(entries)
+	_expect(sorted_entries[0]["actor_id"] == 4, "initiative tie did not use stable actor ID", failures)
+
+
+static func _test_combat_start_and_end_apply_lifecycle(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle()
+	state.phase = &"exploration"
+	var start_result := Resolver.resolve(state, Command.create(&"start_combat", 1), FakeNavProvider.new(), FakeLosProvider.new())
+	Resolver.apply(state, start_result.events[0])
+	_expect(state.phase == &"combat_starting", "combat_started did not apply combat_starting phase", failures)
+	for event_index in range(1, start_result.events.size()):
+		Resolver.apply(state, start_result.events[event_index])
+	state.rng_state = start_result.next_rng_state
+	_expect(state.phase == &"combat" and state.initiative_order.size() == 2 and state.current_actor_id() != -1, "combat start did not apply initiative and active turn", failures)
+	var end_result := Resolver.resolve(state, Command.create(&"end_combat", state.current_actor_id()), FakeNavProvider.new(), FakeLosProvider.new())
+	Resolver.apply(state, end_result.events[0])
+	_expect(state.phase == &"combat_ending", "combat_ending event did not apply its phase", failures)
+	Resolver.apply(state, end_result.events[1])
+	_expect(state.phase == &"exploration" and state.initiative_order.is_empty() and state.round_number == 1, "combat end did not restore exploration lifecycle state", failures)
+
+
+static func _test_only_current_actor_can_move_or_end_turn(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle()
+	var before_hash := JSON.stringify(state.stable_snapshot()).md5_text()
+	var other_move := Command.create(&"move", 2)
+	other_move.target_pos = Vector3(2.0, 0.0, 0.0)
+	var move_result := Resolver.resolve(state, other_move, FakeNavProvider.new(), FakeLosProvider.new())
+	var end_result := Resolver.resolve(state, Command.create(&"end_turn", 2), FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(move_result.events[0].data["reason"] == &"not_current_actor", "non-current actor moved in combat", failures)
+	_expect(end_result.events[0].data["reason"] == &"not_current_actor", "non-current actor ended turn in combat", failures)
+	_expect(JSON.stringify(state.stable_snapshot()).md5_text() == before_hash, "rejected non-current commands mutated BattleState", failures)
+
+
+static func _test_end_turn_advances_wraps_and_restores_resources(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle()
+	var next_actor: ActorState = state.actors[2]
+	next_actor.movement_remaining = 0.0
+	next_actor.action_available = false
+	next_actor.bonus_action_available = false
+	next_actor.reaction_available = false
+	next_actor.disengaged = true
+	var first_result := Resolver.resolve(state, Command.create(&"end_turn", 1), FakeNavProvider.new(), FakeLosProvider.new())
+	TestHelpers.apply_result(state, first_result)
+	_expect(state.current_actor_id() == 2 and state.current_turn_index == 1 and state.round_number == 1, "end turn did not advance exactly one actor", failures)
+	_expect(is_equal_approx(next_actor.movement_remaining, next_actor.movement_speed) and next_actor.action_available and next_actor.bonus_action_available and next_actor.reaction_available and not next_actor.disengaged, "turn start did not restore all per-turn resources", failures)
+	var second_result := Resolver.resolve(state, Command.create(&"end_turn", 2), FakeNavProvider.new(), FakeLosProvider.new())
+	TestHelpers.apply_result(state, second_result)
+	_expect(state.current_actor_id() == 1 and state.current_turn_index == 0 and state.round_number == 2, "turn order did not wrap and increment the round", failures)
 
 
 static func _test_serialization_round_trip(failures: Array[String]) -> void:

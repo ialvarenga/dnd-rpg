@@ -1,9 +1,10 @@
 # Deterministic Tactical RPG
 
-The current milestone is A3: a headless, deterministic simulation integrated
-with a hand-built 64×64 m playable test arena. Terrain hover resolves a
-non-mutating movement preview; terrain clicks resolve and apply commands and
-events, while Godot presentation plays only accepted movement paths.
+The current milestone is A4: a headless, deterministic simulation with
+authoritative combat turns, integrated with a hand-built 64×64 m playable test
+arena. Terrain hover resolves a non-mutating movement preview; terrain clicks
+resolve and apply commands and events, while Godot presentation plays only
+accepted movement paths.
 
 ## Requirements
 
@@ -24,8 +25,9 @@ headless checks. It exits non-zero on failure.
 
 ## Layout
 
-- `godot/sim/` is the authoritative pure simulation, including exact polyline
-  movement costs and combat-budget clamping.
+- `godot/sim/` is the authoritative pure simulation, including initiative,
+  encounter lifecycle, turn ownership, exact polyline movement costs, and
+  combat-budget clamping.
 - `godot/world/` contains engine-backed navigation/LOS adapters and arena input.
 - `godot/view/` contains presentation-only camera and event playback.
 - `docs/ADR/` records architectural decisions.

@@ -2118,6 +2118,10 @@ O path real é autoritativo.
 
 # Fase A4 — Turnos
 
+**Status:** implementação concluída — iniciativa determinística, ciclo de
+encontro e propriedade autoritativa dos turnos estão em `sim/`; a validação
+requer Godot 4.6.x.
+
 ## Sistemas
 
 Dentro de `sim/rules`:
@@ -2137,6 +2141,20 @@ TurnUIController
 ```
 
 na presentation.
+
+## Implementado
+
+- [x] estados `exploration`, `combat_starting`, `combat` e `combat_ending`;
+- [x] ordem de iniciativa autoritativa por `initiative_order` e
+  `current_turn_index`;
+- [x] iniciativa `d20 + modificador de DEX`, com desempate por DEX e ID
+  estável;
+- [x] eventos explícitos para início/fim de combate, iniciativa e início de
+  turno;
+- [x] avanço de um ator elegível por vez, incremento de rodada no wrap e reset
+  dos recursos por turno;
+- [x] testes headless para iniciativa, ciclo de combate, restrições de ator
+  atual, replay/pureza e preservação do movimento A3.
 
 ---
 

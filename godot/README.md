@@ -3,9 +3,10 @@
 This directory contains the Godot 4.6 runtime for the tactical RPG. The
 current implementation covers the A0 foundation, deterministic A-0 simulation
 spike, A1 camera/locomotion prototype, A2 simulation-to-presentation
-integration, and A3 authoritative movement budgets. The playable 64×64 m test
-arena has a tactical camera, navigation region, obstacle route, hover preview,
-and click-to-move playback through Command/Event.
+integration, A3 authoritative movement budgets, and A4 authoritative turns.
+The playable 64×64 m test arena has a tactical camera, navigation region,
+obstacle route, hover preview, and click-to-move playback through
+Command/Event.
 
 The main architectural rule is that authoritative gameplay state belongs in
 `sim/`, independently of scenes and Godot nodes. Engine-facing code will live
@@ -63,6 +64,9 @@ Core files:
 - `resolver.gd` validates commands, calculates their outcomes without mutating
   the input state, clamps combat movement on the resolved polyline, and applies
   individual events when requested.
+- `rules/initiative.gd`, `rules/turn_order.gd`, and `rules/encounter.gd`
+  calculate deterministic d20 + DEX initiative, eligible turn advancement,
+  and the exploration/combat lifecycle without engine dependencies.
 - `polyline.gd` provides the pure path-length and exact-distance clamp helpers
   used as the authoritative movement-cost source.
 - `dice.gd` provides deterministic dice rolls from an explicit RNG state.
@@ -83,8 +87,9 @@ Contains the lightweight headless test runner and its suites.
 - `test_helpers.gd` creates repeatable battle fixtures, applies resolution
   results, and serializes event logs consistently.
 - `unit/test_simulation.gd` checks cloning, deterministic resolution,
-  snapshot-hash purity, serialization round-trips, event application, and
-  navigation rejection behavior.
+  snapshot-hash purity, serialization round-trips, event application,
+  navigation rejection behavior, initiative tie breaks, turn ownership, and
+  per-turn resource restoration.
 - `deterministic/test_replay.gd` runs independent seed-42 simulations 1,000
   times and compares their event-log hashes. It also verifies that seed 43 can
   produce a different result.

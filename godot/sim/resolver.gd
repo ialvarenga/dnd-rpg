@@ -4,6 +4,9 @@ extends RefCounted
 const ATTACK_RANGE_METERS := 1.5
 const MOVEMENT_EPSILON := 0.0001
 const PolylineUtil = preload("res://sim/polyline.gd")
+const EncounterRules = preload("res://sim/rules/encounter.gd")
+const InitiativeRules = preload("res://sim/rules/initiative.gd")
+const TurnOrderRules = preload("res://sim/rules/turn_order.gd")
 
 
 static func resolve(state: BattleState, cmd: Command, nav: NavProvider, los: LosProvider) -> ResolutionResult:
@@ -12,9 +15,15 @@ static func resolve(state: BattleState, cmd: Command, nav: NavProvider, los: Los
 
 	if not state.actors.has(cmd.actor_id):
 		return _rejected(result, cmd, "unknown_actor")
-	if cmd.type != &"move" and state.phase != &"combat":
+	if cmd.type == &"start_combat":
+		return _resolve_start_combat(state, cmd, result)
+	if cmd.type == &"end_combat":
+		return _resolve_end_combat(state, cmd, result)
+	if cmd.type == &"move" and state.phase == EncounterRules.EXPLORATION:
+		return _resolve_move(state, cmd, nav, result)
+	if state.phase != EncounterRules.COMBAT:
 		return _rejected(result, cmd, "not_in_combat")
-	if state.phase == &"combat" and state.current_actor_id() != cmd.actor_id:
+	if state.current_actor_id() != cmd.actor_id:
 		return _rejected(result, cmd, "not_current_actor")
 
 	match cmd.type:
@@ -26,6 +35,56 @@ static func resolve(state: BattleState, cmd: Command, nav: NavProvider, los: Los
 			return _resolve_end_turn(state, cmd, result)
 		_:
 			return _rejected(result, cmd, "unsupported_command")
+
+
+static func _resolve_start_combat(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
+	if state.phase != EncounterRules.EXPLORATION:
+		return _rejected(result, cmd, "combat_already_active")
+	if not TurnOrderRules.is_actor_eligible(state.actors[cmd.actor_id]):
+		return _rejected(result, cmd, "actor_not_eligible")
+	var initiative := InitiativeRules.resolve(state)
+	var order: Array[int] = initiative["order"]
+	if order.is_empty():
+		return _rejected(result, cmd, "no_eligible_actors")
+	var first_actor: ActorState = state.actors[order[0]]
+	result.events.append(Event.create(&"combat_started", {
+		"initiator_actor_id": cmd.actor_id,
+		"phase": EncounterRules.COMBAT_STARTING,
+	}))
+	result.events.append(Event.create(&"initiative_established", {
+		"initiative_order": order,
+		"initiative_rolls": initiative["entries"],
+		"current_turn_index": 0,
+		"round_number": 1,
+	}))
+	result.events.append(Event.create(&"turn_started", {
+		"actor_id": first_actor.id,
+		"turn_index": 0,
+		"round_number": 1,
+		"phase": EncounterRules.COMBAT,
+		"movement_remaining": first_actor.movement_speed,
+		"action_available": true,
+		"bonus_action_available": true,
+		"reaction_available": true,
+		"disengaged": false,
+	}))
+	result.next_rng_state = initiative["next_rng_state"]
+	return result
+
+
+static func _resolve_end_combat(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
+	if not EncounterRules.can_end(state):
+		return _rejected(result, cmd, "not_in_combat")
+	if state.current_actor_id() != cmd.actor_id:
+		return _rejected(result, cmd, "not_current_actor")
+	result.events.append(Event.create(&"combat_ending", {"phase": EncounterRules.COMBAT_ENDING}))
+	result.events.append(Event.create(&"combat_ended", {
+		"phase": EncounterRules.EXPLORATION,
+		"initiative_order": [],
+		"current_turn_index": 0,
+		"round_number": 1,
+	}))
+	return result
 
 
 static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, result: ResolutionResult) -> ResolutionResult:
@@ -43,7 +102,7 @@ static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, re
 	var resolved_path := path
 	var movement_cost := requested_path_cost
 	var was_clamped := false
-	if state.phase == &"combat":
+	if state.phase == EncounterRules.COMBAT:
 		var available_movement := maxf(0.0, actor.movement_remaining)
 		if available_movement <= MOVEMENT_EPSILON:
 			return _rejected(result, cmd, "no_movement_remaining")
@@ -64,7 +123,7 @@ static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, re
 		"requested_path_cost": requested_path_cost,
 		"clamped": was_clamped,
 	}))
-	if state.phase == &"combat":
+	if state.phase == EncounterRules.COMBAT:
 		result.events.append(Event.create(&"movement_spent", {
 			"actor_id": actor.id,
 			"amount": movement_cost,
@@ -124,11 +183,13 @@ static func _resolve_attack(state: BattleState, cmd: Command, los: LosProvider, 
 
 
 static func _resolve_end_turn(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
-	if state.initiative_order.is_empty():
+	if state.initiative_order.is_empty() or not TurnOrderRules.is_actor_eligible(state.actors[cmd.actor_id]):
 		return _rejected(result, cmd, "no_initiative_order")
-	var next_index := (state.current_turn_index + 1) % state.initiative_order.size()
+	var next_index := TurnOrderRules.next_eligible_index(state, state.current_turn_index)
+	if next_index < 0:
+		return _rejected(result, cmd, "no_eligible_actors")
 	var next_round := state.round_number
-	if next_index == 0:
+	if next_index <= state.current_turn_index:
 		next_round += 1
 	var next_actor_id := state.initiative_order[next_index]
 	var next_actor: ActorState = state.actors[next_actor_id]
@@ -137,6 +198,7 @@ static func _resolve_end_turn(state: BattleState, cmd: Command, result: Resoluti
 		"actor_id": next_actor_id,
 		"turn_index": next_index,
 		"round_number": next_round,
+		"phase": EncounterRules.COMBAT,
 		"movement_remaining": next_actor.movement_speed,
 		"action_available": true,
 		"bonus_action_available": true,
@@ -174,7 +236,20 @@ static func apply(state: BattleState, event: Event) -> void:
 			var downed_actor: ActorState = state.actors[event.data["actor_id"]]
 			if not downed_actor.conditions.has(&"unconscious"):
 				downed_actor.conditions.append(&"unconscious")
+		&"combat_started", &"combat_ending":
+			state.phase = event.data["phase"]
+		&"initiative_established":
+			state.initiative_order = _actor_ids(event.data["initiative_order"])
+			state.current_turn_index = event.data["current_turn_index"]
+			state.round_number = event.data["round_number"]
+		&"combat_ended":
+			state.phase = event.data["phase"]
+			state.initiative_order = _actor_ids(event.data["initiative_order"])
+			state.current_turn_index = event.data["current_turn_index"]
+			state.round_number = event.data["round_number"]
 		&"turn_started":
+			if event.data.has("phase"):
+				state.phase = event.data["phase"]
 			state.current_turn_index = event.data["turn_index"]
 			state.round_number = event.data["round_number"]
 			var turn_actor: ActorState = state.actors[event.data["actor_id"]]
@@ -183,3 +258,10 @@ static func apply(state: BattleState, event: Event) -> void:
 			turn_actor.bonus_action_available = event.data["bonus_action_available"]
 			turn_actor.reaction_available = event.data["reaction_available"]
 			turn_actor.disengaged = event.data["disengaged"]
+
+
+static func _actor_ids(data: Array) -> Array[int]:
+	var actor_ids: Array[int] = []
+	for actor_id in data:
+		actor_ids.append(int(actor_id))
+	return actor_ids

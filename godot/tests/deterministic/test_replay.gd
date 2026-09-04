@@ -6,12 +6,17 @@ const RUNS := 1000
 static func run() -> Dictionary:
 	var failures: Array[String] = []
 	var baseline := _simulate(42)
+	var turn_baseline := _simulate_turns(42)
 	for index in range(RUNS):
 		var replay := _simulate(42)
 		if replay != baseline:
 			failures.append("same seed replay diverged on run %d" % (index + 1))
 			break
+		if _simulate_turns(42) != turn_baseline:
+			failures.append("same seed turn replay diverged on run %d" % (index + 1))
+			break
 	_expect(_simulate(43) != baseline, "different seed did not change an event log with attacks", failures)
+	_expect(_simulate_turns(43) != turn_baseline, "different seed did not change an initiative event log", failures)
 	return {"name": "deterministic/test_replay", "failures": failures}
 
 
@@ -41,7 +46,22 @@ static func _simulate(seed: int) -> String:
 	return "\n".join(log).md5_text()
 
 
+static func _simulate_turns(seed: int) -> String:
+	var state := TestHelpers.make_battle(seed)
+	state.phase = &"exploration"
+	var nav := FakeNavProvider.new()
+	var los := FakeLosProvider.new()
+	var log: Array[String] = []
+	var start := Resolver.resolve(state, Command.create(&"start_combat", 1), nav, los)
+	log.append(TestHelpers.event_log_entry(start))
+	TestHelpers.apply_result(state, start)
+	for _turn in range(2):
+		var end_turn := Resolver.resolve(state, Command.create(&"end_turn", state.current_actor_id()), nav, los)
+		log.append(TestHelpers.event_log_entry(end_turn))
+		TestHelpers.apply_result(state, end_turn)
+	return "\n".join(log).md5_text()
+
+
 static func _expect(condition: bool, message: String, failures: Array[String]) -> void:
 	if not condition:
 		failures.append(message)
-
