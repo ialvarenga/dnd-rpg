@@ -1,9 +1,9 @@
 class_name TestArenaController
 extends Node3D
 
-## World-side composition root for A2. Input creates Commands, the pure
-## resolver returns Events, state is applied immediately, and EventPlayer alone
-## narrates accepted movement on the CharacterView.
+## World-side composition root for A3. Hover resolves a non-mutating preview;
+## confirmed input creates Commands, applies accepted events immediately, and
+## EventPlayer alone narrates movement on the CharacterView.
 
 @onready var camera: Camera3D = $CameraRig/Pivot/Camera3D
 @onready var character: CharacterView = $PlayerCharacter
@@ -18,7 +18,13 @@ var nav_provider: NavProvider
 var los_provider: LosProvider
 var last_command: Command
 var last_resolution: ResolutionResult
+var last_preview: ResolutionResult
 var last_input_status: StringName = &"idle"
+
+var _preview_path := PackedVector3Array()
+var _preview_cost := 0.0
+var _preview_remaining := 0.0
+var _preview_ignores_budget := false
 
 var _line_mesh := ImmediateMesh.new()
 
@@ -38,6 +44,11 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		var preview_target: Variant = _terrain_position_from_screen(event.position)
+		if preview_target is Vector3:
+			preview_move_target(preview_target)
+		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		handle_terrain_click(_terrain_position_from_screen(event.position))
 		get_viewport().set_input_as_handled()
@@ -52,7 +63,38 @@ func handle_terrain_click(destination: Variant) -> void:
 	if not (destination is Vector3) or not _is_finite_vector(destination):
 		last_input_status = &"invalid_target"
 		return
+	# The click confirms a fresh authoritative resolution; it never applies the
+	# hover result, which remains presentation-only.
+	preview_move_target(destination)
 	submit_move_target(destination)
+
+
+## Public for runtime tests and future UI. It intentionally calls only the pure
+## resolver and updates local debug state; BattleState and CharacterView remain
+## untouched until submit_move_target confirms a command.
+func preview_move_target(target: Vector3) -> ResolutionResult:
+	var preview_command := Command.create(&"move", character.actor_id)
+	preview_command.target_pos = target
+	last_preview = Resolver.resolve(battle_state, preview_command, nav_provider, los_provider)
+	_preview_path = PackedVector3Array()
+	_preview_cost = 0.0
+	_preview_remaining = 0.0
+	_preview_ignores_budget = battle_state.phase != &"combat"
+	var previewed_movement := false
+	for event in last_preview.events:
+		if event.type == &"movement_segment":
+			previewed_movement = true
+			_preview_path = (event.data["path"] as PackedVector3Array).duplicate()
+			_preview_cost = float(event.data["path_cost"])
+			var actor: ActorState = battle_state.actors[character.actor_id]
+			_preview_remaining = maxf(0.0, actor.movement_remaining - _preview_cost)
+			destination_marker.global_position = (event.data["to"] as Vector3) + Vector3.UP * 0.08
+			destination_marker.visible = true
+		elif event.type == &"command_rejected":
+			last_input_status = event.data["reason"]
+	if previewed_movement:
+		last_input_status = &"preview"
+	return last_preview
 
 
 func submit_move_target(target: Vector3) -> ResolutionResult:
@@ -73,6 +115,7 @@ func submit_move_target(target: Vector3) -> ResolutionResult:
 			last_input_status = event.data["reason"]
 	if accepted_movement:
 		last_input_status = &"accepted"
+		_clear_preview()
 	event_player.play_events(last_resolution.events)
 	return last_resolution
 
@@ -134,19 +177,35 @@ func _terrain_position_from_screen(screen_position: Vector2) -> Variant:
 
 
 func _update_debug_view() -> void:
-	var path := event_player.get_resolved_path(character.actor_id)
+	var path := _preview_path
+	if path.is_empty():
+		path = event_player.get_resolved_path(character.actor_id)
 	_line_mesh.clear_surfaces()
 	if path.size() >= 2:
 		_line_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
 		for point in path:
 			_line_mesh.surface_add_vertex(point + Vector3.UP * 0.12)
 		_line_mesh.surface_end()
-	debug_label.text = "Command: %s\nDestination: %s (%s)\nVelocity: %s" % [
+	var preview_text := "Preview: --"
+	if not _preview_path.is_empty():
+		if _preview_ignores_budget:
+			preview_text = "Preview: %.2fm (exploration: budget ignored)" % _preview_cost
+		else:
+			preview_text = "Preview: %.2fm consumed, %.2fm remaining" % [_preview_cost, _preview_remaining]
+	debug_label.text = "Command: %s\nDestination: %s (%s)\nVelocity: %s\n%s" % [
 		last_input_status,
 		_format_vector(character.destination),
 		character.destination_state,
 		_format_vector(character.get_debug_velocity()),
+		preview_text,
 	]
+
+
+func _clear_preview() -> void:
+	_preview_path = PackedVector3Array()
+	_preview_cost = 0.0
+	_preview_remaining = 0.0
+	_preview_ignores_budget = false
 
 
 func _format_vector(value: Vector3) -> String:

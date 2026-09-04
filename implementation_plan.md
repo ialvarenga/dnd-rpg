@@ -2040,6 +2040,10 @@ Arquiteturalmente nenhum clique move Node diretamente.
 
 # Fase A3 — Regras de movimento
 
+**Status:** implementação concluída — custo de movimento autoritativo por
+polyline, clamp exato em combate e preview não mutável integrados ao fluxo
+Command/Event; a validação requer Godot 4.6.x.
+
 ## Movement budget
 
 ```text
@@ -2100,6 +2104,15 @@ remaining movement
 Círculo de alcance pode existir apenas como aproximação visual.
 
 O path real é autoritativo.
+
+## Implementado
+
+- [x] exploração ignora `movement_remaining`;
+- [x] combate aplica `movement_remaining` e clamp no ponto exato da polyline;
+- [x] eventos registram path, custo gasto e destino clampados;
+- [x] preview resolve path/custo/restante sem aplicar `BattleState` ou mover a view;
+- [x] playback e debug usam paths entregues por eventos, com sincronização final
+  da posição autoritativa.
 
 ---
 

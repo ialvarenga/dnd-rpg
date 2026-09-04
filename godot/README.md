@@ -2,9 +2,10 @@
 
 This directory contains the Godot 4.6 runtime for the tactical RPG. The
 current implementation covers the A0 foundation, deterministic A-0 simulation
-spike, A1 camera/locomotion prototype, and A2 simulation-to-presentation
-integration. The playable 64×64 m test arena has a tactical camera, navigation
-region, obstacle route, and click-to-move playback through Command/Event.
+spike, A1 camera/locomotion prototype, A2 simulation-to-presentation
+integration, and A3 authoritative movement budgets. The playable 64×64 m test
+arena has a tactical camera, navigation region, obstacle route, hover preview,
+and click-to-move playback through Command/Event.
 
 The main architectural rule is that authoritative gameplay state belongs in
 `sim/`, independently of scenes and Godot nodes. Engine-facing code will live
@@ -60,7 +61,10 @@ Core files:
 - `resolution_result.gd` carries the ordered events and next RNG state returned
   by resolution.
 - `resolver.gd` validates commands, calculates their outcomes without mutating
-  the input state, and applies individual events when requested.
+  the input state, clamps combat movement on the resolved polyline, and applies
+  individual events when requested.
+- `polyline.gd` provides the pure path-length and exact-distance clamp helpers
+  used as the authoritative movement-cost source.
 - `dice.gd` provides deterministic dice rolls from an explicit RNG state.
 
 #### `sim/ports/`
@@ -118,9 +122,11 @@ Open `res://scenes/test_arena.tscn` to inspect the current arena. In play mode:
 
 - `W`, `A`, `S`, `D` pan the camera;
 - middle-mouse drag pans; mouse wheel zooms; `Q`/`E` rotate;
-- left-click terrain to create or replace a move Command. Accepted events update
-  the authoritative state immediately; `EventPlayer` then interpolates the
-  exact resolved path on the character view.
+- move the pointer over terrain to preview the resolved path, cost, and
+  remaining movement (exploration explicitly ignores the budget); left-click
+  terrain to create or replace a move Command. Accepted events update the
+  authoritative state immediately; `EventPlayer` then interpolates the exact
+  resolved path on the character view.
 
 The `NavigationRegion3D` holds the authored navigation mesh; enable navigation
 debug visibility in the editor to inspect its walkable surface and the gap

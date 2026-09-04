@@ -158,8 +158,8 @@ material_override = SubResource("PathMaterial")
 offset_left = 16.0
 offset_top = 16.0
 offset_right = 310.0
-offset_bottom = 94.0
+offset_bottom = 116.0
 
 [node name="Label" type="Label" parent="DebugOverlay/Panel"]
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
-text = "Command: --\nDestination: --\nVelocity: --"
+text = "Command: --\nDestination: --\nVelocity: --\nPreview: --"

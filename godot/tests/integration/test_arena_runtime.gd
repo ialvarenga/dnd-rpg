@@ -16,12 +16,52 @@ func run() -> Dictionary:
 	if not navigation_ready:
 		arena.queue_free()
 		return {"name": "integration/test_arena_runtime", "failures": failures}
+	await _test_preview_and_clamped_combat_movement(controller, player, event_player, failures)
 	_test_command_event_view_pipeline(controller, player, event_player, failures)
 	await _test_target_replacement(controller, player, event_player, failures)
 	await _test_obstacle_route(controller, player, event_player, failures)
 	await _test_rejected_and_invalid_clicks(controller, player, failures)
 	arena.queue_free()
 	return {"name": "integration/test_arena_runtime", "failures": failures}
+
+
+func _test_preview_and_clamped_combat_movement(controller: TestArenaController, player: CharacterView, event_player: EventPlayer, failures: Array[String]) -> void:
+	var actor: ActorState = controller.battle_state.actors[player.actor_id]
+	controller.battle_state.phase = &"combat"
+	controller.battle_state.initiative_order = [player.actor_id]
+	controller.battle_state.current_turn_index = 0
+	var target := Vector3(-8.0, player.global_position.y, 0.0)
+	actor.movement_remaining = 0.0
+	var state_before_zero_budget := JSON.stringify(controller.battle_state.stable_snapshot()).md5_text()
+	var position_before_zero_budget := player.global_position
+	controller.handle_terrain_click(target)
+	_expect(controller.last_resolution.events.size() == 1 and controller.last_resolution.events[0].data["reason"] == &"no_movement_remaining", "zero-budget combat move was not rejected", failures)
+	_expect(JSON.stringify(controller.battle_state.stable_snapshot()).md5_text() == state_before_zero_budget, "zero-budget rejection applied BattleState", failures)
+	_expect(player.global_position.distance_to(position_before_zero_budget) < 0.001 and not player.is_moving(), "zero-budget rejection moved CharacterView", failures)
+	var empty_target: Vector3 = (controller.battle_state.actors[player.actor_id] as ActorState).position
+	controller.handle_terrain_click(empty_target)
+	_expect(controller.last_resolution.events.size() == 1 and controller.last_resolution.events[0].data["reason"] == &"no_movement", "empty movement segment was not rejected", failures)
+	_expect(player.global_position.distance_to(position_before_zero_budget) < 0.001 and not player.is_moving(), "empty movement segment moved CharacterView", failures)
+
+	actor.movement_remaining = 2.0
+	var state_before_preview := JSON.stringify(controller.battle_state.stable_snapshot()).md5_text()
+	var position_before_preview := player.global_position
+	var preview := controller.preview_move_target(target)
+	_expect(preview.events.size() == 2 and preview.events[0].type == &"movement_segment", "combat preview did not resolve movement", failures)
+	_expect(JSON.stringify(controller.battle_state.stable_snapshot()).md5_text() == state_before_preview, "preview applied BattleState", failures)
+	_expect(player.global_position.distance_to(position_before_preview) < 0.001 and not player.is_moving(), "preview moved CharacterView", failures)
+
+	controller.handle_terrain_click(target)
+	_expect(controller.last_resolution.events.size() == 2 and controller.last_resolution.events[0].data["clamped"], "confirmed combat movement was not clamped", failures)
+	var authoritative_position: Vector3 = (controller.battle_state.actors[player.actor_id] as ActorState).position
+	_expect(authoritative_position.distance_to(Vector3(-10.0, player.global_position.y, 0.0)) < 0.001, "confirmed clamp did not apply the authoritative endpoint", failures)
+	var playback_path := event_player.get_resolved_path(player.actor_id)
+	_expect(not playback_path.is_empty() and playback_path[playback_path.size() - 1].distance_to(authoritative_position) < 0.001, "clamped event did not reach EventPlayer with its authoritative endpoint", failures)
+	await _wait_for_destination(player, 240)
+	_expect(player.destination_state == &"reached" and player.global_position.distance_to(authoritative_position) < 0.001, "CharacterView did not synchronize to clamped authoritative position", failures)
+
+	controller.battle_state.phase = &"exploration"
+	actor.movement_remaining = actor.movement_speed
 
 
 func _test_command_event_view_pipeline(controller: TestArenaController, player: CharacterView, event_player: EventPlayer, failures: Array[String]) -> void:

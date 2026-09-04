@@ -2,6 +2,8 @@ class_name Resolver
 extends RefCounted
 
 const ATTACK_RANGE_METERS := 1.5
+const MOVEMENT_EPSILON := 0.0001
+const PolylineUtil = preload("res://sim/polyline.gd")
 
 
 static func resolve(state: BattleState, cmd: Command, nav: NavProvider, los: LosProvider) -> ResolutionResult:
@@ -30,23 +32,45 @@ static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, re
 	var actor: ActorState = state.actors[cmd.actor_id]
 	if not actor.is_alive():
 		return _rejected(result, cmd, "actor_not_alive")
-	var path := nav.find_path(actor.position, cmd.target_pos)
-	if path.is_empty() or not nav.is_reachable(actor.position, cmd.target_pos):
+	var nav_path := nav.find_path(actor.position, cmd.target_pos)
+	if nav_path.is_empty() or not nav.is_reachable(actor.position, cmd.target_pos):
 		return _rejected(result, cmd, "unreachable")
-	var cost := nav.path_cost(path)
-	if state.phase == &"combat" and cost > actor.movement_remaining + 0.0001:
-		return _rejected(result, cmd, "insufficient_movement")
-	var resolved_destination: Vector3 = path[path.size() - 1]
+	var path := PolylineUtil.with_start(nav_path, actor.position)
+	var requested_path_cost := PolylineUtil.length(path)
+	if requested_path_cost <= MOVEMENT_EPSILON:
+		return _rejected(result, cmd, "no_movement")
+
+	var resolved_path := path
+	var movement_cost := requested_path_cost
+	var was_clamped := false
+	if state.phase == &"combat":
+		var available_movement := maxf(0.0, actor.movement_remaining)
+		if available_movement <= MOVEMENT_EPSILON:
+			return _rejected(result, cmd, "no_movement_remaining")
+		if requested_path_cost > available_movement + MOVEMENT_EPSILON:
+			resolved_path = PolylineUtil.clamp(path, available_movement)
+			movement_cost = PolylineUtil.length(resolved_path)
+			if resolved_path.size() < 2 or movement_cost <= MOVEMENT_EPSILON:
+				return _rejected(result, cmd, "no_movement_remaining")
+			was_clamped = true
+
+	var resolved_destination: Vector3 = resolved_path[resolved_path.size() - 1]
 	result.events.append(Event.create(&"movement_segment", {
 		"actor_id": actor.id,
 		"from": actor.position,
 		"to": resolved_destination,
-		"path": path,
+		"path": resolved_path,
+		"path_cost": movement_cost,
+		"requested_path_cost": requested_path_cost,
+		"clamped": was_clamped,
 	}))
 	if state.phase == &"combat":
 		result.events.append(Event.create(&"movement_spent", {
 			"actor_id": actor.id,
-			"amount": cost,
+			"amount": movement_cost,
+			"path_cost": movement_cost,
+			"movement_remaining_before": actor.movement_remaining,
+			"movement_remaining_after": maxf(0.0, actor.movement_remaining - movement_cost),
 		}))
 	return result
 
