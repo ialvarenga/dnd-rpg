@@ -2399,6 +2399,11 @@ end combat
 
 # Fase A6 — Enemy AI
 
+**Status:** implementação e cobertura headless adicionadas — utility AI
+determinística, decisões incrementais por Command, simulação de candidatos pelo
+Resolver puro e orçamento explícito de consultas especulativas de navegação/LoS.
+Validação pelo executável Godot permanece pendente neste ambiente.
+
 ## AI does not manipulate Nodes
 
 Entrada:

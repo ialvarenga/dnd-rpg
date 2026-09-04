@@ -4,7 +4,7 @@ This directory contains the Godot 4.6 runtime for the tactical RPG. The
 current implementation covers the A0 foundation, deterministic A-0 simulation
 spike, A1 camera/locomotion prototype, A2 simulation-to-presentation
 integration, A3 authoritative movement budgets, A4 authoritative turns, and
-A5 actions/combat.
+A5 actions/combat, plus A6's bounded utility enemy AI.
 The playable 64×64 m test arena has a tactical camera, navigation region,
 obstacle route, hover preview, and click-to-move playback through
 Command/Event.
@@ -80,6 +80,15 @@ world. `nav_provider.gd` abstracts path queries and movement cost, while
 `los_provider.gd` abstracts line-of-sight queries. Concrete Godot adapters live
 under `world/`; tests use fakes.
 
+### `ai/`
+
+Engine-independent enemy decision-making. `EnemyAI` accepts a `BattleState`
+snapshot and returns one `Command`; the caller resolves and applies that command
+before requesting another decision. It evaluates a deliberately small,
+deterministically ordered candidate set through the existing pure resolver.
+`AIQueryBudget` and the budgeted port decorators cap speculative navigation and
+line-of-sight work, while rejected or incomplete candidates are never selected.
+
 ### `tests/`
 
 Contains the lightweight headless test runner and its suites.
@@ -97,6 +106,9 @@ Contains the lightweight headless test runner and its suites.
   produce a different result.
 - `integration/test_headless_contract.gd` exercises command resolution and
   application together without a scene.
+- `unit/test_enemy_ai.gd` checks legal candidate enumeration, deterministic
+  replay, query budgets, attack/approach choices, rejection handling,
+  incremental decisions, and A5 invariants.
 - `integration/test_arena_runtime.gd` exercises terrain-input Command creation,
   EventPlayer/CharacterView playback, replacement, rejection, and obstacle
   routing in the main scene.
@@ -109,8 +121,6 @@ Contains the lightweight headless test runner and its suites.
   the arena input/composition controller, and the A1 path-following utility.
 - `view/` contains the tactical camera plus `EventPlayer` and `CharacterView`.
   It interpolates accepted movement events but does not make simulation rules.
-- `ai/` is reserved for enemy decision-making built on top of simulation
-  commands.
 - `data/actors/`, `data/abilities/`, and `data/conditions/` are reserved for
   data-driven gameplay definitions introduced in later phases.
 
