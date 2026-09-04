@@ -1448,6 +1448,8 @@ Isso evita revisitar decisões sem lembrar por que foram tomadas.
 
 # Spike A-0 — Simulação determinística
 
+**Status:** concluído.
+
 ## Objetivo
 
 Provar o modelo:
@@ -1726,6 +1728,8 @@ e geração poderá ser assíncrona.
 
 # Fase A0 — Fundação
 
+**Status:** concluída.
+
 ## Repositório
 
 - Git;
@@ -1828,6 +1832,8 @@ green
 ---
 
 # Fase A1 — Câmera e locomoção
+
+**Status:** implementação concluída; smoke manual no editor pendente neste ambiente sem aplicação gráfica.
 
 ## Reuso
 
@@ -3434,30 +3440,30 @@ commit hash
 
 ## Foundation
 
-- [ ] Create repository
-- [ ] Create Godot 4.6 project
-- [ ] Add project folders
-- [ ] Configure collision layers
-- [ ] Install test framework
-- [ ] CI headless
-- [ ] Create `test_arena.tscn`
+- [x] Create repository
+- [x] Create Godot 4.6 project
+- [x] Add project folders
+- [x] Configure collision layers
+- [x] Install test framework
+- [x] CI headless
+- [x] Create `test_arena.tscn`
 
 ---
 
 ## Spike A-0
 
-- [ ] `ActorState`
-- [ ] `BattleState`
-- [ ] `Command`
-- [ ] `Event`
-- [ ] `ResolutionResult`
-- [ ] `FakeNavProvider`
-- [ ] `FakeLosProvider`
-- [ ] `move`
-- [ ] `attack`
-- [ ] `end_turn`
-- [ ] deterministic RNG state
-- [ ] 1000 identical-seed replay checks
+- [x] `ActorState`
+- [x] `BattleState`
+- [x] `Command`
+- [x] `Event`
+- [x] `ResolutionResult`
+- [x] `FakeNavProvider`
+- [x] `FakeLosProvider`
+- [x] `move`
+- [x] `attack`
+- [x] `end_turn`
+- [x] deterministic RNG state
+- [x] 1000 identical-seed replay checks
 
 ---
 
@@ -3495,58 +3501,58 @@ Produce:
 
 ## Camera
 
-- [ ] Inspect Tactical Slash implementation
-- [ ] Adapt or implement CameraRig
-- [ ] WASD
-- [ ] middle-drag
-- [ ] zoom
-- [ ] rotation
+- [x] Inspect Tactical Slash implementation
+- [x] Adapt or implement CameraRig
+- [x] WASD
+- [x] middle-drag
+- [x] zoom
+- [x] rotation
 
 ---
 
 ## Navigation
 
-- [ ] NavigationRegion3D
-- [ ] NavigationMesh
-- [ ] obstacle geometry
-- [ ] NavigationAgent3D
+- [x] NavigationRegion3D
+- [x] NavigationMesh
+- [x] obstacle geometry
+- [x] NavigationAgent3D
 
 ---
 
 ## Character
 
-- [ ] capsule
-- [ ] click raycast
-- [ ] path follow
-- [ ] rotation
-- [ ] target replacement
+- [x] capsule
+- [x] click raycast
+- [x] path follow
+- [x] rotation
+- [x] target replacement
 
 ---
 
 ## Debug
 
-- [ ] destination marker
-- [ ] path line
-- [ ] nav target
-- [ ] position/velocity overlay
+- [x] destination marker
+- [x] path line
+- [x] nav target
+- [x] position/velocity overlay
 
 ---
 
 ## Tests
 
-- [ ] straight path
-- [ ] obstacle
-- [ ] unreachable point
-- [ ] repeated click
-- [ ] target replacement
-- [ ] click outside terrain
+- [x] straight path
+- [x] obstacle
+- [x] unreachable point
+- [x] repeated click
+- [x] target replacement
+- [x] click outside terrain
 
 ---
 
 # 27. Roadmap resumido
 
 ```text
-A0 Foundation
+A0 Foundation ✅
       ↓
 A1 Free Movement
       ↓
