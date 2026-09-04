@@ -10,6 +10,11 @@ var rng_seed: int = 0
 var rng_state: int = 0
 var world_flags: Dictionary = {}
 
+## Interactable world objects (door/chest/lever -- Fase A9), keyed by stable
+## string id. Authoritative: only Resolver.apply() mutates entries, same as
+## actors.
+var interactables: Dictionary = {}
+
 ## Identifies which AbilityDefinition/ConditionDefinition content this state
 ## was produced under (see DefinitionLibrary.CONTENT_VERSION), so a future
 ## save/load pass (A8) can validate compatibility alongside rules_version.
@@ -23,6 +28,10 @@ func clone() -> BattleState:
 	for actor_id_variant in actor_ids:
 		var actor_id: int = actor_id_variant
 		copy.actors[actor_id] = (actors[actor_id] as ActorState).clone()
+	var interactable_ids: Array = interactables.keys()
+	interactable_ids.sort()
+	for interactable_id in interactable_ids:
+		copy.interactables[interactable_id] = (interactables[interactable_id] as InteractableState).clone()
 	copy.initiative_order = initiative_order.duplicate()
 	copy.current_turn_index = current_turn_index
 	copy.round_number = round_number
@@ -57,8 +66,19 @@ func stable_snapshot() -> Dictionary:
 			"disengaged": actor.disengaged,
 			"conditions": actor.conditions,
 		})
+	var interactable_snapshots: Array[Dictionary] = []
+	var interactable_ids: Array = interactables.keys()
+	interactable_ids.sort()
+	for interactable_id in interactable_ids:
+		var interactable: InteractableState = interactables[interactable_id]
+		interactable_snapshots.append({
+			"id": interactable.id,
+			"type": String(interactable.type),
+			"state": String(interactable.state),
+		})
 	return {
 		"actors": actor_snapshots,
+		"interactables": interactable_snapshots,
 		"initiative_order": initiative_order,
 		"current_turn_index": current_turn_index,
 		"round_number": round_number,
@@ -76,8 +96,14 @@ func to_dict() -> Dictionary:
 	actor_ids.sort()
 	for actor_id_variant in actor_ids:
 		actor_data.append((actors[actor_id_variant] as ActorState).to_dict())
+	var interactable_data: Array[Dictionary] = []
+	var interactable_ids: Array = interactables.keys()
+	interactable_ids.sort()
+	for interactable_id in interactable_ids:
+		interactable_data.append((interactables[interactable_id] as InteractableState).to_dict())
 	return {
 		"actors": actor_data,
+		"interactables": interactable_data,
 		"initiative_order": initiative_order.duplicate(),
 		"current_turn_index": current_turn_index,
 		"round_number": round_number,
@@ -95,6 +121,10 @@ static func from_dict(data: Dictionary) -> BattleState:
 		if actor_data is Dictionary:
 			var actor := ActorState.from_dict(actor_data)
 			state.actors[actor.id] = actor
+	for interactable_data in data.get("interactables", []):
+		if interactable_data is Dictionary:
+			var interactable := InteractableState.from_dict(interactable_data)
+			state.interactables[interactable.id] = interactable
 	for actor_id in data.get("initiative_order", []):
 		state.initiative_order.append(int(actor_id))
 	state.current_turn_index = int(data.get("current_turn_index", 0))

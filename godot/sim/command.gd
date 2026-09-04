@@ -4,6 +4,7 @@ extends RefCounted
 var type: StringName
 var actor_id: int
 var target_id: int = -1
+var target_interactable_id: String = ""
 var target_pos: Vector3 = Vector3.ZERO
 var metadata: Dictionary = {}
 

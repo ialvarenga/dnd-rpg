@@ -1,25 +1,25 @@
 ; Engine configuration file.
-; Godot 4.6 project. Jolt is the selected new-project default; see ADR-002.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
 config_version=5
 
 [application]
+
 config/name="Deterministic Tactical RPG"
 run/main_scene="res://scenes/test_arena.tscn"
+config/features=PackedStringArray("4.7")
 
 [display]
 
-[display/window]
-size/viewport_width=1280
-size/viewport_height=720
-size/window_width_override=1280
-size/window_height_override=720
-
-[rendering]
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
-
-[physics/3d]
-physics_engine="JoltPhysics3D"
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=1280
+window/size/window_height_override=720
 
 [input]
 
@@ -54,10 +54,20 @@ camera_rotate_right={
 ]
 }
 
-[layer_names/3d_physics]
-layer_1="terrain"
-layer_2="character"
-layer_3="interactable"
-layer_4="cover"
-layer_5="trigger"
-layer_6="projectile"
+[layer_names]
+
+3d_physics/layer_1="terrain"
+3d_physics/layer_2="character"
+3d_physics/layer_3="interactable"
+3d_physics/layer_4="cover"
+3d_physics/layer_5="trigger"
+3d_physics/layer_6="projectile"
+
+[physics]
+
+3d/physics_engine="JoltPhysics3D"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
