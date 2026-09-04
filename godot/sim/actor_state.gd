@@ -63,6 +63,16 @@ func is_alive() -> bool:
 	return hp > 0 and not conditions.has(&"dead")
 
 
+func is_conscious() -> bool:
+	return is_alive() and not conditions.has(&"unconscious")
+
+
+func is_prone() -> bool:
+	# Unconscious actors are prone for the small A5 ruleset without needing a
+	# second, redundant condition entry in their serialized state.
+	return conditions.has(&"prone") or conditions.has(&"unconscious")
+
+
 func to_dict() -> Dictionary:
 	return {
 		"id": id,

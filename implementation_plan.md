@@ -2198,6 +2198,10 @@ Jogador e inimigo passivo alternam turnos.
 
 Esta é a maior fase do Marco A.
 
+**Status:** implementação concluída — economia de ações, ataques básicos,
+condições simplificadas e reações são resolvidos deterministicamente em
+`sim/`; a validação requer Godot 4.6.x.
+
 ---
 
 ## Economy
@@ -2343,6 +2347,19 @@ Não implementar ability checks até existirem.
 ### Dead
 
 - removed from initiative/action eligibility.
+
+---
+
+## Implementado
+
+- [x] economia de `action`, `bonus_action`, `reaction` e movimento por turno;
+- [x] Basic Attack, Dash, Disengage e End Turn no pipeline Command/Event;
+- [x] targeting por ator para ataque e por ponto no solo para movimento;
+- [x] LoS, alcance, d20 determinístico, dano, downed e dead;
+- [x] ataques de oportunidade no polyline resolvido, com reação, visibilidade,
+  vida e Disengage autoritativos;
+- [x] prone, poisoned, unconscious e dead, com testes headless de pureza,
+  replay, comandos rejeitados e regressões A3/A4.
 
 ---
 

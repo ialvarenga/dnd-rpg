@@ -3,7 +3,8 @@
 This directory contains the Godot 4.6 runtime for the tactical RPG. The
 current implementation covers the A0 foundation, deterministic A-0 simulation
 spike, A1 camera/locomotion prototype, A2 simulation-to-presentation
-integration, A3 authoritative movement budgets, and A4 authoritative turns.
+integration, A3 authoritative movement budgets, A4 authoritative turns, and
+A5 actions/combat.
 The playable 64×64 m test arena has a tactical camera, navigation region,
 obstacle route, hover preview, and click-to-move playback through
 Command/Event.
@@ -62,8 +63,9 @@ Core files:
 - `resolution_result.gd` carries the ordered events and next RNG state returned
   by resolution.
 - `resolver.gd` validates commands, calculates their outcomes without mutating
-  the input state, clamps combat movement on the resolved polyline, and applies
-  individual events when requested.
+  the input state, clamps combat movement on the resolved polyline, resolves
+  Basic Attack, Dash, Disengage, simplified conditions, and opportunity attacks
+  on a temporary state clone, and applies individual events when requested.
 - `rules/initiative.gd`, `rules/turn_order.gd`, and `rules/encounter.gd`
   calculate deterministic d20 + DEX initiative, eligible turn advancement,
   and the exploration/combat lifecycle without engine dependencies.

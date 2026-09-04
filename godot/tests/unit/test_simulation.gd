@@ -12,6 +12,11 @@ static func run() -> Dictionary:
 	_test_apply_changes_only_event_fields(failures)
 	_test_rejections_are_non_mutating(failures)
 	_test_navigation_rejection_is_non_mutating(failures)
+	_test_action_economy_dash_and_disengage(failures)
+	_test_basic_attack_targeting_and_outcomes(failures)
+	_test_opportunity_attack_and_disengage(failures)
+	_test_conditions_and_death(failures)
+	_test_a5_resolution_is_pure(failures)
 	_test_combat_move_below_budget_spends_polyline_cost(failures)
 	_test_combat_move_beyond_budget_clamps_to_exact_distance(failures)
 	_test_detour_clamp_uses_polyline_distance(failures)
@@ -90,8 +95,148 @@ static func _test_navigation_rejection_is_non_mutating(failures: Array[String]) 
 	_expect(JSON.stringify(state.stable_snapshot()).md5_text() == before_hash, "navigation rejection changed BattleState", failures)
 
 
+static func _test_action_economy_dash_and_disengage(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle()
+	var dash := Resolver.resolve(state, Command.create(&"dash", 1), FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(dash.events.size() == 2 and dash.events[0].type == &"action_spent" and dash.events[1].type == &"movement_gained", "dash did not emit action and movement events", failures)
+	TestHelpers.apply_result(state, dash)
+	var hero: ActorState = state.actors[1]
+	_expect(not hero.action_available and is_equal_approx(hero.movement_remaining, 18.0), "dash did not consume action and grant base speed", failures)
+	var second_action := Resolver.resolve(state, Command.create(&"disengage", 1), FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(second_action.events[0].data["reason"] == &"action_unavailable", "second action in one turn was accepted", failures)
+	# The bonus-action resource remains represented and reset by A4 even though
+	# A5 intentionally supplies no bonus-action ability yet.
+	_expect(hero.bonus_action_available and hero.reaction_available, "unused economy resources changed during dash", failures)
+	var fresh := TestHelpers.make_battle()
+	var disengage := Resolver.resolve(fresh, Command.create(&"disengage", 1), FakeNavProvider.new(), FakeLosProvider.new())
+	TestHelpers.apply_result(fresh, disengage)
+	_expect(not (fresh.actors[1] as ActorState).action_available and (fresh.actors[1] as ActorState).disengaged, "disengage did not consume action for the turn", failures)
+
+
+static func _test_basic_attack_targeting_and_outcomes(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle(42)
+	var attack := Command.create(&"basic_attack", 1)
+	attack.target_id = 2
+	var result := Resolver.resolve(state, attack, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(result.events.size() >= 1 and result.events[0].type == &"attack_rolled" and result.events[0].data["attack_kind"] == &"basic", "basic attack did not target one actor", failures)
+	TestHelpers.apply_result(state, result)
+	_expect(not (state.actors[1] as ActorState).action_available, "basic attack did not consume action", failures)
+	var no_los_state := TestHelpers.make_battle()
+	var blocked_los := FakeLosProvider.new()
+	blocked_los.block((no_los_state.actors[1] as ActorState).position, (no_los_state.actors[2] as ActorState).position)
+	var blocked := Resolver.resolve(no_los_state, attack, FakeNavProvider.new(), blocked_los)
+	_expect(blocked.events[0].data["reason"] == &"no_line_of_sight", "attack did not reject line-of-sight failure", failures)
+	var out_of_range_state := TestHelpers.make_battle()
+	(out_of_range_state.actors[2] as ActorState).position = Vector3(9.0, 0.0, 0.0)
+	var far := Resolver.resolve(out_of_range_state, attack, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(far.events[0].data["reason"] == &"target_out_of_range", "attack did not reject out-of-range actor target", failures)
+
+
+static func _test_opportunity_attack_and_disengage(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle(5)
+	var hero: ActorState = state.actors[1]
+	hero.armor_class = 1
+	var enemy: ActorState = state.actors[2]
+	enemy.attack_bonus = 20
+	var move := Command.create(&"move", 1)
+	move.target_pos = Vector3(4.0, 0.0, 0.0)
+	var result := Resolver.resolve(state, move, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(_event_count(result, &"reaction_triggered") == 1 and _event_count(result, &"attack_rolled") == 1, "leaving a visible enemy threat range did not trigger one opportunity attack", failures)
+	_expect(_event_count(result, &"movement_segment") == 2, "opportunity attack did not split the authoritative move path", failures)
+	var before_hash := JSON.stringify(state.stable_snapshot()).md5_text()
+	_expect(before_hash == JSON.stringify(state.stable_snapshot()).md5_text(), "opportunity attack resolve mutated state", failures)
+	TestHelpers.apply_result(state, result)
+	_expect(not (state.actors[2] as ActorState).reaction_available and (state.actors[1] as ActorState).position == move.target_pos, "opportunity resolution did not spend reaction or complete surviving move", failures)
+
+	var disengaged_state := TestHelpers.make_battle(5)
+	var disengaged_hero: ActorState = disengaged_state.actors[1]
+	disengaged_hero.disengaged = true
+	var safe_move := Command.create(&"move", 1)
+	safe_move.target_pos = Vector3(4.0, 0.0, 0.0)
+	var safe_result := Resolver.resolve(disengaged_state, safe_move, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(_event_count(safe_result, &"reaction_triggered") == 0 and _event_count(safe_result, &"movement_segment") == 1, "disengage did not protect against opportunity attacks", failures)
+
+	var hidden_state := TestHelpers.make_battle(5)
+	var hidden_los := FakeLosProvider.new()
+	hidden_los.block((hidden_state.actors[2] as ActorState).position, (hidden_state.actors[1] as ActorState).position)
+	var hidden_result := Resolver.resolve(hidden_state, safe_move, FakeNavProvider.new(), hidden_los)
+	_expect(_event_count(hidden_result, &"reaction_triggered") == 0, "enemy without visibility triggered an opportunity attack", failures)
+
+	var fatal_state := TestHelpers.make_battle(5)
+	var fatal_hero: ActorState = fatal_state.actors[1]
+	fatal_hero.hp = 1
+	var fatal_enemy: ActorState = fatal_state.actors[2]
+	fatal_enemy.attack_bonus = 100
+	fatal_enemy.damage_die = 1
+	fatal_enemy.damage_modifier = 100
+	var fatal_result := Resolver.resolve(fatal_state, safe_move, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(_event_count(fatal_result, &"actor_died") == 1 and _event_count(fatal_result, &"movement_segment") == 1, "fatal opportunity attack did not stop the remaining resolved path", failures)
+	TestHelpers.apply_result(fatal_state, fatal_result)
+	_expect((fatal_state.actors[1] as ActorState).position.distance_to(Vector3(2.5, 0.0, 0.0)) < 0.001, "fatal opportunity attack moved actor past threat boundary", failures)
+
+
+static func _test_conditions_and_death(failures: Array[String]) -> void:
+	var prone_state := TestHelpers.make_battle()
+	_remove_opportunity_threat(prone_state)
+	(prone_state.actors[1] as ActorState).conditions.append(&"prone")
+	var prone_move := Command.create(&"move", 1)
+	prone_move.target_pos = Vector3(3.0, 0.0, 0.0)
+	var prone_result := Resolver.resolve(prone_state, prone_move, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(prone_result.events[0].type == &"condition_removed" and prone_result.events[1].type == &"movement_spent" and is_equal_approx(float(prone_result.events[1].data["amount"]), 4.5), "prone did not spend half base movement to stand", failures)
+	TestHelpers.apply_result(prone_state, prone_result)
+	_expect(not (prone_state.actors[1] as ActorState).conditions.has(&"prone") and is_equal_approx((prone_state.actors[1] as ActorState).movement_remaining, 1.5), "prone standing movement did not apply", failures)
+	var prone_target_state := TestHelpers.make_battle()
+	(prone_target_state.actors[2] as ActorState).conditions.append(&"prone")
+	var prone_attack := Command.create(&"attack", 1)
+	prone_attack.target_id = 2
+	var prone_attack_result := Resolver.resolve(prone_target_state, prone_attack, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(prone_attack_result.events[0].data["advantage"] and (prone_attack_result.events[0].data["rolls"] as Array).size() == 2, "melee attack against prone target did not use advantage", failures)
+	var ranged_prone_state := TestHelpers.make_battle()
+	(ranged_prone_state.actors[2] as ActorState).position = Vector3(3.0, 0.0, 0.0)
+	(ranged_prone_state.actors[2] as ActorState).conditions.append(&"prone")
+	var ranged_prone_attack := Command.create(&"attack", 1)
+	ranged_prone_attack.target_id = 2
+	ranged_prone_attack.metadata = {"is_ranged": true, "range_meters": 9.0}
+	var ranged_prone_result := Resolver.resolve(ranged_prone_state, ranged_prone_attack, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(ranged_prone_result.events[0].data["disadvantage"] and not ranged_prone_result.events[0].data["advantage"], "ranged attack beyond close range against prone target did not use disadvantage", failures)
+
+	var poisoned_state := TestHelpers.make_battle()
+	(poisoned_state.actors[1] as ActorState).conditions.append(&"poisoned")
+	var poison_attack := Command.create(&"attack", 1)
+	poison_attack.target_id = 2
+	var poison_result := Resolver.resolve(poisoned_state, poison_attack, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(poison_result.events[0].data["disadvantage"] and (poison_result.events[0].data["rolls"] as Array).size() == 2, "poisoned attack did not use deterministic disadvantage", failures)
+
+	var unconscious_state := TestHelpers.make_battle()
+	(unconscious_state.actors[1] as ActorState).conditions.append(&"unconscious")
+	var unconscious_move := Resolver.resolve(unconscious_state, Command.create(&"move", 1), FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(unconscious_move.events[0].data["reason"] == &"actor_cannot_act", "unconscious actor was allowed to move", failures)
+
+	var lethal_state := TestHelpers.make_battle()
+	var lethal_attacker: ActorState = lethal_state.actors[1]
+	lethal_attacker.attack_bonus = 100
+	lethal_attacker.damage_die = 1
+	lethal_attacker.damage_modifier = 100
+	var lethal_attack := Command.create(&"attack", 1)
+	lethal_attack.target_id = 2
+	var lethal_result := Resolver.resolve(lethal_state, lethal_attack, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(_event_count(lethal_result, &"actor_died") == 1, "massive damage did not produce the dead condition event", failures)
+	TestHelpers.apply_result(lethal_state, lethal_result)
+	_expect((lethal_state.actors[2] as ActorState).conditions.has(&"dead"), "actor_died did not apply dead condition", failures)
+
+
+static func _test_a5_resolution_is_pure(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle()
+	var before_hash := JSON.stringify(state.stable_snapshot()).md5_text()
+	var command := Command.create(&"move", 1)
+	command.target_pos = Vector3(4.0, 0.0, 0.0)
+	Resolver.resolve(state, command, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(JSON.stringify(state.stable_snapshot()).md5_text() == before_hash, "A5 move/reaction resolution mutated BattleState", failures)
+
+
 static func _test_combat_move_below_budget_spends_polyline_cost(failures: Array[String]) -> void:
 	var state := TestHelpers.make_battle()
+	_remove_opportunity_threat(state)
 	var actor: ActorState = state.actors[1]
 	actor.movement_remaining = 5.0
 	var command := Command.create(&"move", 1)
@@ -112,6 +257,7 @@ static func _test_combat_move_below_budget_spends_polyline_cost(failures: Array[
 
 static func _test_combat_move_beyond_budget_clamps_to_exact_distance(failures: Array[String]) -> void:
 	var state := TestHelpers.make_battle()
+	_remove_opportunity_threat(state)
 	var actor: ActorState = state.actors[1]
 	actor.movement_remaining = 5.0
 	var command := Command.create(&"move", 1)
@@ -132,6 +278,7 @@ static func _test_combat_move_beyond_budget_clamps_to_exact_distance(failures: A
 
 static func _test_detour_clamp_uses_polyline_distance(failures: Array[String]) -> void:
 	var state := TestHelpers.make_battle()
+	_remove_opportunity_threat(state)
 	var actor: ActorState = state.actors[1]
 	actor.movement_remaining = 8.0
 	var command := Command.create(&"move", 1)
@@ -162,6 +309,7 @@ static func _test_exploration_move_ignores_budget(failures: Array[String]) -> vo
 
 static func _test_zero_budget_and_empty_segment_reject_without_mutation(failures: Array[String]) -> void:
 	var zero_budget_state := TestHelpers.make_battle()
+	_remove_opportunity_threat(zero_budget_state)
 	(zero_budget_state.actors[1] as ActorState).movement_remaining = 0.0
 	var zero_budget_command := Command.create(&"move", 1)
 	zero_budget_command.target_pos = Vector3(3.0, 0.0, 0.0)
@@ -171,6 +319,7 @@ static func _test_zero_budget_and_empty_segment_reject_without_mutation(failures
 	_expect(JSON.stringify(zero_budget_state.stable_snapshot()).md5_text() == before_hash, "zero-budget rejection changed BattleState", failures)
 
 	var empty_segment_state := TestHelpers.make_battle()
+	_remove_opportunity_threat(empty_segment_state)
 	var empty_segment_command := Command.create(&"move", 1)
 	empty_segment_command.target_pos = Vector3.ZERO
 	var empty_result := Resolver.resolve(empty_segment_state, empty_segment_command, FakeNavProvider.new(), FakeLosProvider.new())
@@ -180,6 +329,7 @@ static func _test_zero_budget_and_empty_segment_reject_without_mutation(failures
 
 static func _test_move_preview_resolution_is_pure(failures: Array[String]) -> void:
 	var state := TestHelpers.make_battle()
+	_remove_opportunity_threat(state)
 	var command := Command.create(&"move", 1)
 	command.target_pos = Vector3(6.0, 0.0, 0.0)
 	var before_hash := JSON.stringify(state.stable_snapshot()).md5_text()
@@ -298,3 +448,15 @@ static func _json_dictionary(data: Dictionary) -> Dictionary:
 static func _expect(condition: bool, message: String, failures: Array[String]) -> void:
 	if not condition:
 		failures.append(message)
+
+
+static func _event_count(result: ResolutionResult, event_type: StringName) -> int:
+	var count := 0
+	for event in result.events:
+		if event.type == event_type:
+			count += 1
+	return count
+
+
+static func _remove_opportunity_threat(state: BattleState) -> void:
+	(state.actors[2] as ActorState).position = Vector3(30.0, 0.0, 0.0)
