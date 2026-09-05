@@ -34,6 +34,18 @@ const EFFECT_REMOVE_CONDITION := &"remove_condition"
 const EFFECT_APPLY_DISENGAGE := &"apply_disengage"
 const EFFECT_PERFORM_ATTACK := &"perform_attack"
 
+const INTERACT_RANGE_EPSILON := 0.0001
+
+## Interactable type -> {current state: next state}. Small and fixed for V1
+## (door/chest/lever, per implementation_plan.md Fase A9); Resolver reads
+## InteractableState.type generically instead of branching on instance id, the
+## same way ability effects avoid branching on ability id.
+const INTERACTABLE_TRANSITIONS := {
+	&"door": {&"closed": &"open", &"open": &"closed"},
+	&"chest": {&"closed": &"open"},
+	&"lever": {&"off": &"on", &"on": &"off"},
+}
+
 
 static func resolve(state: BattleState, cmd: Command, nav: NavProvider, los: LosProvider, defs: DefinitionLibrary = null) -> ResolutionResult:
 	var definitions := defs if defs != null else DefinitionLibrary.get_default()
@@ -47,12 +59,16 @@ static func resolve(state: BattleState, cmd: Command, nav: NavProvider, los: Los
 		return _resolve_end_combat(state, cmd, result)
 	if cmd.type == &"move" and state.phase == EncounterRules.EXPLORATION:
 		return _resolve_move(state, cmd, nav, los, definitions, result)
+	if cmd.type == &"interact" and state.phase == EncounterRules.EXPLORATION:
+		return _resolve_interact(state, cmd, result, false)
 	if state.phase != EncounterRules.COMBAT:
 		return _rejected(result, cmd, "not_in_combat")
 	if state.current_actor_id() != cmd.actor_id:
 		return _rejected(result, cmd, "not_current_actor")
 	if cmd.type == &"move":
 		return _resolve_move(state, cmd, nav, los, definitions, result)
+	if cmd.type == &"interact":
+		return _resolve_interact(state, cmd, result, true)
 	if cmd.type == &"end_turn":
 		return _resolve_end_turn(state, cmd, result)
 	if COMMAND_ABILITY_IDS.has(cmd.type):
@@ -150,6 +166,35 @@ static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, lo
 			break
 		# Remaining enemies at this same boundary have distance zero; their spent
 		# reaction is filtered, so each other eligible enemy resolves once.
+	return result
+
+
+## exploration -> free (costs_action false); combat -> costs the actor's
+## action, per implementation_plan.md Fase A9 "Combat: interaction cost".
+static func _resolve_interact(state: BattleState, cmd: Command, result: ResolutionResult, costs_action: bool) -> ResolutionResult:
+	var actor: ActorState = state.actors[cmd.actor_id]
+	if not actor.is_conscious():
+		return _rejected(result, cmd, "actor_cannot_act")
+	if not state.interactables.has(cmd.target_interactable_id):
+		return _rejected(result, cmd, "unknown_interactable")
+	var interactable: InteractableState = state.interactables[cmd.target_interactable_id]
+	if actor.position.distance_to(interactable.position) > interactable.interact_range + INTERACT_RANGE_EPSILON:
+		return _rejected(result, cmd, "out_of_range")
+	if costs_action and not actor.action_available:
+		return _rejected(result, cmd, "action_unavailable")
+	var transitions: Dictionary = INTERACTABLE_TRANSITIONS.get(interactable.type, {})
+	var next_state: StringName = transitions.get(interactable.state, &"")
+	if next_state == &"":
+		return _rejected(result, cmd, "invalid_interactable_state")
+	if costs_action:
+		result.events.append(Event.create(&"action_spent", {"actor_id": actor.id, "action": &"interact"}))
+	result.events.append(Event.create(&"interaction_completed", {
+		"actor_id": actor.id,
+		"interactable_id": interactable.id,
+		"interactable_type": interactable.type,
+		"previous_state": interactable.state,
+		"new_state": next_state,
+	}))
 	return result
 
 
@@ -410,6 +455,9 @@ static func apply(state: BattleState, event: Event) -> void:
 			var added := StringName(str(event.data["condition"]))
 			if not conditioned_actor.conditions.has(added): conditioned_actor.conditions.append(added)
 		&"condition_removed": (state.actors[event.data["actor_id"]] as ActorState).conditions.erase(StringName(str(event.data["condition"])))
+		&"interaction_completed":
+			var interactable: InteractableState = state.interactables[event.data["interactable_id"]]
+			interactable.state = event.data["new_state"]
 		&"combat_started", &"combat_ending": state.phase = event.data["phase"]
 		&"initiative_established":
 			state.initiative_order = _actor_ids(event.data["initiative_order"])

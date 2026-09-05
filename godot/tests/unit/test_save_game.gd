@@ -35,6 +35,14 @@ static func _mid_combat_state() -> BattleState:
 	var enemy: ActorState = state.actors[2]
 	enemy.hp = 4
 	enemy.conditions.append(&"prone")
+
+	var door := InteractableState.new()
+	door.id = "door_north"
+	door.type = &"door"
+	door.state = &"open"
+	door.position = Vector3(1.5, 0.0, 0.0)
+	door.interact_range = 2.0
+	state.interactables[door.id] = door
 	return state
 
 
@@ -68,6 +76,12 @@ static func _test_round_trip_preserves_mid_combat_state(failures: Array[String])
 	var restored_enemy: ActorState = restored_state.actors[2]
 	_expect(restored_enemy.hp == 4, "second actor HP did not round-trip", failures)
 	_expect(restored_enemy.conditions.has(&"prone"), "second actor conditions did not round-trip", failures)
+
+	_expect(restored_state.interactables.has("door_north"), "interactables did not round-trip through SaveGame", failures)
+	if restored_state.interactables.has("door_north"):
+		var restored_door: InteractableState = restored_state.interactables["door_north"]
+		_expect(restored_door.type == &"door", "interactable type did not round-trip through SaveGame", failures)
+		_expect(restored_door.state == &"open", "interactable state did not round-trip through SaveGame", failures)
 
 	_expect(
 		JSON.stringify(original.to_dict()) == JSON.stringify(restored.to_dict()),

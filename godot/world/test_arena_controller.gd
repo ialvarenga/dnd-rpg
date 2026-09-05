@@ -32,11 +32,28 @@ var _line_mesh := ImmediateMesh.new()
 func _ready() -> void:
 	path_mesh.mesh = _line_mesh
 	destination_marker.visible = false
+	_dress_arena_props()
 	nav_provider = GodotNavProvider.new(navigation_region)
 	los_provider = GodotLosProvider.new(get_world_3d(), 8)
 	_initialize_exploration_state()
 	event_player.register_character_view(character)
 	event_player.movement_completed.connect(_synchronize_completed_movement)
+
+
+## Fase A10 scaffold: swaps greybox meshes for real art wherever
+## AssetCatalog has a sourced entry; a no-op for ids still unsourced (see
+## docs/third_party/assets.csv). The offsets correct for real KayKit art
+## using a different pivot convention than the centered greybox fallback each
+## anchor was originally sized around -- see AssetCatalog.dress().
+func _dress_arena_props() -> void:
+	AssetCatalog.dress($Floor, &"floor_generic")
+	AssetCatalog.dress($TreeA, &"obstacle_tree_a")
+	AssetCatalog.dress($TreeB, &"obstacle_tree_b")
+	AssetCatalog.dress($NorthWall, &"wall_generic", AssetCatalog.MANIFEST, Vector3(0, -1.4, 0))
+	AssetCatalog.dress($DoorPlaceholder, &"door_wood_01")
+	AssetCatalog.dress($CentralObstacle, &"obstacle_barrier")
+	AssetCatalog.dress($Chest, &"chest_wood_01")
+	AssetCatalog.dress(character, &"character_hero_placeholder", AssetCatalog.MANIFEST, Vector3(0, -0.9, 0), PI)
 
 
 func _process(_delta: float) -> void:
@@ -50,7 +67,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			preview_move_target(preview_target)
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		handle_terrain_click(_terrain_position_from_screen(event.position))
+		var interactable_id := _interactable_id_at_screen(event.position)
+		if interactable_id != "":
+			submit_interact(interactable_id)
+		else:
+			handle_terrain_click(_terrain_position_from_screen(event.position))
 		get_viewport().set_input_as_handled()
 
 
@@ -120,6 +141,24 @@ func submit_move_target(target: Vector3) -> ResolutionResult:
 	return last_resolution
 
 
+## Public for runtime tests and future UI, mirroring submit_move_target: it
+## resolves through the same Command/Resolver/apply pipeline as movement, so
+## the chest is never opened by mutating InteractableState directly.
+func submit_interact(interactable_id: String) -> ResolutionResult:
+	var command := Command.create(&"interact", character.actor_id)
+	command.target_interactable_id = interactable_id
+	last_command = command
+	last_resolution = Resolver.resolve(battle_state, command, nav_provider, los_provider)
+	_apply_resolution(last_resolution)
+	for event in last_resolution.events:
+		if event.type == &"command_rejected":
+			last_input_status = event.data["reason"]
+		elif event.type == &"interaction_completed":
+			last_input_status = &"interacted"
+	event_player.play_events(last_resolution.events)
+	return last_resolution
+
+
 func _initialize_exploration_state() -> void:
 	battle_state.phase = &"exploration"
 	battle_state.rng_seed = 1
@@ -131,6 +170,18 @@ func _initialize_exploration_state() -> void:
 	player.hp = 20
 	player.max_hp = 20
 	battle_state.actors[player.id] = player
+
+	var chest := InteractableState.new()
+	chest.id = "chest_a"
+	chest.type = &"chest"
+	chest.state = &"closed"
+	# Ground/navmesh height, matching where a nav-driven ActorState.position
+	# actually lands after movement (~0.1) rather than the Chest node's own
+	# ground-pivoted transform.y (0.265) or the player's un-moved spawn height
+	# (1.0) -- interact_range below absorbs the difference either way.
+	chest.position = Vector3(10, 0.1, -10)
+	chest.interact_range = 2.5
+	battle_state.interactables[chest.id] = chest
 
 
 func _apply_resolution(resolution: ResolutionResult) -> void:
@@ -174,6 +225,25 @@ func _terrain_position_from_screen(screen_position: Vector2) -> Variant:
 	if hit.is_empty():
 		return null
 	return hit["position"]
+
+
+## Returns the clicked node's "interactable_id" metadata (set on the
+## interactable's PhysicsBody in the scene, e.g. Chest), or "" when the click
+## didn't land on layer 3 ("interactable" per implementation_plan.md 6.1
+## collision layers).
+func _interactable_id_at_screen(screen_position: Vector2) -> String:
+	var ray_origin := camera.project_ray_origin(screen_position)
+	var ray_end := ray_origin + camera.project_ray_normal(screen_position) * 500.0
+	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end, 1 << 2)
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return ""
+	var collider: Object = hit.get("collider")
+	if collider is Node and (collider as Node).has_meta("interactable_id"):
+		return str((collider as Node).get_meta("interactable_id"))
+	return ""
 
 
 func _update_debug_view() -> void:

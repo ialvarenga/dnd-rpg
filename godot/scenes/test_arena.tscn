@@ -1,9 +1,9 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene format=3 uid="uid://dn2hnkfe3w6ch"]
 
-[ext_resource type="Script" path="res://world/test_arena_controller.gd" id="1_arena"]
-[ext_resource type="Script" path="res://view/tactical_camera_rig.gd" id="2_camera"]
-[ext_resource type="Script" path="res://view/character_view.gd" id="3_character"]
-[ext_resource type="Script" path="res://view/event_player.gd" id="4_event_player"]
+[ext_resource type="Script" uid="uid://bx4t11h8cy8eu" path="res://world/test_arena_controller.gd" id="1_arena"]
+[ext_resource type="Script" uid="uid://b5483b8ys63l2" path="res://view/tactical_camera_rig.gd" id="2_camera"]
+[ext_resource type="Script" uid="uid://fqevt6p7grqd" path="res://view/character_view.gd" id="3_character"]
+[ext_resource type="Script" uid="uid://6l20kl4vbp3y" path="res://view/event_player.gd" id="4_event_player"]
 
 [sub_resource type="StandardMaterial3D" id="FloorMaterial"]
 albedo_color = Color(0.18, 0.28, 0.2, 1)
@@ -15,8 +15,18 @@ size = Vector3(64, 0.2, 64)
 [sub_resource type="BoxShape3D" id="FloorShape"]
 size = Vector3(64, 0.2, 64)
 
-[sub_resource type="BoxMesh" id="CubeMesh"]
-size = Vector3(2, 2, 2)
+[sub_resource type="StandardMaterial3D" id="TreeTrunkMaterial"]
+albedo_color = Color(0.22, 0.42, 0.16, 1)
+
+[sub_resource type="CylinderMesh" id="TreeTrunkMesh"]
+material = SubResource("TreeTrunkMaterial")
+top_radius = 0.4
+bottom_radius = 0.4
+height = 3.0
+
+[sub_resource type="CylinderShape3D" id="TreeTrunkShape"]
+radius = 0.4
+height = 3.0
 
 [sub_resource type="BoxMesh" id="WallMesh"]
 size = Vector3(20, 3, 0.5)
@@ -24,19 +34,29 @@ size = Vector3(20, 3, 0.5)
 [sub_resource type="BoxMesh" id="DoorMesh"]
 size = Vector3(1.4, 2.4, 0.25)
 
+[sub_resource type="NavigationMesh" id="NavigationMesh"]
+vertices = PackedVector3Array(-31.8, 0.1, -31.8, -3.2, 0.1, -31.8, 3.2, 0.1, -31.8, 31.8, 0.1, -31.8, -31.8, 0.1, -2.8, -3.2, 0.1, -2.8, 3.2, 0.1, -2.8, 31.8, 0.1, -2.8, -31.8, 0.1, 2.8, -3.2, 0.1, 2.8, 3.2, 0.1, 2.8, 31.8, 0.1, 2.8, -31.8, 0.1, 31.8, -3.2, 0.1, 31.8, 3.2, 0.1, 31.8, 31.8, 0.1, 31.8)
+polygons = [PackedInt32Array(0, 1, 5, 4), PackedInt32Array(1, 2, 6, 5), PackedInt32Array(2, 3, 7, 6), PackedInt32Array(4, 5, 9, 8), PackedInt32Array(6, 7, 11, 10), PackedInt32Array(8, 9, 13, 12), PackedInt32Array(9, 10, 14, 13), PackedInt32Array(10, 11, 15, 14)]
+
 [sub_resource type="StandardMaterial3D" id="BarrierMaterial"]
 albedo_color = Color(0.32, 0.16, 0.08, 1)
 
 [sub_resource type="BoxMesh" id="BarrierMesh"]
 material = SubResource("BarrierMaterial")
-size = Vector3(2, 2, 12)
+size = Vector3(5.2, 3.85, 4.2)
 
 [sub_resource type="BoxShape3D" id="BarrierShape"]
-size = Vector3(2, 2, 12)
+size = Vector3(5.2, 3.85, 4.2)
 
-[sub_resource type="NavigationMesh" id="NavigationMesh"]
-vertices = PackedVector3Array(-31.8, 0.1, -31.8, -2, 0.1, -31.8, 2, 0.1, -31.8, 31.8, 0.1, -31.8, -31.8, 0.1, -7, -2, 0.1, -7, 2, 0.1, -7, 31.8, 0.1, -7, -31.8, 0.1, 7, -2, 0.1, 7, 2, 0.1, 7, 31.8, 0.1, 7, -31.8, 0.1, 31.8, -2, 0.1, 31.8, 2, 0.1, 31.8, 31.8, 0.1, 31.8)
-polygons = [PackedInt32Array(0, 1, 5, 4), PackedInt32Array(1, 2, 6, 5), PackedInt32Array(2, 3, 7, 6), PackedInt32Array(4, 5, 9, 8), PackedInt32Array(6, 7, 11, 10), PackedInt32Array(8, 9, 13, 12), PackedInt32Array(9, 10, 14, 13), PackedInt32Array(10, 11, 15, 14)]
+[sub_resource type="StandardMaterial3D" id="ChestMaterial"]
+albedo_color = Color(0.45, 0.32, 0.14, 1)
+
+[sub_resource type="BoxMesh" id="ChestMesh"]
+material = SubResource("ChestMaterial")
+size = Vector3(1.7, 1.0, 1.9)
+
+[sub_resource type="BoxShape3D" id="ChestShape"]
+size = Vector3(1.7, 1.0, 1.9)
 
 [sub_resource type="CapsuleShape3D" id="CharacterShape"]
 radius = 0.45
@@ -62,104 +82,138 @@ bottom_radius = 0.45
 height = 0.08
 
 [sub_resource type="StandardMaterial3D" id="PathMaterial"]
-albedo_color = Color(1, 0.78, 0.08, 1)
-emission_enabled = true
-emission = Color(1, 0.35, 0.01, 1)
 shading_mode = 0
+albedo_color = Color(1, 0.78, 0.08, 1)
 
-[node name="TestArena" type="Node3D"]
+[node name="TestArena" type="Node3D" unique_id=1090467907]
 script = ExtResource("1_arena")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
-rotation_degrees = Vector3(-55, -35, 0)
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=134958808]
+transform = Transform3D(0.81915206, 0.46984634, -0.32898995, 0, 0.57357645, 0.81915206, 0.57357645, -0.6710101, 0.46984634, 0, 0, 0)
 light_energy = 1.2
 shadow_enabled = true
 
-[node name="Floor" type="StaticBody3D" parent="."]
-collision_layer = 1
+[node name="Floor" type="StaticBody3D" parent="." unique_id=1411529601]
 collision_mask = 0
 
-[node name="Mesh" type="MeshInstance3D" parent="Floor"]
+[node name="Mesh" type="MeshInstance3D" parent="Floor" unique_id=1870780321]
 mesh = SubResource("FloorMesh")
 
-[node name="Collision" type="CollisionShape3D" parent="Floor"]
+[node name="Collision" type="CollisionShape3D" parent="Floor" unique_id=886800481]
 shape = SubResource("FloorShape")
 
-[node name="CubeA" type="MeshInstance3D" parent="."]
-position = Vector3(-8, 1, -4)
-mesh = SubResource("CubeMesh")
-
-[node name="CubeB" type="MeshInstance3D" parent="."]
-position = Vector3(5, 1, 7)
-mesh = SubResource("CubeMesh")
-
-[node name="NorthWall" type="MeshInstance3D" parent="."]
-position = Vector3(0, 1.5, -16)
-mesh = SubResource("WallMesh")
-
-[node name="DoorPlaceholder" type="MeshInstance3D" parent="."]
-position = Vector3(0, 1.2, -15.65)
-mesh = SubResource("DoorMesh")
-
-[node name="NavigationRegion3D" type="NavigationRegion3D" parent="."]
-use_edge_connections = true
-navigation_mesh = SubResource("NavigationMesh")
-
-[node name="CentralObstacle" type="StaticBody3D" parent="."]
-position = Vector3(0, 1.1, 0)
+[node name="TreeA" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0.361, -4)
 collision_layer = 8
 collision_mask = 0
 
-[node name="Mesh" type="MeshInstance3D" parent="CentralObstacle"]
+[node name="Mesh" type="MeshInstance3D" parent="TreeA"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.239, 0)
+mesh = SubResource("TreeTrunkMesh")
+
+[node name="Collision" type="CollisionShape3D" parent="TreeA"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.239, 0)
+shape = SubResource("TreeTrunkShape")
+
+[node name="TreeB" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.361, 7)
+collision_layer = 8
+collision_mask = 0
+
+[node name="Mesh" type="MeshInstance3D" parent="TreeB"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.239, 0)
+mesh = SubResource("TreeTrunkMesh")
+
+[node name="Collision" type="CollisionShape3D" parent="TreeB"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.239, 0)
+shape = SubResource("TreeTrunkShape")
+
+[node name="NorthWall" type="MeshInstance3D" parent="." unique_id=1576583385]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, -16)
+mesh = SubResource("WallMesh")
+
+[node name="DoorPlaceholder" type="MeshInstance3D" parent="." unique_id=1097692504]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, -15.65)
+mesh = SubResource("DoorMesh")
+
+[node name="NavigationRegion3D" type="NavigationRegion3D" parent="." unique_id=858407767]
+navigation_mesh = SubResource("NavigationMesh")
+
+[node name="CentralObstacle" type="StaticBody3D" parent="." unique_id=1365436146]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.808, 0)
+collision_layer = 8
+collision_mask = 0
+
+[node name="Mesh" type="MeshInstance3D" parent="CentralObstacle" unique_id=802305453]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.217, 0)
 mesh = SubResource("BarrierMesh")
 
-[node name="Collision" type="CollisionShape3D" parent="CentralObstacle"]
+[node name="Collision" type="CollisionShape3D" parent="CentralObstacle" unique_id=1452030770]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.217, 0)
 shape = SubResource("BarrierShape")
 
-[node name="PlayerCharacter" type="CharacterBody3D" parent="."]
-position = Vector3(-12, 1, 0)
+[node name="Chest" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0.265, -10)
+collision_layer = 12
+collision_mask = 0
+metadata/interactable_id = "chest_a"
+
+[node name="Mesh" type="MeshInstance3D" parent="Chest"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.335, 0)
+mesh = SubResource("ChestMesh")
+
+[node name="Collision" type="CollisionShape3D" parent="Chest"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.335, 0)
+shape = SubResource("ChestShape")
+
+[node name="PlayerCharacter" type="CharacterBody3D" parent="." unique_id=1908870267]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 1, 0)
 collision_layer = 2
 collision_mask = 9
 script = ExtResource("3_character")
 
-[node name="Collision" type="CollisionShape3D" parent="PlayerCharacter"]
+[node name="Collision" type="CollisionShape3D" parent="PlayerCharacter" unique_id=1370311782]
 shape = SubResource("CharacterShape")
 
-[node name="Mesh" type="MeshInstance3D" parent="PlayerCharacter"]
+[node name="Mesh" type="MeshInstance3D" parent="PlayerCharacter" unique_id=1244944059]
 mesh = SubResource("CharacterMesh")
 
-[node name="EventPlayer" type="Node" parent="."]
+[node name="EventPlayer" type="Node" parent="." unique_id=1960922341]
 script = ExtResource("4_event_player")
 
-[node name="CameraRig" type="Node3D" parent="."]
+[node name="CameraRig" type="Node3D" parent="." unique_id=1081130703]
 script = ExtResource("2_camera")
 
-[node name="Pivot" type="Node3D" parent="CameraRig"]
-rotation_degrees = Vector3(-58, 0, 0)
+[node name="Pivot" type="Node3D" parent="CameraRig" unique_id=451543153]
+transform = Transform3D(1, 0, 0, 0, 0.52991927, 0.8480481, 0, -0.8480481, 0.52991927, 0, 0, 0)
 
-[node name="Camera3D" type="Camera3D" parent="CameraRig/Pivot"]
-position = Vector3(0, 0, 20)
+[node name="Camera3D" type="Camera3D" parent="CameraRig/Pivot" unique_id=1079897780]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 20)
 current = true
 fov = 52.0
 near = 0.1
 far = 120.0
 
-[node name="Debug" type="Node3D" parent="."]
+[node name="Debug" type="Node3D" parent="." unique_id=40672315]
 
-[node name="DestinationMarker" type="MeshInstance3D" parent="Debug"]
+[node name="DestinationMarker" type="MeshInstance3D" parent="Debug" unique_id=178154803]
 mesh = SubResource("MarkerMesh")
 
-[node name="PathLine" type="MeshInstance3D" parent="Debug"]
+[node name="PathLine" type="MeshInstance3D" parent="Debug" unique_id=1654901769]
 material_override = SubResource("PathMaterial")
 
-[node name="DebugOverlay" type="CanvasLayer" parent="."]
+[node name="DebugOverlay" type="CanvasLayer" parent="." unique_id=1422427559]
 
-[node name="Panel" type="PanelContainer" parent="DebugOverlay"]
+[node name="Panel" type="PanelContainer" parent="DebugOverlay" unique_id=173417773]
 offset_left = 16.0
 offset_top = 16.0
 offset_right = 310.0
 offset_bottom = 116.0
 
-[node name="Label" type="Label" parent="DebugOverlay/Panel"]
+[node name="Label" type="Label" parent="DebugOverlay/Panel" unique_id=1409955980]
+layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
-text = "Command: --\nDestination: --\nVelocity: --\nPreview: --"
+text = "Command: --
+Destination: --
+Velocity: --
+Preview: --"

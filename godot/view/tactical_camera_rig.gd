@@ -29,7 +29,10 @@ func _process(delta: float) -> void:
 	if input_vector.length_squared() > 0.0:
 		var forward := Vector3(-sin(target_yaw), 0.0, -cos(target_yaw))
 		var right := Vector3(forward.z, 0.0, -forward.x)
-		target_focus += (right * input_vector.x + forward * input_vector.y) * pan_speed * delta
+		# Input.get_vector's forward/back pair is (negative_y, positive_y), so
+		# holding "camera_pan_forward" yields input_vector.y == -1 -- negate it
+		# so pressing forward actually moves toward `forward`, not away from it.
+		target_focus += (right * input_vector.x - forward * input_vector.y) * pan_speed * delta
 		_clamp_focus()
 	if Input.is_action_pressed(&"camera_rotate_left"):
 		target_yaw -= rotation_speed * delta

@@ -21,6 +21,7 @@ func to_dict() -> Dictionary:
 		"type": String(type),
 		"actor_id": actor_id,
 		"target_id": target_id,
+		"target_interactable_id": target_interactable_id,
 		"target_pos": SimulationSerialization.value_to_data(target_pos),
 		"metadata": SimulationSerialization.value_to_data(metadata),
 	}
@@ -29,6 +30,7 @@ func to_dict() -> Dictionary:
 static func from_dict(data: Dictionary) -> Command:
 	var command := Command.create(StringName(str(data.get("type", ""))), int(data.get("actor_id", -1)))
 	command.target_id = int(data.get("target_id", -1))
+	command.target_interactable_id = str(data.get("target_interactable_id", ""))
 	var restored_target: Variant = SimulationSerialization.data_to_value(data.get("target_pos", {}))
 	if restored_target is Vector3:
 		command.target_pos = restored_target

@@ -1,0 +1,9 @@
+asset,source,author,license,download_date,local_path,modified
+floor_generic,,,,,,
+wall_generic,KayKit Dungeon Pack 1.1 (www.kaylousberg.com),Kay Lousberg,CC0 1.0,2026-09-04,godot/assets/kaykit_dungeon/wall_run_5.tscn (composite of 5x wall.gltf),no
+obstacle_tree_a,KayKit Forest Nature Pack 1.0 (www.kaylousberg.com),Kay Lousberg,CC0 1.0,2026-09-04,godot/assets/kaykit_forest/Tree_1_A_Color1.gltf,no
+obstacle_tree_b,KayKit Forest Nature Pack 1.0 (www.kaylousberg.com),Kay Lousberg,CC0 1.0,2026-09-04,godot/assets/kaykit_forest/Tree_3_A_Color1.gltf,no
+obstacle_barrier,KayKit Forest Nature Pack 1.0 (www.kaylousberg.com),Kay Lousberg,CC0 1.0,2026-09-04,godot/assets/kaykit_forest/Rock_3_R_Color1.gltf,no
+door_wood_01,,,,,,
+character_hero_placeholder,KayKit Adventurers 2.0 (www.kaylousberg.com),Kay Lousberg,CC0 1.0,2026-09-04,godot/assets/kaykit_adventurers/Knight.glb,no
+chest_wood_01,KayKit Dungeon Pack 1.1 (www.kaylousberg.com),Kay Lousberg,CC0 1.0,2026-09-04,godot/assets/kaykit_dungeon/chest.gltf,no

@@ -22,9 +22,11 @@ var content_version: int = DefinitionLibrary.CONTENT_VERSION
 var map_id: String = ""
 var battle_state: BattleState = BattleState.new()
 
-## Reserved for interactable/world state (doors, chests, levers -- Fase A9).
-## Empty until A9 populates it; kept as a top-level field now so the save
-## format does not need a breaking schema change to grow into it.
+## Door/chest/lever state (Fase A9) lives in battle_state.interactables --
+## Resolver reads and mutates it deterministically like actors, so it has to
+## be inside the state the resolver sees, not out here. This field stays
+## reserved for future non-authoritative, non-resolver world bookkeeping
+## (e.g. map/scene progress flags) that never needs to affect resolution.
 var world_state: Dictionary = {}
 
 

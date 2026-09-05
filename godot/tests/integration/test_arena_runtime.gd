@@ -21,6 +21,8 @@ func run() -> Dictionary:
 	await _test_target_replacement(controller, player, event_player, failures)
 	await _test_obstacle_route(controller, player, event_player, failures)
 	await _test_rejected_and_invalid_clicks(controller, player, failures)
+	_test_chest_interaction(controller, failures)
+	_test_camera_pan_direction(arena.get_node("CameraRig"), failures)
 	arena.queue_free()
 	return {"name": "integration/test_arena_runtime", "failures": failures}
 
@@ -95,8 +97,13 @@ func _test_obstacle_route(controller: TestArenaController, player: CharacterView
 	controller.handle_terrain_click(Vector3(12.0, 0.1, 0.0))
 	var path := event_player.get_resolved_path(player.actor_id)
 	var routed_around_barrier := false
+	# The A10 collision resize shrank CentralObstacle's nav cutout from a
+	# hand-authored 4x14m strip down to ~6.4x5.6m (matching Rock_3_R's real
+	# footprint plus clearance), so a detour now only needs to clear z > 2.8
+	# instead of the old z > 7 -- a straight, unobstructed path never exceeds
+	# z ~= 2 here, so 2.5 still only trips on an actual detour.
 	for point in path:
-		if absf(point.z) > 6.5:
+		if absf(point.z) > 2.5:
 			routed_around_barrier = true
 			break
 	await _wait_for_destination(player, 600)
@@ -115,6 +122,49 @@ func _test_rejected_and_invalid_clicks(controller: TestArenaController, player: 
 	_expect(player.global_position.distance_to(before) < 0.001 and not player.is_moving(), "rejected command altered CharacterView", failures)
 	controller.handle_terrain_click(null)
 	_expect(controller.last_input_status == &"outside_terrain" and player.global_position.distance_to(before) < 0.001, "invalid terrain click altered CharacterView", failures)
+
+
+## A10: the Chest node's InteractableState round-trips through the same
+## Command/Resolver/apply pipeline as movement -- submit_interact() bypasses
+## the screen-raycast input boundary the same way handle_terrain_click's
+## callers bypass _terrain_position_from_screen elsewhere in this suite.
+func _test_chest_interaction(controller: TestArenaController, failures: Array[String]) -> void:
+	controller.handle_terrain_click(Vector3(10.0, 0.1, -10.0))
+	var first := controller.submit_interact("chest_a")
+	_expect(first.events.size() == 1 and first.events[0].type == &"interaction_completed", "first chest interaction did not resolve to interaction_completed", failures)
+	_expect((controller.battle_state.interactables["chest_a"] as InteractableState).state == &"open", "chest did not open after interaction", failures)
+	var second := controller.submit_interact("chest_a")
+	_expect(second.events.size() == 1 and second.events[0].type == &"command_rejected" and second.events[0].data["reason"] == &"invalid_interactable_state", "re-opening an already-open chest was not rejected", failures)
+
+
+## Regression test for a sign bug where holding "camera_pan_forward" (W)
+## moved the rig's target_focus away from its own forward vector instead of
+## toward it -- Input.get_vector's forward/back pair is (negative_y,
+## positive_y), so naively multiplying by input_vector.y inverted the pan.
+func _test_camera_pan_direction(rig: TacticalCameraRig, failures: Array[String]) -> void:
+	var forward := Vector3(-sin(rig.target_yaw), 0.0, -cos(rig.target_yaw))
+
+	var before_forward := rig.target_focus
+	Input.action_press(&"camera_pan_forward")
+	rig._process(0.1)
+	Input.action_release(&"camera_pan_forward")
+	var forward_delta := rig.target_focus - before_forward
+	_expect(
+		forward_delta.length() > 0.01 and forward_delta.normalized().dot(forward) > 0.9,
+		"camera_pan_forward should move target_focus toward the rig's forward vector; moved %s" % forward_delta,
+		failures,
+	)
+
+	var before_back := rig.target_focus
+	Input.action_press(&"camera_pan_back")
+	rig._process(0.1)
+	Input.action_release(&"camera_pan_back")
+	var back_delta := rig.target_focus - before_back
+	_expect(
+		back_delta.length() > 0.01 and back_delta.normalized().dot(forward) < -0.9,
+		"camera_pan_back should move target_focus away from the rig's forward vector; moved %s" % back_delta,
+		failures,
+	)
 
 
 func _wait_for_destination(player: CharacterView, max_frames: int) -> void:
