@@ -4,6 +4,9 @@
 [ext_resource type="Script" uid="uid://b5483b8ys63l2" path="res://view/tactical_camera_rig.gd" id="2_camera"]
 [ext_resource type="Script" uid="uid://fqevt6p7grqd" path="res://view/character_view.gd" id="3_character"]
 [ext_resource type="Script" uid="uid://6l20kl4vbp3y" path="res://view/event_player.gd" id="4_event_player"]
+[ext_resource type="PackedScene" path="res://scenes/actors/player_character.tscn" id="5_player"]
+[ext_resource type="PackedScene" path="res://scenes/camera/tactical_camera_rig.tscn" id="6_camera"]
+[ext_resource type="PackedScene" path="res://scenes/world/tactical_sun.tscn" id="7_sun"]
 
 [sub_resource type="StandardMaterial3D" id="FloorMaterial"]
 albedo_color = Color(0.18, 0.28, 0.2, 1)
@@ -91,10 +94,7 @@ albedo_color = Color(1, 0.78, 0.08, 1)
 [node name="TestArena" type="Node3D" unique_id=1090467907]
 script = ExtResource("1_arena")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=134958808]
-transform = Transform3D(0.81915206, 0.46984634, -0.32898995, 0, 0.57357645, 0.81915206, 0.57357645, -0.6710101, 0.46984634, 0, 0, 0)
-light_energy = 1.2
-shadow_enabled = true
+[node name="DirectionalLight3D" parent="." instance=ExtResource("7_sun")]
 
 [node name="Floor" type="StaticBody3D" parent="." unique_id=1411529601]
 collision_mask = 0
@@ -176,32 +176,19 @@ mesh = SubResource("ChestMesh")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.335, 0)
 shape = SubResource("ChestShape")
 
-[node name="PlayerCharacter" type="CharacterBody3D" parent="." unique_id=1908870267]
+[node name="PlayerCharacter" parent="." instance=ExtResource("5_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 1, 0)
-collision_layer = 2
-collision_mask = 9
-script = ExtResource("3_character")
-
-[node name="Collision" type="CollisionShape3D" parent="PlayerCharacter" unique_id=1370311782]
-shape = SubResource("CharacterShape")
-
-[node name="Mesh" type="MeshInstance3D" parent="PlayerCharacter" unique_id=1244944059]
-mesh = SubResource("CharacterMesh")
 
 [node name="EventPlayer" type="Node" parent="." unique_id=1960922341]
 script = ExtResource("4_event_player")
 
-[node name="CameraRig" type="Node3D" parent="." unique_id=1081130703]
-script = ExtResource("2_camera")
+[node name="CameraRig" parent="." instance=ExtResource("6_camera")]
 
-[node name="Pivot" type="Node3D" parent="CameraRig" unique_id=451543153]
-transform = Transform3D(1, 0, 0, 0, 0.52991927, 0.8480481, 0, -0.8480481, 0.52991927, 0, 0, 0)
+[node name="Pivot" parent="CameraRig" index="0"]
+rotation_degrees = Vector3(-58, 0, 0)
 
-[node name="Camera3D" type="Camera3D" parent="CameraRig/Pivot" unique_id=1079897780]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 20)
-current = true
-fov = 52.0
-near = 0.1
+[node name="Camera3D" parent="CameraRig/Pivot" index="0"]
+position = Vector3(0, 0, 20)
 far = 120.0
 
 [node name="Debug" type="Node3D" parent="." unique_id=40672315]

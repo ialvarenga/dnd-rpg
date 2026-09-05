@@ -1,0 +1,16 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://view/tactical_camera_rig.gd" id="1_camera"]
+
+[node name="CameraRig" type="Node3D"]
+script = ExtResource("1_camera")
+
+[node name="Pivot" type="Node3D" parent="."]
+rotation_degrees = Vector3(-58, 0, 0)
+
+[node name="Camera3D" type="Camera3D" parent="Pivot"]
+position = Vector3(0, 0, 30)
+current = true
+fov = 52.0
+near = 0.1
+far = 400.0

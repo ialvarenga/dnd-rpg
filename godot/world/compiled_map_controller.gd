@@ -9,6 +9,9 @@ extends Node3D
 var compilation: MapCompilationResult
 var nav_provider: NavProvider
 var battle_state := BattleState.new()
+var session
+var los_provider: LosProvider
+var map_source
 var character: CharacterView
 var event_player: EventPlayer
 var camera: Camera3D
@@ -17,8 +20,17 @@ var objective: Vector3
 var _path_line: MeshInstance3D
 var _line_mesh := ImmediateMesh.new()
 
+const PLAYER_CHARACTER_SCENE = preload("res://scenes/actors/player_character.tscn")
+const TACTICAL_CAMERA_SCENE = preload("res://scenes/camera/tactical_camera_rig.tscn")
+const OBJECTIVE_MARKER_SCENE = preload("res://scenes/world/objective_marker.tscn")
+const TACTICAL_SUN_SCENE = preload("res://scenes/world/tactical_sun.tscn")
+const EncounterSessionScript = preload("res://world/encounter_session.gd")
+const MapSpecSourceScript = preload("res://world/map_spec_source.gd")
+const ScreenPickerScript = preload("res://world/screen_picker.gd")
+
 
 func _ready() -> void:
+	map_source = MapSpecSourceScript.new(map_spec_path)
 	compilation = MapCompiler.new().compile(_load_spec())
 	if not compilation.is_valid():
 		push_error("Map compilation failed: %s" % compilation.error_dicts())
@@ -30,6 +42,9 @@ func _ready() -> void:
 	_setup_light()
 	_setup_path_preview()
 	nav_provider = GodotNavProvider.new(compilation.navigation.navigation_region)
+	los_provider = GodotLosProvider.new(get_world_3d(), 8)
+	session = EncounterSessionScript.new()
+	session.configure(battle_state, nav_provider, los_provider)
 	NavigationServer3D.map_force_update(compilation.navigation.navigation_region.get_navigation_map())
 
 
@@ -37,50 +52,30 @@ func _unhandled_input(event: InputEvent) -> void:
 	if camera == null or nav_provider == null:
 		return
 	if event is InputEventMouseMotion:
-		var preview_target: Variant = _terrain_hit(event.position)
+		var preview_target: Variant = ScreenPickerScript.terrain_point(camera, get_world_3d().direct_space_state, event.position)
 		if preview_target is Vector3:
 			_show_path_preview(preview_target)
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		var target: Variant = _terrain_hit(event.position)
+		var target: Variant = ScreenPickerScript.terrain_point(camera, get_world_3d().direct_space_state, event.position)
 		if target is Vector3:
 			_show_path_preview(target)
 			_move(target)
+		get_viewport().set_input_as_handled()
 
 
 func _load_spec() -> Dictionary:
-	var source_path := map_spec_path
-	if source_path.begins_with("../"):
-		source_path = ProjectSettings.globalize_path("res://").path_join(source_path)
-	var file := FileAccess.open(source_path, FileAccess.READ)
-	if file == null:
-		return {}
-	var parsed: Variant = JSON.parse_string(file.get_as_text())
-	return parsed if parsed is Dictionary else {}
+	return map_source.load_spec()
 
 
 func _setup_player() -> void:
 	var spec := _load_spec()
 	var spawns: Array = spec.get("spawn_points", [])
 	var point := Vector2(2, 2) if spawns.is_empty() else Vector2(float(spawns[0].position[0]), float(spawns[0].position[1]))
-	character = CharacterView.new()
+	character = PLAYER_CHARACTER_SCENE.instantiate() as CharacterView
 	character.name = "Player"
 	character.actor_id = 1
-	character.collision_layer = 2
-	character.collision_mask = 9
 	character.position = Vector3(point.x, compilation.terrain.height_at(point.x, point.y) + 1.0, point.y)
-	var shape := CollisionShape3D.new()
-	var capsule := CapsuleShape3D.new()
-	capsule.radius = 0.45
-	capsule.height = 1.8
-	shape.shape = capsule
-	character.add_child(shape)
-	var mesh := MeshInstance3D.new()
-	var capsule_mesh := CapsuleMesh.new()
-	capsule_mesh.radius = 0.45
-	capsule_mesh.height = 1.8
-	mesh.mesh = capsule_mesh
-	character.add_child(mesh)
 	_dress_player(character, spec.get("player", {}))
 	add_child(character)
 	event_player = EventPlayer.new()
@@ -97,12 +92,7 @@ func _setup_player() -> void:
 	if not spec.get("objectives", []).is_empty():
 		var raw: Array = spec.objectives[0].position
 		objective = Vector3(float(raw[0]), compilation.terrain.height_at(float(raw[0]), float(raw[1])) + 0.2, float(raw[1]))
-		var marker := MeshInstance3D.new()
-		var marker_mesh := CylinderMesh.new()
-		marker_mesh.top_radius = 0.75
-		marker_mesh.bottom_radius = 0.75
-		marker_mesh.height = 0.15
-		marker.mesh = marker_mesh
+		var marker := OBJECTIVE_MARKER_SCENE.instantiate() as MeshInstance3D
 		marker.position = objective
 		add_child(marker)
 
@@ -127,30 +117,16 @@ func _setup_camera() -> void:
 	if spawns.is_empty():
 		var center := compilation.terrain.bounds * 0.5
 		focus = Vector3(center.x, compilation.terrain.height_at(center.x, center.y), center.y)
-	camera_rig = TacticalCameraRig.new()
-	camera_rig.name = "CameraRig"
+	camera_rig = TACTICAL_CAMERA_SCENE.instantiate() as TacticalCameraRig
 	camera_rig.position = focus
 	camera_rig.target_focus = focus
 	camera_rig.pan_limit = maxf(compilation.terrain.bounds.x, compilation.terrain.bounds.y)
-	var pivot := Node3D.new()
-	pivot.name = "Pivot"
-	pivot.rotation_degrees.x = -58.0
-	camera_rig.add_child(pivot)
-	camera = Camera3D.new()
-	camera.name = "Camera3D"
-	camera.position = Vector3(0, 0, 30)
-	camera.fov = 52.0
-	camera.near = 0.1
-	camera.far = 400.0
-	pivot.add_child(camera)
+	camera = camera_rig.get_node("Pivot/Camera3D") as Camera3D
 	add_child(camera_rig)
 
 
 func _setup_light() -> void:
-	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-55, -25, 0)
-	light.shadow_enabled = true
-	add_child(light)
+	add_child(TACTICAL_SUN_SCENE.instantiate())
 
 
 func _setup_path_preview() -> void:
@@ -177,27 +153,16 @@ func _show_compile_errors() -> void:
 	add_child(layer)
 
 
-func _terrain_hit(screen_position: Vector2) -> Variant:
-	var origin := camera.project_ray_origin(screen_position)
-	var query := PhysicsRayQueryParameters3D.create(origin, origin + camera.project_ray_normal(screen_position) * 600.0, 1)
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	return hit.get("position") if not hit.is_empty() else null
-
-
 func _move(target: Vector3) -> void:
-	var command := Command.create(&"move", 1)
-	command.target_pos = target
-	var result := Resolver.resolve(battle_state, command, nav_provider, GodotLosProvider.new(get_world_3d(), 8))
-	for event in result.events:
-		Resolver.apply(battle_state, event)
-	battle_state.rng_state = result.next_rng_state
+	var result: ResolutionResult = session.submit_move(1, target, character.global_position)
 	event_player.play_events(result.events)
 
 
 func _show_path_preview(target: Vector3) -> void:
 	if character == null or _path_line == null:
 		return
-	var path := nav_provider.find_path(character.global_position, target)
+	var preview = session.preview_move(1, target)
+	var path: PackedVector3Array = preview.path
 	_line_mesh.clear_surfaces()
 	if path.size() < 2:
 		return

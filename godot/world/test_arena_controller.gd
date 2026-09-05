@@ -16,17 +16,18 @@ extends Node3D
 var battle_state := BattleState.new()
 var nav_provider: NavProvider
 var los_provider: LosProvider
+var session
 var last_command: Command
 var last_resolution: ResolutionResult
 var last_preview: ResolutionResult
 var last_input_status: StringName = &"idle"
 
-var _preview_path := PackedVector3Array()
-var _preview_cost := 0.0
-var _preview_remaining := 0.0
-var _preview_ignores_budget := false
+var _preview
 
 var _line_mesh := ImmediateMesh.new()
+
+const EncounterSessionScript = preload("res://world/encounter_session.gd")
+const ScreenPickerScript = preload("res://world/screen_picker.gd")
 
 
 func _ready() -> void:
@@ -36,6 +37,8 @@ func _ready() -> void:
 	nav_provider = GodotNavProvider.new(navigation_region)
 	los_provider = GodotLosProvider.new(get_world_3d(), 8)
 	_initialize_exploration_state()
+	session = EncounterSessionScript.new()
+	session.configure(battle_state, nav_provider, los_provider)
 	event_player.register_character_view(character)
 	event_player.movement_completed.connect(_synchronize_completed_movement)
 
@@ -57,16 +60,16 @@ func _process(_delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
-		var preview_target: Variant = _terrain_position_from_screen(event.position)
+		var preview_target: Variant = ScreenPickerScript.terrain_point(camera, get_world_3d().direct_space_state, event.position)
 		if preview_target is Vector3:
 			preview_move_target(preview_target)
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var interactable_id := _interactable_id_at_screen(event.position)
+		var interactable_id := ScreenPickerScript.interactable_id(camera, get_world_3d().direct_space_state, event.position)
 		if interactable_id != "":
 			submit_interact(interactable_id)
 		else:
-			handle_terrain_click(_terrain_position_from_screen(event.position))
+			handle_terrain_click(ScreenPickerScript.terrain_point(camera, get_world_3d().direct_space_state, event.position))
 		get_viewport().set_input_as_handled()
 
 
@@ -89,37 +92,21 @@ func handle_terrain_click(destination: Variant) -> void:
 ## resolver and updates local debug state; BattleState and CharacterView remain
 ## untouched until submit_move_target confirms a command.
 func preview_move_target(target: Vector3) -> ResolutionResult:
-	var preview_command := Command.create(&"move", character.actor_id)
-	preview_command.target_pos = target
-	last_preview = Resolver.resolve(battle_state, preview_command, nav_provider, los_provider)
-	_preview_path = PackedVector3Array()
-	_preview_cost = 0.0
-	_preview_remaining = 0.0
-	_preview_ignores_budget = battle_state.phase != &"combat"
-	var previewed_movement := false
-	for event in last_preview.events:
-		if event.type == &"movement_segment":
-			previewed_movement = true
-			_preview_path = (event.data["path"] as PackedVector3Array).duplicate()
-			_preview_cost = float(event.data["path_cost"])
-			var actor: ActorState = battle_state.actors[character.actor_id]
-			_preview_remaining = maxf(0.0, actor.movement_remaining - _preview_cost)
-			destination_marker.global_position = (event.data["to"] as Vector3) + Vector3.UP * 0.08
-			destination_marker.visible = true
-		elif event.type == &"command_rejected":
-			last_input_status = event.data["reason"]
-	if previewed_movement:
+	_preview = session.preview_move(character.actor_id, target)
+	last_preview = _preview.resolution
+	if _preview.accepted:
+		destination_marker.global_position = _preview.destination + Vector3.UP * 0.08
+		destination_marker.visible = true
 		last_input_status = &"preview"
+	elif _preview.rejection_reason != &"":
+		last_input_status = _preview.rejection_reason
 	return last_preview
 
 
 func submit_move_target(target: Vector3) -> ResolutionResult:
-	var command := Command.create(&"move", character.actor_id)
-	command.target_pos = target
-	last_command = command
-	last_resolution = Resolver.resolve(battle_state, command, nav_provider, los_provider)
-	_apply_resolution(last_resolution)
-	_prepare_presentation_paths(last_resolution)
+	last_command = Command.create(&"move", character.actor_id)
+	last_command.target_pos = target
+	last_resolution = session.submit_move(character.actor_id, target, character.global_position)
 	var accepted_movement := false
 	for event in last_resolution.events:
 		if event.type == &"movement_segment":
@@ -140,11 +127,9 @@ func submit_move_target(target: Vector3) -> ResolutionResult:
 ## resolves through the same Command/Resolver/apply pipeline as movement, so
 ## the chest is never opened by mutating InteractableState directly.
 func submit_interact(interactable_id: String) -> ResolutionResult:
-	var command := Command.create(&"interact", character.actor_id)
-	command.target_interactable_id = interactable_id
-	last_command = command
-	last_resolution = Resolver.resolve(battle_state, command, nav_provider, los_provider)
-	_apply_resolution(last_resolution)
+	last_command = Command.create(&"interact", character.actor_id)
+	last_command.target_interactable_id = interactable_id
+	last_resolution = session.submit_interact(character.actor_id, interactable_id)
 	for event in last_resolution.events:
 		if event.type == &"command_rejected":
 			last_input_status = event.data["reason"]
@@ -179,25 +164,6 @@ func _initialize_exploration_state() -> void:
 	battle_state.interactables[chest.id] = chest
 
 
-func _apply_resolution(resolution: ResolutionResult) -> void:
-	for event in resolution.events:
-		Resolver.apply(battle_state, event)
-	battle_state.rng_state = resolution.next_rng_state
-
-
-func _prepare_presentation_paths(resolution: ResolutionResult) -> void:
-	for event in resolution.events:
-		if event.type != &"movement_segment":
-			continue
-		var authoritative_target: Vector3 = event.data["to"]
-		var presentation_path := nav_provider.find_path(character.global_position, authoritative_target)
-		if not presentation_path.is_empty():
-			# A replacement command resolves from BattleState's already-applied
-			# endpoint. Playback instead begins from the visible character's current
-			# location, so it stops the old route without affecting simulation state.
-			event.data["presentation_path"] = presentation_path
-
-
 func _synchronize_completed_movement(actor_id: int) -> void:
 	if not battle_state.actors.has(actor_id):
 		return
@@ -210,39 +176,8 @@ func _synchronize_completed_movement(actor_id: int) -> void:
 	view.synchronize_to_authoritative_position((battle_state.actors[actor_id] as ActorState).position)
 
 
-func _terrain_position_from_screen(screen_position: Vector2) -> Variant:
-	var ray_origin := camera.project_ray_origin(screen_position)
-	var ray_end := ray_origin + camera.project_ray_normal(screen_position) * 500.0
-	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end, 1)
-	query.collide_with_areas = false
-	query.collide_with_bodies = true
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	if hit.is_empty():
-		return null
-	return hit["position"]
-
-
-## Returns the clicked node's "interactable_id" metadata (set on the
-## interactable's PhysicsBody in the scene, e.g. Chest), or "" when the click
-## didn't land on layer 3 ("interactable" per implementation_plan.md 6.1
-## collision layers).
-func _interactable_id_at_screen(screen_position: Vector2) -> String:
-	var ray_origin := camera.project_ray_origin(screen_position)
-	var ray_end := ray_origin + camera.project_ray_normal(screen_position) * 500.0
-	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end, 1 << 2)
-	query.collide_with_areas = false
-	query.collide_with_bodies = true
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	if hit.is_empty():
-		return ""
-	var collider: Object = hit.get("collider")
-	if collider is Node and (collider as Node).has_meta("interactable_id"):
-		return str((collider as Node).get_meta("interactable_id"))
-	return ""
-
-
 func _update_debug_view() -> void:
-	var path := _preview_path
+	var path: PackedVector3Array = _preview.path if _preview != null else PackedVector3Array()
 	if path.is_empty():
 		path = event_player.get_resolved_path(character.actor_id)
 	_line_mesh.clear_surfaces()
@@ -252,11 +187,11 @@ func _update_debug_view() -> void:
 			_line_mesh.surface_add_vertex(point + Vector3.UP * 0.12)
 		_line_mesh.surface_end()
 	var preview_text := "Preview: --"
-	if not _preview_path.is_empty():
-		if _preview_ignores_budget:
-			preview_text = "Preview: %.2fm (exploration: budget ignored)" % _preview_cost
+	if _preview != null and not _preview.path.is_empty():
+		if _preview.ignores_budget:
+			preview_text = "Preview: %.2fm (exploration: budget ignored)" % _preview.cost
 		else:
-			preview_text = "Preview: %.2fm consumed, %.2fm remaining" % [_preview_cost, _preview_remaining]
+			preview_text = "Preview: %.2fm consumed, %.2fm remaining" % [_preview.cost, _preview.remaining]
 	debug_label.text = "Command: %s\nDestination: %s (%s)\nVelocity: %s\n%s" % [
 		last_input_status,
 		_format_vector(character.destination),
@@ -267,10 +202,7 @@ func _update_debug_view() -> void:
 
 
 func _clear_preview() -> void:
-	_preview_path = PackedVector3Array()
-	_preview_cost = 0.0
-	_preview_remaining = 0.0
-	_preview_ignores_budget = false
+	_preview = null
 
 
 func _format_vector(value: Vector3) -> String:

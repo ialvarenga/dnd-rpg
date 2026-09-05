@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D"]
+rotation_degrees = Vector3(-55, -25, 0)
+light_energy = 1.2
+shadow_enabled = true
