@@ -41,7 +41,7 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 		return result
 	result.root = Node3D.new()
 	result.root.name = "CompiledMap_%s" % map["id"]
-	result.root.add_child(CompiledTerrain.create(terrain))
+	result.root.add_child(CompiledTerrain.create(terrain, StringName(terrain_data.get("surface", "grass"))))
 	_instantiate_paths(result, terrain)
 	for bridge in result.bridges:
 		var bridge_node := AssetCatalog.instantiate(bridge.asset)

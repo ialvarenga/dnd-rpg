@@ -9,6 +9,7 @@ const CompilerScript = preload("res://world/map_compiler.gd")
 static func run() -> Dictionary:
 	var failures: Array[String] = []
 	_test_terrain_profiles_and_queries(failures)
+	_test_terrain_surface_materials(failures)
 	_test_vegetation_is_deterministic_and_respects_clearance(failures)
 	_test_compiler_places_reference_map_and_reports_spatial_errors(failures)
 	_test_paths_are_deterministic_and_crossings_fail(failures)
@@ -27,6 +28,17 @@ static func _test_terrain_profiles_and_queries(failures: Array[String]) -> void:
 	valley.generate(&"valley", 42, Vector2(64, 64))
 	_expect(valley.height_at(32, 32) < valley.height_at(2, 32), "valley center is not lower than edge", failures)
 	_expect(is_nan(a.height_at(-1, 0)), "terrain bounds failure did not return NAN", failures)
+
+
+static func _test_terrain_surface_materials(failures: Array[String]) -> void:
+	var terrain := TerrainScript.new()
+	terrain.generate(&"flat", 7, Vector2(8, 8))
+	var sand := CompiledTerrain.create(terrain, &"sand")
+	var visual := sand.get_child(0) as MeshInstance3D
+	var material := visual.mesh.surface_get_material(0) as ShaderMaterial
+	_expect(material != null, "terrain surface does not use a tileable material", failures)
+	_expect(material.get_shader_parameter(&"base_color") == Color("d9bc78"), "sand terrain did not select the sand palette", failures)
+	sand.free()
 
 
 static func _test_vegetation_is_deterministic_and_respects_clearance(failures: Array[String]) -> void:

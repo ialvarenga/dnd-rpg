@@ -51,7 +51,8 @@ func _load_spec() -> Dictionary:
 
 
 func _setup_player() -> void:
-	var spawns: Array = _load_spec().get("spawn_points", [])
+	var spec := _load_spec()
+	var spawns: Array = spec.get("spawn_points", [])
 	var point := Vector2(2, 2) if spawns.is_empty() else Vector2(float(spawns[0].position[0]), float(spawns[0].position[1]))
 	character = CharacterView.new()
 	character.name = "Player"
@@ -71,6 +72,7 @@ func _setup_player() -> void:
 	capsule_mesh.height = 1.8
 	mesh.mesh = capsule_mesh
 	character.add_child(mesh)
+	_dress_player(character, spec.get("player", {}))
 	add_child(character)
 	event_player = EventPlayer.new()
 	add_child(event_player)
@@ -83,7 +85,6 @@ func _setup_player() -> void:
 	actor.max_hp = 20
 	actor.position = character.global_position
 	battle_state.actors[1] = actor
-	var spec := _load_spec()
 	if not spec.get("objectives", []).is_empty():
 		var raw: Array = spec.objectives[0].position
 		objective = Vector3(float(raw[0]), compilation.terrain.height_at(float(raw[0]), float(raw[1])) + 0.2, float(raw[1]))
@@ -95,6 +96,17 @@ func _setup_player() -> void:
 		marker.mesh = marker_mesh
 		marker.position = objective
 		add_child(marker)
+
+
+func _dress_player(player: CharacterView, player_data: Dictionary) -> void:
+	var asset_id := StringName(player_data.get("character_asset", ""))
+	if asset_id == &"":
+		return
+	var definition := AssetCatalog.get_definition(asset_id)
+	if definition == null or definition.asset_type != &"character":
+		push_error("Player character_asset '%s' is not a usable character asset" % asset_id)
+		return
+	AssetCatalog.dress(player, asset_id)
 
 
 func _setup_camera() -> void:

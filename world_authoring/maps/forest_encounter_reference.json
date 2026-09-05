@@ -11,7 +11,11 @@
     "asset_catalog_version": "1.0"
   },
   "terrain": {
-    "profile": "rolling_hills"
+    "profile": "rolling_hills",
+    "surface": "sand"
+  },
+  "player": {
+    "character_asset": "character_knight_01"
   },
   "regions": [
     {
