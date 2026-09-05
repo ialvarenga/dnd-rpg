@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="AssetDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://world/asset_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"tree_oak_01"
+scene_path = "res://assets/kaykit_forest/Tree_1_A_Color1.gltf"
+asset_type = &"vegetation"
+tags = PackedStringArray("temperate", "tree")
+footprint_radius = 2.1
+placement_max_slope_deg = 27.0
+blocks_navigation = true

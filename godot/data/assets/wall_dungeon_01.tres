@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="AssetDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://world/asset_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"wall_dungeon_01"
+scene_path = "res://assets/kaykit_dungeon/wall.gltf"
+asset_type = &"structure"
+tags = PackedStringArray("dungeon", "wall")
+footprint_radius = 1.0
+placement_max_slope_deg = 3.0
+blocks_navigation = true

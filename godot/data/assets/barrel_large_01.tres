@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="AssetDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://world/asset_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"barrel_large_01"
+scene_path = "res://assets/kaykit_dungeon/barrel_large.gltf"
+asset_type = &"prop"
+tags = PackedStringArray("barrel", "dungeon", "wood")
+footprint_radius = 0.55
+placement_max_slope_deg = 8.0

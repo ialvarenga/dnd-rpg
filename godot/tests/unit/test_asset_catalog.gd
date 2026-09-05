@@ -1,164 +1,98 @@
 class_name TestAssetCatalog
 extends RefCounted
 
-## A10 minimal-art scaffold: proves AssetCatalog.dress() is a no-op while a
-## prop id has no sourced art (today's real state -- see
-## docs/third_party/assets.csv) and swaps in real art once a manifest entry
-## points at a loadable scene, without depending on any real art actually
-## being downloaded yet.
-
-const FAKE_ART_PATH := "res://tests/fakes/fake_art_prop.tscn"
-
-
-## Ids in MANIFEST that have no scene path yet -- see docs/third_party/assets.csv.
-const UNSOURCED_IDS: Array[StringName] = [&"floor_generic", &"door_wood_01"]
+## B1 contract tests: the catalog is data-driven, IDs are the only public
+## lookup key, and placement/query policy comes from AssetDefinition resources.
 
 
 static func run() -> Dictionary:
 	var failures: Array[String] = []
-	_test_has_art_false_for_unsourced_entries(failures)
-	_test_has_art_true_for_sourced_entries(failures)
-	_test_has_art_false_for_unknown_id(failures)
-	_test_has_art_true_for_loadable_scene_path(failures)
-	_test_has_art_false_for_scene_path_that_does_not_resolve(failures)
-	_test_dress_is_noop_without_art_on_wrapper_anchor(failures)
-	_test_dress_is_noop_without_art_on_mesh_anchor(failures)
-	_test_dress_swaps_wrapper_anchor_mesh_child_for_art(failures)
-	_test_dress_swaps_mesh_anchor_itself_for_art(failures)
-	_test_dress_positions_art_at_the_given_offset(failures)
-	_test_dress_rotates_art_by_the_given_yaw(failures)
+	_test_definitions_load_and_have_unique_ids(failures)
+	_test_id_lookup_never_accepts_a_resource_path(failures)
+	_test_tagged_type_query_is_deterministic(failures)
+	_test_placement_respects_asset_slope_policy(failures)
+	_test_catalog_assets_are_loadable(failures)
+	_test_dress_uses_catalog_metadata(failures)
 	_test_catalog_and_audit_csv_ids_match(failures)
 	return {"name": "unit/test_asset_catalog", "failures": failures}
 
 
-static func _test_has_art_false_for_unsourced_entries(failures: Array[String]) -> void:
-	for id in UNSOURCED_IDS:
-		_expect(not AssetCatalog.has_art(id), "MANIFEST entry '%s' should have no sourced art yet" % id, failures)
+static func _test_definitions_load_and_have_unique_ids(failures: Array[String]) -> void:
+	var definitions := AssetCatalog.all_definitions()
+	_expect(not definitions.is_empty(), "asset catalog has no definitions", failures)
+	_expect(definitions.size() == AssetCatalog.DEFINITION_PATHS.size(), "one or more asset definition resources did not load", failures)
+	var seen := {}
+	for definition in definitions:
+		_expect(definition.id != &"", "asset definition has an empty id", failures)
+		_expect(not seen.has(definition.id), "asset definition id '%s' is duplicated" % definition.id, failures)
+		_expect(definition.asset_type != &"", "asset '%s' has no type" % definition.id, failures)
+		_expect(definition.footprint_radius > 0.0, "asset '%s' has no footprint" % definition.id, failures)
+		seen[definition.id] = true
 
 
-static func _test_has_art_true_for_sourced_entries(failures: Array[String]) -> void:
-	for id in AssetCatalog.MANIFEST:
-		if UNSOURCED_IDS.has(id):
-			continue
-		_expect(AssetCatalog.has_art(id), "MANIFEST entry '%s' should resolve to real art" % id, failures)
+static func _test_id_lookup_never_accepts_a_resource_path(failures: Array[String]) -> void:
+	_expect(AssetCatalog.get_definition(&"tree_oak_01") != null, "known asset id was not found", failures)
+	_expect(AssetCatalog.get_definition(&"res://assets/kaykit_forest/Tree_1_A_Color1.gltf") == null, "catalog must not accept raw resource paths", failures)
+	_expect(AssetCatalog.get_definition(&"does_not_exist") == null, "unknown asset id was found", failures)
 
 
-static func _test_has_art_false_for_unknown_id(failures: Array[String]) -> void:
-	_expect(not AssetCatalog.has_art(&"does_not_exist"), "unknown id should never report art", failures)
+static func _test_tagged_type_query_is_deterministic(failures: Array[String]) -> void:
+	var trees := AssetCatalog.find_matching(&"vegetation", PackedStringArray(["temperate", "tree"]))
+	var tree_ids: Array[StringName] = []
+	for tree in trees:
+		tree_ids.append(tree.id)
+	_expect(tree_ids == [&"tree_oak_01", &"tree_oak_02"], "tree query returned unexpected definitions: %s" % str(tree_ids), failures)
 
 
-static func _test_has_art_true_for_loadable_scene_path(failures: Array[String]) -> void:
-	var manifest := {&"fake_prop": FAKE_ART_PATH}
-	_expect(AssetCatalog.has_art(&"fake_prop", manifest), "has_art should be true for a loadable scene path", failures)
+static func _test_placement_respects_asset_slope_policy(failures: Array[String]) -> void:
+	_expect(AssetCatalog.can_place(&"tree_oak_01", 27.0), "tree should permit its maximum slope", failures)
+	_expect(not AssetCatalog.can_place(&"tree_oak_01", 27.1), "tree should reject slopes over its maximum", failures)
+	_expect(not AssetCatalog.can_place(&"tree_oak_01", -1.0), "tree should reject a negative slope", failures)
+	_expect(not AssetCatalog.can_place(&"res://assets/kaykit_forest/Tree_1_A_Color1.gltf", 1.0), "placement must require an asset id", failures)
 
 
-static func _test_has_art_false_for_scene_path_that_does_not_resolve(failures: Array[String]) -> void:
-	var manifest := {&"fake_prop": "res://tests/fakes/does_not_exist.tscn"}
-	_expect(not AssetCatalog.has_art(&"fake_prop", manifest), "has_art should be false for a scene path that does not resolve", failures)
+static func _test_catalog_assets_are_loadable(failures: Array[String]) -> void:
+	for definition in AssetCatalog.all_definitions():
+		_expect(definition.is_usable(), "asset '%s' scene is not loadable: %s" % [definition.id, definition.scene_path], failures)
 
 
-static func _test_dress_is_noop_without_art_on_wrapper_anchor(failures: Array[String]) -> void:
-	var anchor := Node3D.new()
-	var mesh_child := MeshInstance3D.new()
-	mesh_child.name = "Mesh"
-	anchor.add_child(mesh_child)
-	AssetCatalog.dress(anchor, &"floor_generic")
-	_expect(anchor.get_child_count() == 1 and anchor.get_child(0) == mesh_child, "dress() should not touch a wrapper anchor when no art is sourced", failures)
-	anchor.free()
-
-
-static func _test_dress_is_noop_without_art_on_mesh_anchor(failures: Array[String]) -> void:
-	var anchor := MeshInstance3D.new()
-	var original_mesh := BoxMesh.new()
-	anchor.mesh = original_mesh
-	AssetCatalog.dress(anchor, &"door_wood_01")
-	_expect(anchor.mesh == original_mesh, "dress() should not clear a mesh anchor's own mesh when no art is sourced", failures)
-	anchor.free()
-
-
-static func _test_dress_swaps_wrapper_anchor_mesh_child_for_art(failures: Array[String]) -> void:
-	var anchor := Node3D.new()
-	var mesh_child := MeshInstance3D.new()
-	mesh_child.name = "Mesh"
-	anchor.add_child(mesh_child)
-	var manifest := {&"fake_prop": FAKE_ART_PATH}
-	AssetCatalog.dress(anchor, &"fake_prop", manifest)
-	_expect(not is_instance_valid(mesh_child) or mesh_child.get_parent() != anchor, "dress() did not remove the greybox MeshInstance3D child", failures)
-	_expect(anchor.find_child("FakeArtRoot", true, false) != null, "dress() did not add the loaded art scene as a child", failures)
-	anchor.free()
-
-
-static func _test_dress_swaps_mesh_anchor_itself_for_art(failures: Array[String]) -> void:
+static func _test_dress_uses_catalog_metadata(failures: Array[String]) -> void:
 	var anchor := MeshInstance3D.new()
 	anchor.mesh = BoxMesh.new()
-	var manifest := {&"fake_prop": FAKE_ART_PATH}
-	AssetCatalog.dress(anchor, &"fake_prop", manifest)
-	_expect(anchor.mesh == null, "dress() did not clear the mesh anchor's own greybox mesh", failures)
-	_expect(anchor.find_child("FakeArtRoot", true, false) != null, "dress() did not add the loaded art scene as a child of the mesh anchor", failures)
+	AssetCatalog.dress(anchor, &"character_knight_01")
+	_expect(anchor.mesh == null, "dress did not clear the greybox mesh", failures)
+	_expect(anchor.get_child_count() == 1, "dress did not instantiate catalog art", failures)
+	var art := anchor.get_child(0) as Node3D
+	_expect(art != null and art.position == Vector3(0, -0.9, 0), "dress did not apply catalog display offset", failures)
+	_expect(art != null and is_equal_approx(art.rotation.y, PI), "dress did not apply catalog display rotation", failures)
 	anchor.free()
 
 
-## Real KayKit art rarely shares the greybox fallback's centered pivot (see
-## TestArenaController._dress_arena_props()); dress() must place the
-## instantiated art at the caller-given offset instead of always at (0,0,0).
-static func _test_dress_positions_art_at_the_given_offset(failures: Array[String]) -> void:
-	var anchor := Node3D.new()
-	var manifest := {&"fake_prop": FAKE_ART_PATH}
-	var offset := Vector3(0, -0.9, 0)
-	AssetCatalog.dress(anchor, &"fake_prop", manifest, offset)
-	var art := anchor.find_child("FakeArtRoot", true, false)
-	_expect(art != null and (art as Node3D).position == offset, "dress() did not place the art at art_offset", failures)
-	anchor.free()
-
-
-## A model authored facing the opposite of the anchor's forward convention
-## (e.g. Knight.glb vs. CharacterView's local -Z forward -- see A10's
-## backward-walking bug) needs a caller-supplied yaw correction on the art
-## itself, independent of art_offset.
-static func _test_dress_rotates_art_by_the_given_yaw(failures: Array[String]) -> void:
-	var anchor := Node3D.new()
-	var manifest := {&"fake_prop": FAKE_ART_PATH}
-	AssetCatalog.dress(anchor, &"fake_prop", manifest, Vector3.ZERO, PI)
-	var art := anchor.find_child("FakeArtRoot", true, false)
-	_expect(art != null and is_equal_approx((art as Node3D).rotation.y, PI), "dress() did not apply art_rotation_y to the art", failures)
-	anchor.free()
-
-
-## Catches the two ways the catalog and the license/audit trail can drift:
-## a new prop id with nothing recorded for compliance, or a stale audit row
-## left behind after a prop id is renamed or removed.
 static func _test_catalog_and_audit_csv_ids_match(failures: Array[String]) -> void:
-	var initial_failures := failures.size()
 	var csv_ids := _read_audit_csv_ids(failures)
-	if failures.size() > initial_failures:
-		return
-	var catalog_ids: Array = AssetCatalog.MANIFEST.keys()
+	var catalog_ids: Array[String] = []
+	for definition in AssetCatalog.all_definitions():
+		catalog_ids.append(String(definition.id))
 	for id in catalog_ids:
-		_expect(csv_ids.has(String(id)), "docs/third_party/assets.csv is missing a row for catalog id '%s'" % id, failures)
+		_expect(csv_ids.has(id), "docs/third_party/assets.csv is missing a row for '%s'" % id, failures)
 	for id in csv_ids:
-		_expect(catalog_ids.has(StringName(id)), "docs/third_party/assets.csv has a row for '%s' with no matching AssetCatalog entry" % id, failures)
+		_expect(catalog_ids.has(id), "docs/third_party/assets.csv has a row for '%s' with no matching catalog definition" % id, failures)
 
 
-static func _read_audit_csv_ids(failures: Array[String]) -> Array:
-	var project_dir: String = ProjectSettings.globalize_path("res://")
-	var repo_root: String = project_dir.trim_suffix("/").get_base_dir()
-	var csv_path := repo_root + "/docs/third_party/assets.csv"
+static func _read_audit_csv_ids(failures: Array[String]) -> Array[String]:
+	var project_dir := ProjectSettings.globalize_path("res://")
+	var csv_path := project_dir.trim_suffix("/").get_base_dir() + "/docs/third_party/assets.csv"
 	var file := FileAccess.open(csv_path, FileAccess.READ)
 	if file == null:
 		failures.append("could not open docs/third_party/assets.csv at %s" % csv_path)
 		return []
 	var header := file.get_csv_line()
-	_expect(
-		header == PackedStringArray(["asset", "source", "author", "license", "download_date", "local_path", "modified"]),
-		"assets.csv header does not match the documented schema",
-		failures,
-	)
-	var ids: Array = []
+	_expect(header == PackedStringArray(["asset", "source", "author", "license", "download_date", "local_path", "modified"]), "assets.csv header does not match the documented schema", failures)
+	var ids: Array[String] = []
 	while not file.eof_reached():
 		var row := file.get_csv_line()
-		if row.size() == 1 and row[0] == "":
-			continue
-		ids.append(row[0])
+		if row.size() > 0 and row[0] != "":
+			ids.append(row[0])
 	file.close()
 	return ids
 

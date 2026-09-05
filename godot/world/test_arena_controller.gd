@@ -40,20 +40,15 @@ func _ready() -> void:
 	event_player.movement_completed.connect(_synchronize_completed_movement)
 
 
-## Fase A10 scaffold: swaps greybox meshes for real art wherever
-## AssetCatalog has a sourced entry; a no-op for ids still unsourced (see
-## docs/third_party/assets.csv). The offsets correct for real KayKit art
-## using a different pivot convention than the centered greybox fallback each
-## anchor was originally sized around -- see AssetCatalog.dress().
+## The hand-authored arena consumes the same ID-only catalog as the future map
+## compiler. Collision stays on these anchors; AssetCatalog swaps visuals only.
 func _dress_arena_props() -> void:
-	AssetCatalog.dress($Floor, &"floor_generic")
-	AssetCatalog.dress($TreeA, &"obstacle_tree_a")
-	AssetCatalog.dress($TreeB, &"obstacle_tree_b")
-	AssetCatalog.dress($NorthWall, &"wall_generic", AssetCatalog.MANIFEST, Vector3(0, -1.4, 0))
-	AssetCatalog.dress($DoorPlaceholder, &"door_wood_01")
-	AssetCatalog.dress($CentralObstacle, &"obstacle_barrier")
+	AssetCatalog.dress($TreeA, &"tree_oak_01")
+	AssetCatalog.dress($TreeB, &"tree_oak_02")
+	AssetCatalog.dress($NorthWall, &"wall_run_dungeon_01")
+	AssetCatalog.dress($CentralObstacle, &"rock_large_01")
 	AssetCatalog.dress($Chest, &"chest_wood_01")
-	AssetCatalog.dress(character, &"character_hero_placeholder", AssetCatalog.MANIFEST, Vector3(0, -0.9, 0), PI)
+	AssetCatalog.dress(character, &"character_knight_01")
 
 
 func _process(_delta: float) -> void:
