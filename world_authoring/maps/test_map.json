@@ -1,0 +1,90 @@
+{
+  "version": "1.0",
+  "map": {
+    "id": "untitled_map",
+    "preset": "encounter",
+    "seed": 0,
+    "bounds": {
+      "width_m": 64,
+      "height_m": 64
+    }
+  },
+  "terrain": {
+    "profile": "flat",
+    "surface": "grass"
+  },
+  "regions": [
+    {
+      "id": "region_1",
+      "polygon": [
+        [
+          0,
+          30
+        ],
+        [
+          12,
+          27
+        ],
+        [
+          15,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "vegetation": {
+        "profile": "temperate_sparse",
+        "density": 0
+      }
+    }
+  ],
+  "vegetation": [
+    {
+      "id": "tree_1",
+      "asset": "tree_oak_01",
+      "position": [
+        32,
+        32
+      ]
+    }
+  ],
+  "structures": [
+    {
+      "id": "structure_1",
+      "asset": "wall_dungeon_01",
+      "position": [
+        34,
+        40
+      ]
+    }
+  ],
+  "actors": [
+    {
+      "id": "actor_1",
+      "archetype": "character_knight_01",
+      "position": [
+        58,
+        12
+      ]
+    }
+  ],
+  "rivers": [
+    {
+      "id": "river_1",
+      "control_points": [
+        [
+          0,
+          51
+        ],
+        [
+          64,
+          51
+        ]
+      ],
+      "width_m": 3
+    }
+  ],
+  "bridges": []
+}

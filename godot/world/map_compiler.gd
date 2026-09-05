@@ -68,7 +68,7 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 		result.root = null
 		return result
 	result.navigation = MapNavigationCompiler.new()
-	result.navigation.build(terrain, _navigation_blockers(result.placements), result.root)
+	result.navigation.build(terrain, _navigation_blockers(result.placements, result.paths, result.bridges), result.root)
 	_validate_reachability(spec, result.navigation, result.errors)
 	if not result.errors.is_empty():
 		result.root.queue_free()
@@ -107,9 +107,12 @@ func _compile_placements(raw_placements: Array, expected_type: StringName, terra
 
 func _compile_paths(spec: Dictionary, terrain: TerrainProvider, bounds: Vector2, result: MapCompilationResult) -> Array[Dictionary]:
 	var reserved: Array[Dictionary] = []
-	for kind in [&"rivers", &"roads"]:
-		for raw in spec.get(kind, []):
-			var points := _points(raw.get("control_points", []))
+	for collection in [&"rivers", &"roads"]:
+		var kind := &"river" if collection == &"rivers" else &"road"
+		for raw in spec.get(collection, []):
+			# MapSpec control points are `[x, z]` meters. Adjacent duplicate points
+			# are removed so every remaining segment is safe to render and query.
+			var points := _non_degenerate_points(_points(raw.get("control_points", [])))
 			var id := StringName(raw.get("id", ""))
 			if points.size() < 2:
 				_add(result.errors, &"MISSING_REQUIRED_DATA", "'%s' needs at least two control points" % id, id)
@@ -118,13 +121,21 @@ func _compile_paths(spec: Dictionary, terrain: TerrainProvider, bounds: Vector2,
 				if not _fits_bounds(point, 0.0, bounds):
 					_add(result.errors, &"OUT_OF_BOUNDS", "'%s' control point is outside map bounds" % id, id)
 			var width := float(raw.get("width_m", 2.0)) * 0.5
-			if kind == &"roads" and terrain.has_method("add_flattening_path"):
+			if width <= 0.0:
+				_add(result.errors, &"MISSING_REQUIRED_DATA", "'%s' needs a positive width_m" % id, id)
+				continue
+			if kind == &"road" and terrain.has_method("add_flattening_path"):
 				terrain.call("add_flattening_path", points, width)
-			result.paths.append({"id": id, "kind": kind, "points": points, "width": width})
+			var path := {"id": id, "kind": kind, "points": points, "width": width}
+			if kind == &"river" and bool(spec.get("debug_rivers", false)):
+				path["debug_rivers"] = true
+			if kind == &"river" and terrain.has_method("add_riverbed_path"):
+				path["water_height"] = terrain.call("add_riverbed_path", points, width)
+			result.paths.append(path)
 			for point in points:
 				reserved.append({"point": point, "radius": width, "id": id})
-	for river in result.paths.filter(func(path: Dictionary) -> bool: return path.kind == &"rivers"):
-		for road in result.paths.filter(func(path: Dictionary) -> bool: return path.kind == &"roads"):
+	for river in result.paths.filter(func(path: Dictionary) -> bool: return path.kind == &"river"):
+		for road in result.paths.filter(func(path: Dictionary) -> bool: return path.kind == &"road"):
 			if _paths_cross(river.points, road.points) and not _has_compatible_bridge(spec.get("bridges", []), river, road):
 				_add(result.errors, &"INVALID_RIVER_CROSSING", "river '%s' crosses road '%s' without a bridge" % [river.id, road.id], river.id, {"road_id": road.id})
 	return reserved
@@ -193,6 +204,14 @@ func _points(raw: Array) -> PackedVector2Array:
 	return points
 
 
+func _non_degenerate_points(points: PackedVector2Array) -> PackedVector2Array:
+	var cleaned := PackedVector2Array()
+	for point in points:
+		if cleaned.is_empty() or cleaned[-1].distance_squared_to(point) > 0.000001:
+			cleaned.append(point)
+	return cleaned
+
+
 func _fits_bounds(point: Vector2, radius: float, bounds: Vector2) -> bool:
 	return is_finite(point.x) and is_finite(point.y) and point.x - radius >= 0.0 and point.y - radius >= 0.0 and point.x + radius <= bounds.x and point.y + radius <= bounds.y
 
@@ -220,7 +239,7 @@ func _compile_bridges(raw_bridges: Array, terrain: TerrainProvider, bounds: Vect
 		if not _fits_bounds(point, definition.footprint_radius, bounds):
 			_add(result.errors, &"OUT_OF_BOUNDS", "bridge '%s' footprint is outside map bounds" % id, id)
 			continue
-		result.bridges.append({"id": id, "asset": StringName(raw.get("asset", "")), "position": Vector3(point.x, terrain.height_at(point.x, point.y) + 0.12, point.y), "radius": definition.footprint_radius})
+		result.bridges.append({"id": id, "asset": StringName(raw.get("asset", "")), "position": Vector3(point.x, terrain.height_at(point.x, point.y) + 0.12, point.y), "radius": definition.footprint_radius, "river_id": StringName(raw.get("river_id", "")), "road_id": StringName(raw.get("road_id", ""))})
 
 
 func _has_compatible_bridge(bridges: Array, river: Dictionary, road: Dictionary) -> bool:
@@ -232,10 +251,25 @@ func _has_compatible_bridge(bridges: Array, river: Dictionary, road: Dictionary)
 	return false
 
 
-func _navigation_blockers(placements: Array[Dictionary]) -> Array[Dictionary]:
+func _navigation_blockers(placements: Array[Dictionary], paths: Array[Dictionary] = [], bridges: Array[Dictionary] = []) -> Array[Dictionary]:
 	var blockers: Array[Dictionary] = []
 	for placement in placements:
 		var definition := AssetCatalog.get_definition(placement.asset)
 		if definition != null and definition.blocks_navigation:
 			blockers.append({"point": Vector2(placement.position.x, placement.position.z), "radius": placement.radius, "id": placement.id})
+	for river in paths:
+		if river.kind != &"river":
+			continue
+		var crossings: Array[Dictionary] = []
+		for bridge in bridges:
+			if bridge.get("river_id", &"") == river.id and _bridge_crosses_river(bridge, river, paths):
+				crossings.append({"point": Vector2(bridge.position.x, bridge.position.z), "radius": bridge.radius})
+		blockers.append({"kind": &"river", "points": river.points, "width": river.width, "crossings": crossings, "id": river.id})
 	return blockers
+
+
+func _bridge_crosses_river(bridge: Dictionary, river: Dictionary, paths: Array[Dictionary]) -> bool:
+	for road in paths:
+		if road.kind == &"road" and road.id == bridge.get("road_id", &"") and _paths_cross(river.points, road.points):
+			return true
+	return false

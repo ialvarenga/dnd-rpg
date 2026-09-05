@@ -9,6 +9,7 @@ const SAMPLE_STEP_M := 4.0
 var _phase_x := 0.0
 var _phase_z := 0.0
 var _flattenings: Array[Dictionary] = []
+var _riverbeds: Array[Dictionary] = []
 
 
 func generate(terrain_profile: StringName, terrain_seed: int, terrain_bounds: Vector2) -> bool:
@@ -18,6 +19,7 @@ func generate(terrain_profile: StringName, terrain_seed: int, terrain_bounds: Ve
 	_phase_x = float(_mix_seed(seed, 17)) / 2147483647.0 * TAU
 	_phase_z = float(_mix_seed(seed, 53)) / 2147483647.0 * TAU
 	_flattenings.clear()
+	_riverbeds.clear()
 	return true
 
 
@@ -69,6 +71,11 @@ func _height_unchecked(x: float, z: float) -> float:
 		if distance < flattening.width:
 			var blend := 1.0 - smoothstep(flattening.width * 0.65, flattening.width, distance)
 			base = lerpf(base, flattening.height, blend)
+	for riverbed in _riverbeds:
+		var distance := _distance_to_segments(Vector2(x, z), riverbed.points)
+		if distance < riverbed.blend_width:
+			var blend := 1.0 - smoothstep(riverbed.half_width * 0.72, riverbed.blend_width, distance)
+			base = lerpf(base, riverbed.bed_height, blend)
 	return base
 
 
@@ -81,6 +88,20 @@ func add_flattening_path(points: PackedVector2Array, half_width: float) -> void:
 	for point in points:
 		sum += _base_height(point.x, point.y)
 	_flattenings.append({"points": points.duplicate(), "width": half_width, "height": sum / points.size()})
+
+
+## Carves a shallow channel below its banks. Map path points use `[x, z]`.
+## The return value is the stable water-surface elevation for this river.
+func add_riverbed_path(points: PackedVector2Array, half_width: float) -> float:
+	if points.size() < 2 or half_width <= 0.0:
+		return NAN
+	var sum := 0.0
+	for point in points:
+		sum += _base_height(point.x, point.y)
+	var depth := clampf(half_width * 0.22, 0.22, 0.65)
+	var bed_height := sum / points.size() - depth
+	_riverbeds.append({"points": points.duplicate(), "half_width": half_width, "blend_width": half_width + maxf(0.6, half_width * 0.55), "bed_height": bed_height})
+	return bed_height + maxf(0.06, depth * 0.18)
 
 
 func _base_height(x: float, z: float) -> float:

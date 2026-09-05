@@ -82,7 +82,16 @@ static func _test_paths_are_deterministic_and_crossings_fail(failures: Array[Str
 	var base := {"map": {"id": "path_fixture", "seed": 1, "bounds": {"width_m": 32, "height_m": 32}}, "terrain": {"profile": "flat"}, "rivers": [{"id": "river", "control_points": [[0, 16], [32, 16]], "width_m": 3.0}]}
 	var first := compiler.compile(base)
 	var second := compiler.compile(base)
-	_expect(first.is_valid() and first.paths == second.paths and first.root.get_node("river") is MapPathRenderer, "path ribbon did not compile deterministically", failures)
+	var river_renderer := first.root.get_node_or_null("river") as MapPathRenderer if first.root != null else null
+	var river_visual := river_renderer.get_node_or_null("Water") as MeshInstance3D if river_renderer != null else null
+	var river_material := river_visual.mesh.surface_get_material(0) as ShaderMaterial if river_visual != null else null
+	_expect(first.is_valid() and first.paths == second.paths and river_renderer != null, "path ribbon did not compile deterministically", failures)
+	_expect(first.paths.size() == 1 and first.paths[0].kind == &"river" and river_material != null and river_visual.mesh.get_surface_count() == 1, "river path did not compile with water rendering", failures)
+	var boundary_a := MapPathRenderer.ribbon_boundaries(first.paths[0].points, first.paths[0].width)
+	var boundary_b := MapPathRenderer.ribbon_boundaries(second.paths[0].points, second.paths[0].width)
+	_expect(boundary_a == boundary_b and boundary_a.size() == 4, "river ribbon geometry is not deterministic", failures)
+	_expect(first.terrain.height_at(16, 16) < first.terrain.height_at(16, 19), "riverbed is not lower than its bank", failures)
+	_expect(not first.navigation.is_reachable(Vector2(16, 8), Vector2(16, 24)), "river did not block navigation", failures)
 	if first.root != null:
 		first.root.free()
 	if second.root != null:
@@ -95,8 +104,13 @@ static func _test_paths_are_deterministic_and_crossings_fail(failures: Array[Str
 	bridged.bridges = [{"id": "ford", "asset": "bridge_wood_01", "position": [16, 16], "river_id": "river", "road_id": "road"}]
 	var accepted := compiler.compile(bridged)
 	_expect(accepted.is_valid() and accepted.bridges.size() == 1, "catalog bridge did not permit a matching river crossing", failures)
+	_expect(accepted.navigation.is_reachable(Vector2(16, 8), Vector2(16, 24)), "compatible bridge did not open a river crossing", failures)
 	if accepted.root != null:
 		accepted.root.free()
+	var degenerate := base.duplicate(true)
+	degenerate.rivers[0].control_points = [[8, 8], [8, 8]]
+	var safely_rejected := compiler.compile(degenerate)
+	_expect(not safely_rejected.is_valid() and safely_rejected.errors[0].code == &"MISSING_REQUIRED_DATA", "degenerate river was not safely rejected", failures)
 
 
 static func _expect(condition: bool, message: String, failures: Array[String]) -> void:

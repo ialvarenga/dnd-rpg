@@ -4,7 +4,7 @@ extends Node3D
 ## Small player-facing B11 harness. Generated maps use the same Command/Event
 ## movement pipeline as the arena and expose the objective as a visible marker.
 
-@export var map_spec_path := "../world_authoring/maps/forest_encounter_reference.json"
+@export var map_spec_path := "../world_authoring/maps/test_map.json"
 
 var compilation: MapCompilationResult
 var nav_provider: NavProvider
@@ -112,10 +112,16 @@ func _dress_player(player: CharacterView, player_data: Dictionary) -> void:
 func _setup_camera() -> void:
 	# Generated maps compose the same tested isometric rig used by test_arena;
 	# map compilation supplies only the focus bounds, never a second camera UI.
+	var spec := _load_spec()
+	var spawns: Array = spec.get("spawn_points", [])
+	var focus := character.position
+	if spawns.is_empty():
+		var center := compilation.terrain.bounds * 0.5
+		focus = Vector3(center.x, compilation.terrain.height_at(center.x, center.y), center.y)
 	camera_rig = TacticalCameraRig.new()
 	camera_rig.name = "CameraRig"
-	camera_rig.position = character.position
-	camera_rig.target_focus = character.position
+	camera_rig.position = focus
+	camera_rig.target_focus = focus
 	camera_rig.pan_limit = maxf(compilation.terrain.bounds.x, compilation.terrain.bounds.y)
 	var pivot := Node3D.new()
 	pivot.name = "Pivot"
@@ -123,7 +129,7 @@ func _setup_camera() -> void:
 	camera_rig.add_child(pivot)
 	camera = Camera3D.new()
 	camera.name = "Camera3D"
-	camera.position = Vector3(0, 0, 20)
+	camera.position = Vector3(0, 0, 30)
 	camera.fov = 52.0
 	camera.near = 0.1
 	camera.far = 400.0

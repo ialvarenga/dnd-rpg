@@ -58,6 +58,27 @@ func _walkable(point: Vector2) -> bool:
 	if point.x < 0.0 or point.y < 0.0 or point.x > bounds.x or point.y > bounds.y:
 		return false
 	for area in blocked:
+		if area.get("kind", &"") == &"river":
+			if _river_blocks(point, area):
+				return false
+			continue
 		if point.distance_to(area.get("point", Vector2.ZERO)) < float(area.get("radius", 0.0)):
 			return false
 	return true
+
+
+func _river_blocks(point: Vector2, river: Dictionary) -> bool:
+	var points: PackedVector2Array = river.get("points", PackedVector2Array())
+	if _distance_to_segments(point, points) >= float(river.get("width", 0.0)):
+		return false
+	for crossing in river.get("crossings", []):
+		if point.distance_to(crossing.point) <= crossing.radius:
+			return false
+	return true
+
+
+func _distance_to_segments(point: Vector2, points: PackedVector2Array) -> float:
+	var nearest := INF
+	for index in range(1, points.size()):
+		nearest = minf(nearest, point.distance_to(Geometry2D.get_closest_point_to_segment(point, points[index - 1], points[index])))
+	return nearest
