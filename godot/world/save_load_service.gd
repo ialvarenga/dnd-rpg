@@ -35,6 +35,10 @@ static func save(slot: String, save_game: SaveGame) -> Error:
 	return OK
 
 
+## Returns null both when the slot is absent and when it parses but its
+## schema/rules/content versions do not match what this build understands
+## (SaveGame.is_compatible()) -- reload never silently reinterprets an old
+## save under new rules/content (see save_game.gd's "Important correction").
 static func load_save(slot: String) -> SaveGame:
 	var file := FileAccess.open(save_path(slot), FileAccess.READ)
 	if file == null:
@@ -42,7 +46,10 @@ static func load_save(slot: String) -> SaveGame:
 	var parsed: Variant = JSON.parse_string(file.get_as_text())
 	if not (parsed is Dictionary):
 		return null
-	return SaveGame.from_dict(parsed)
+	var save := SaveGame.from_dict(parsed)
+	if not save.is_compatible():
+		return null
+	return save
 
 
 static func delete_save(slot: String) -> void:

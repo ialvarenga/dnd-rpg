@@ -8,7 +8,10 @@ extends RefCounted
 ## outcomes for the same state+command, so saves and replay logs (A8) can
 ## detect an incompatible resolver instead of silently reinterpreting old
 ## commands/state under new rules.
-const RULES_VERSION: int = 1
+## Fase C2 bump: attack/armor calculations now aggregate equipment, and a
+## perform_attack-effect ability checks/spends its full ability cost
+## (bonus_action/reaction/movement_cost), not only costs_action.
+const RULES_VERSION: int = 2
 
 const ATTACK_RANGE_METERS := 1.5
 const THREAT_RANGE_METERS := 1.5
@@ -17,16 +20,11 @@ const PolylineUtil = preload("res://sim/polyline.gd")
 const EncounterRules = preload("res://sim/rules/encounter.gd")
 const InitiativeRules = preload("res://sim/rules/initiative.gd")
 const TurnOrderRules = preload("res://sim/rules/turn_order.gd")
-
-## Command type -> AbilityDefinition id. Command types stay a small, fixed
-## routing vocabulary; the actual ability content (costs/effects) always comes
-## from the looked-up AbilityDefinition, never from branching on this id.
-const COMMAND_ABILITY_IDS := {
-	&"attack": &"basic_attack",
-	&"basic_attack": &"basic_attack",
-	&"dash": &"dash",
-	&"disengage": &"disengage",
-}
+const RejectionReasonRules = preload("res://sim/rules/rejection_reason.gd")
+const AbilityRoutingRules = preload("res://sim/rules/ability_routing.gd")
+const CommandPhaseRulesScript = preload("res://sim/rules/command_phase_rules.gd")
+const AbilityCostRulesScript = preload("res://sim/rules/ability_cost_rules.gd")
+const EquipmentRules = preload("res://sim/equipment.gd")
 
 const EFFECT_ADD_BASE_MOVEMENT := &"add_base_movement"
 const EFFECT_APPLY_CONDITION := &"apply_condition"
@@ -52,7 +50,7 @@ static func resolve(state: BattleState, cmd: Command, nav: NavProvider, los: Los
 	var result := ResolutionResult.new()
 	result.next_rng_state = state.rng_state
 	if not state.actors.has(cmd.actor_id):
-		return _rejected(result, cmd, "unknown_actor")
+		return _rejected(result, cmd, RejectionReasonRules.UNKNOWN_ACTOR)
 	if cmd.type == &"start_combat":
 		return _resolve_start_combat(state, cmd, result)
 	if cmd.type == &"end_combat":
@@ -61,30 +59,29 @@ static func resolve(state: BattleState, cmd: Command, nav: NavProvider, los: Los
 		return _resolve_move(state, cmd, nav, los, definitions, result)
 	if cmd.type == &"interact" and state.phase == EncounterRules.EXPLORATION:
 		return _resolve_interact(state, cmd, result, false)
-	if state.phase != EncounterRules.COMBAT:
-		return _rejected(result, cmd, "not_in_combat")
-	if state.current_actor_id() != cmd.actor_id:
-		return _rejected(result, cmd, "not_current_actor")
+	var phase_rejection := CommandPhaseRulesScript.rejection_for_combat_turn(state, cmd.actor_id)
+	if phase_rejection != &"":
+		return _rejected(result, cmd, phase_rejection)
 	if cmd.type == &"move":
 		return _resolve_move(state, cmd, nav, los, definitions, result)
 	if cmd.type == &"interact":
 		return _resolve_interact(state, cmd, result, true)
 	if cmd.type == &"end_turn":
 		return _resolve_end_turn(state, cmd, result)
-	if COMMAND_ABILITY_IDS.has(cmd.type):
-		return _resolve_ability_command(state, cmd, los, definitions, result, COMMAND_ABILITY_IDS[cmd.type])
-	return _rejected(result, cmd, "unsupported_command")
+	if AbilityRoutingRules.is_ability_command(cmd.type):
+		return _resolve_ability_command(state, cmd, los, definitions, result, AbilityRoutingRules.ability_id_for_command(cmd.type))
+	return _rejected(result, cmd, RejectionReasonRules.UNSUPPORTED_COMMAND)
 
 
 static func _resolve_start_combat(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
 	if state.phase != EncounterRules.EXPLORATION:
-		return _rejected(result, cmd, "combat_already_active")
+		return _rejected(result, cmd, RejectionReasonRules.COMBAT_ALREADY_ACTIVE)
 	if not TurnOrderRules.is_actor_eligible(state.actors[cmd.actor_id]):
-		return _rejected(result, cmd, "actor_not_eligible")
+		return _rejected(result, cmd, RejectionReasonRules.ACTOR_NOT_ELIGIBLE)
 	var initiative := InitiativeRules.resolve(state)
 	var order: Array[int] = initiative["order"]
 	if order.is_empty():
-		return _rejected(result, cmd, "no_eligible_actors")
+		return _rejected(result, cmd, RejectionReasonRules.NO_ELIGIBLE_ACTORS)
 	var first_actor: ActorState = state.actors[order[0]]
 	result.events.append(Event.create(&"combat_started", {"initiator_actor_id": cmd.actor_id, "phase": EncounterRules.COMBAT_STARTING}))
 	result.events.append(Event.create(&"initiative_established", {"initiative_order": order, "initiative_rolls": initiative["entries"], "current_turn_index": 0, "round_number": 1}))
@@ -95,9 +92,9 @@ static func _resolve_start_combat(state: BattleState, cmd: Command, result: Reso
 
 static func _resolve_end_combat(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
 	if not EncounterRules.can_end(state):
-		return _rejected(result, cmd, "not_in_combat")
+		return _rejected(result, cmd, RejectionReasonRules.NOT_IN_COMBAT)
 	if state.current_actor_id() != cmd.actor_id:
-		return _rejected(result, cmd, "not_current_actor")
+		return _rejected(result, cmd, RejectionReasonRules.NOT_CURRENT_ACTOR)
 	result.events.append(Event.create(&"combat_ending", {"phase": EncounterRules.COMBAT_ENDING}))
 	result.events.append(Event.create(&"combat_ended", {"phase": EncounterRules.EXPLORATION, "initiative_order": [], "current_turn_index": 0, "round_number": 1}))
 	return result
@@ -105,15 +102,16 @@ static func _resolve_end_combat(state: BattleState, cmd: Command, result: Resolu
 
 static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult) -> ResolutionResult:
 	var actor: ActorState = state.actors[cmd.actor_id]
-	if not actor.is_conscious():
-		return _rejected(result, cmd, "actor_cannot_act")
+	var conscious_rejection := CommandPhaseRulesScript.rejection_for_conscious(actor)
+	if conscious_rejection != &"":
+		return _rejected(result, cmd, conscious_rejection)
 	var nav_path := nav.find_path(actor.position, cmd.target_pos)
 	if nav_path.is_empty() or not nav.is_reachable(actor.position, cmd.target_pos):
-		return _rejected(result, cmd, "unreachable")
+		return _rejected(result, cmd, RejectionReasonRules.UNREACHABLE)
 	var path := PolylineUtil.with_start(nav_path, actor.position)
 	var requested_path_cost := PolylineUtil.length(path)
 	if requested_path_cost <= MOVEMENT_EPSILON:
-		return _rejected(result, cmd, "no_movement")
+		return _rejected(result, cmd, RejectionReasonRules.NO_MOVEMENT)
 	if state.phase == EncounterRules.EXPLORATION:
 		_append_movement_event(result, actor.id, actor.position, path, requested_path_cost, requested_path_cost, false)
 		return result
@@ -124,13 +122,13 @@ static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, lo
 	if standing_condition != &"":
 		var stand_cost := working_actor.movement_speed * 0.5
 		if working_actor.movement_remaining + MOVEMENT_EPSILON < stand_cost:
-			return _rejected(result, cmd, "insufficient_movement_to_stand")
+			return _rejected(result, cmd, RejectionReasonRules.INSUFFICIENT_MOVEMENT_TO_STAND)
 		_append_and_apply(result, working, Event.create(&"condition_removed", {"actor_id": working_actor.id, "condition": standing_condition}))
 		_append_movement_spent(result, working, working_actor.id, stand_cost)
 
 	var available := maxf(0.0, (working.actors[cmd.actor_id] as ActorState).movement_remaining)
 	if available <= MOVEMENT_EPSILON:
-		return _rejected(result, cmd, "no_movement_remaining")
+		return _rejected(result, cmd, RejectionReasonRules.NO_MOVEMENT_REMAINING)
 	var resolved_path := path
 	var movement_cost := requested_path_cost
 	var was_clamped := false
@@ -138,7 +136,7 @@ static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, lo
 		resolved_path = PolylineUtil.clamp(path, available)
 		movement_cost = PolylineUtil.length(resolved_path)
 		if resolved_path.size() < 2 or movement_cost <= MOVEMENT_EPSILON:
-			return _rejected(result, cmd, "no_movement_remaining")
+			return _rejected(result, cmd, RejectionReasonRules.NO_MOVEMENT_REMAINING)
 		was_clamped = true
 
 	var traversed := 0.0
@@ -173,19 +171,20 @@ static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, lo
 ## action, per implementation_plan.md Fase A9 "Combat: interaction cost".
 static func _resolve_interact(state: BattleState, cmd: Command, result: ResolutionResult, costs_action: bool) -> ResolutionResult:
 	var actor: ActorState = state.actors[cmd.actor_id]
-	if not actor.is_conscious():
-		return _rejected(result, cmd, "actor_cannot_act")
+	var conscious_rejection := CommandPhaseRulesScript.rejection_for_conscious(actor)
+	if conscious_rejection != &"":
+		return _rejected(result, cmd, conscious_rejection)
 	if not state.interactables.has(cmd.target_interactable_id):
-		return _rejected(result, cmd, "unknown_interactable")
+		return _rejected(result, cmd, RejectionReasonRules.UNKNOWN_INTERACTABLE)
 	var interactable: InteractableState = state.interactables[cmd.target_interactable_id]
 	if actor.position.distance_to(interactable.position) > interactable.interact_range + INTERACT_RANGE_EPSILON:
-		return _rejected(result, cmd, "out_of_range")
+		return _rejected(result, cmd, RejectionReasonRules.OUT_OF_RANGE)
 	if costs_action and not actor.action_available:
-		return _rejected(result, cmd, "action_unavailable")
+		return _rejected(result, cmd, RejectionReasonRules.ACTION_UNAVAILABLE)
 	var transitions: Dictionary = INTERACTABLE_TRANSITIONS.get(interactable.type, {})
 	var next_state: StringName = transitions.get(interactable.state, &"")
 	if next_state == &"":
-		return _rejected(result, cmd, "invalid_interactable_state")
+		return _rejected(result, cmd, RejectionReasonRules.INVALID_INTERACTABLE_STATE)
 	if costs_action:
 		result.events.append(Event.create(&"action_spent", {"actor_id": actor.id, "action": &"interact"}))
 	result.events.append(Event.create(&"interaction_completed", {
@@ -200,29 +199,27 @@ static func _resolve_interact(state: BattleState, cmd: Command, result: Resoluti
 
 static func _resolve_ability_command(state: BattleState, cmd: Command, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult, ability_id: StringName) -> ResolutionResult:
 	var actor: ActorState = state.actors[cmd.actor_id]
-	if not actor.is_conscious(): return _rejected(result, cmd, "actor_cannot_act")
+	var conscious_rejection := CommandPhaseRulesScript.rejection_for_conscious(actor)
+	if conscious_rejection != &"": return _rejected(result, cmd, conscious_rejection)
 	var ability := definitions.get_ability(ability_id)
-	if ability == null: return _rejected(result, cmd, "unknown_ability_definition")
+	if ability == null: return _rejected(result, cmd, RejectionReasonRules.UNKNOWN_ABILITY_DEFINITION)
 	for effect in ability.effects:
 		if effect.type == EFFECT_PERFORM_ATTACK:
 			return _resolve_attack_effect(state, cmd, ability, effect, los, definitions, result)
-	if ability.costs_action and not actor.action_available: return _rejected(result, cmd, "action_unavailable")
-	if ability.costs_bonus_action and not actor.bonus_action_available: return _rejected(result, cmd, "bonus_action_unavailable")
-	if ability.costs_reaction and not actor.reaction_available: return _rejected(result, cmd, "reaction_unavailable")
-	if ability.movement_cost > 0.0 and actor.movement_remaining + MOVEMENT_EPSILON < ability.movement_cost:
-		return _rejected(result, cmd, "insufficient_movement")
+	var cost_rejection := AbilityCostRulesScript.rejection_for_cost(actor, ability)
+	if cost_rejection != &"": return _rejected(result, cmd, cost_rejection)
 	_spend_ability_cost(result, actor, ability)
 	for effect in ability.effects:
 		_apply_generic_effect(result, actor, effect)
 	return result
 
 
-static func _spend_ability_cost(result: ResolutionResult, actor: ActorState, ability: AbilityDefinition) -> void:
-	if ability.costs_action:
+static func _spend_ability_cost(result: ResolutionResult, actor: ActorState, ability: AbilityDefinition, include_action: bool = true, include_reaction: bool = true) -> void:
+	if include_action and ability.costs_action:
 		result.events.append(Event.create(&"action_spent", {"actor_id": actor.id, "action": ability.id}))
 	if ability.costs_bonus_action:
 		result.events.append(Event.create(&"bonus_action_spent", {"actor_id": actor.id, "action": ability.id}))
-	if ability.costs_reaction:
+	if include_reaction and ability.costs_reaction:
 		result.events.append(Event.create(&"reaction_triggered", {"actor_id": actor.id, "target_id": -1, "reaction": ability.id}))
 	if ability.movement_cost > 0.0:
 		result.events.append(Event.create(&"movement_spent", {
@@ -248,42 +245,55 @@ static func _apply_generic_effect(result: ResolutionResult, actor: ActorState, e
 
 
 static func _resolve_attack_effect(state: BattleState, cmd: Command, ability: AbilityDefinition, effect: AbilityEffect, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult) -> ResolutionResult:
-	if not state.actors.has(cmd.target_id): return _rejected(result, cmd, "unknown_target")
+	if not state.actors.has(cmd.target_id): return _rejected(result, cmd, RejectionReasonRules.UNKNOWN_TARGET)
 	var attacker: ActorState = state.actors[cmd.actor_id]
 	var target: ActorState = state.actors[cmd.target_id]
 	if cmd.target_id == cmd.actor_id or attacker.side == target.side or not attacker.is_conscious() or not target.is_alive():
-		return _rejected(result, cmd, "invalid_target")
-	if ability.costs_action and not attacker.action_available: return _rejected(result, cmd, "action_unavailable")
-	if not los.has_line_of_sight(attacker.position, target.position): return _rejected(result, cmd, "no_line_of_sight")
+		return _rejected(result, cmd, RejectionReasonRules.INVALID_TARGET)
+	# Same shared cost gate _resolve_ability_command uses, so a perform_attack
+	# effect ability that declares costs_bonus_action/costs_reaction/
+	# movement_cost is rejected on an unaffordable one instead of only ever
+	# checking costs_action.
+	var cost_rejection := AbilityCostRulesScript.rejection_for_cost(attacker, ability)
+	if cost_rejection != &"": return _rejected(result, cmd, cost_rejection)
+	if not los.has_line_of_sight(attacker.position, target.position): return _rejected(result, cmd, RejectionReasonRules.NO_LINE_OF_SIGHT)
 	var attack_range := maxf(effect.range_meters, float(cmd.metadata.get("range_meters", effect.range_meters)))
 	var is_ranged := bool(cmd.metadata.get("is_ranged", effect.is_ranged))
 	if attacker.position.distance_to(target.position) > attack_range + MOVEMENT_EPSILON:
-		return _rejected(result, cmd, "target_out_of_range")
+		return _rejected(result, cmd, RejectionReasonRules.TARGET_OUT_OF_RANGE)
+	# Action/reaction spending for this ability is carried by attack_rolled's
+	# action_spent/reaction_spent flags below; only bonus_action/movement need
+	# a distinct event here.
+	_spend_ability_cost(result, attacker, ability, false, false)
 	var working := state.clone()
-	_resolve_attack_between(working, working.actors[attacker.id], working.actors[target.id], los, definitions, result, ability.costs_action, false, effect.attack_kind, attack_range, is_ranged)
+	_resolve_attack_between(working, working.actors[attacker.id], working.actors[target.id], los, definitions, result, ability.costs_action, ability.costs_reaction, effect.attack_kind, attack_range, is_ranged)
 	return result
 
 
 static func _resolve_attack_between(working: BattleState, attacker: ActorState, target: ActorState, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult, spends_action: bool, spends_reaction: bool, attack_kind: StringName, attack_range: float = ATTACK_RANGE_METERS, is_ranged: bool = false) -> void:
 	if not los.has_line_of_sight(attacker.position, target.position) or attacker.position.distance_to(target.position) > attack_range + MOVEMENT_EPSILON:
 		return
+	var attack_bonus := EquipmentRules.aggregate_attack_bonus(attacker, definitions)
+	var armor_class := EquipmentRules.aggregate_armor_class(target, definitions)
 	var roll_result := _roll_attack_d20(working.rng_state, attacker, target, is_ranged, definitions)
 	var roll: int = roll_result["roll"]
 	var critical := roll == 20
-	var hit := roll != 1 and (critical or (roll + attacker.attack_bonus >= target.armor_class))
+	var hit := roll != 1 and (critical or (roll + attack_bonus >= armor_class))
 	_append_and_apply(result, working, Event.create(&"attack_rolled", {
 		"actor_id": attacker.id, "target_id": target.id, "attack_kind": attack_kind,
-		"roll": roll, "rolls": roll_result["rolls"], "total": roll + attacker.attack_bonus,
+		"roll": roll, "rolls": roll_result["rolls"], "total": roll + attack_bonus,
 		"critical": critical, "hit": hit, "advantage": roll_result["advantage"], "disadvantage": roll_result["disadvantage"], "is_ranged": is_ranged,
 		"action_spent": spends_action, "reaction_spent": spends_reaction,
 	}))
 	working.rng_state = roll_result["next_rng_state"]
 	if hit:
-		var damage_roll := Dice.roll_die(working.rng_state, attacker.damage_die)
-		var damage: int = int(damage_roll["value"]) + attacker.damage_modifier
+		var damage_die := EquipmentRules.aggregate_damage_die(attacker, definitions)
+		var damage_modifier := EquipmentRules.aggregate_damage_modifier(attacker, definitions)
+		var damage_roll := Dice.roll_die(working.rng_state, damage_die)
+		var damage: int = int(damage_roll["value"]) + damage_modifier
 		working.rng_state = damage_roll["next_rng_state"]
 		if critical:
-			var critical_roll := Dice.roll_die(working.rng_state, attacker.damage_die)
+			var critical_roll := Dice.roll_die(working.rng_state, damage_die)
 			damage += int(critical_roll["value"])
 			working.rng_state = critical_roll["next_rng_state"]
 		damage = max(1, damage)
@@ -318,9 +328,9 @@ static func _roll_attack_d20(rng_state: int, attacker: ActorState, target: Actor
 
 
 static func _resolve_end_turn(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
-	if state.initiative_order.is_empty(): return _rejected(result, cmd, "no_initiative_order")
+	if state.initiative_order.is_empty(): return _rejected(result, cmd, RejectionReasonRules.NO_INITIATIVE_ORDER)
 	var next_index := TurnOrderRules.next_eligible_index(state, state.current_turn_index)
-	if next_index < 0: return _rejected(result, cmd, "no_eligible_actors")
+	if next_index < 0: return _rejected(result, cmd, RejectionReasonRules.NO_ELIGIBLE_ACTORS)
 	var next_round := state.round_number + (1 if next_index <= state.current_turn_index else 0)
 	var next_actor: ActorState = state.actors[state.initiative_order[next_index]]
 	result.events.append(Event.create(&"turn_ended", {"actor_id": cmd.actor_id}))

@@ -143,12 +143,8 @@ func _initialize_exploration_state() -> void:
 	battle_state.phase = &"exploration"
 	battle_state.rng_seed = 1
 	battle_state.rng_state = 1
-	var player := ActorState.new()
-	player.id = character.actor_id
-	player.side = &"heroes"
-	player.position = character.global_position
-	player.hp = 20
-	player.max_hp = 20
+	var knight := DefinitionLibrary.get_default().get_actor(&"knight")
+	var player := ActorState.from_definition(knight, character.actor_id, &"heroes", character.global_position)
 	battle_state.actors[player.id] = player
 
 	var chest := InteractableState.new()

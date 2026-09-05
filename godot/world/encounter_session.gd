@@ -62,10 +62,14 @@ func end_turn(actor_id: int) -> ResolutionResult:
 	return _submit(Command.create(&"end_turn", actor_id), Vector3.INF)
 
 
-func available_actions(_actor_id: int) -> Array[Dictionary]:
-	# ActionAvailability is introduced with the data-driven content work. Keep
-	# the session API stable while that pure rule has not landed yet.
-	return []
+## Advisory HUD data only (Fase C2): reports whether Resolver.resolve() would
+## currently accept each of the actor's abilities, and why not when it
+## wouldn't. Resolver remains the sole authority for command acceptance.
+func available_actions(actor_id: int) -> Array[Dictionary]:
+	if battle_state == null or not battle_state.actors.has(actor_id):
+		return []
+	var actor: ActorState = battle_state.actors[actor_id]
+	return ActionAvailability.evaluate_all(battle_state, actor_id, actor.ability_ids)
 
 
 func _submit(command: Command, view_position: Vector3) -> ResolutionResult:

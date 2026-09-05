@@ -12,6 +12,7 @@ static func run() -> Dictionary:
 	var failures: Array[String] = []
 	_test_save_and_load_round_trip(failures)
 	_test_missing_slot_reports_absent_and_loads_null(failures)
+	_test_incompatible_save_is_rejected(failures)
 	_test_replay_save_and_load_round_trip(failures)
 	return {"name": "integration/test_save_load_service", "failures": failures}
 
@@ -41,6 +42,19 @@ static func _test_missing_slot_reports_absent_and_loads_null(failures: Array[Str
 	SaveLoadService.delete_save(SLOT)
 	_expect(not SaveLoadService.has_save(SLOT), "a never-written slot should not be reported as present", failures)
 	_expect(SaveLoadService.load_save(SLOT) == null, "loading a missing slot should return null", failures)
+
+
+## A save written under an older/different rules_version (or schema/content
+## version) must never be silently reinterpreted -- load_save() should refuse
+## it just like a missing slot (see save_game.gd's "Important correction").
+static func _test_incompatible_save_is_rejected(failures: Array[String]) -> void:
+	SaveLoadService.delete_save(SLOT)
+	var save_game := SaveGame.create(TestHelpers.make_battle(11), "test_arena")
+	save_game.rules_version = Resolver.RULES_VERSION + 1
+	var write_error := SaveLoadService.save(SLOT, save_game)
+	_expect(write_error == OK, "saving an incompatible save to disk failed with error %d" % write_error, failures)
+	_expect(SaveLoadService.load_save(SLOT) == null, "load_save should reject a save with a mismatched rules_version instead of loading it", failures)
+	SaveLoadService.delete_save(SLOT)
 
 
 static func _test_replay_save_and_load_round_trip(failures: Array[String]) -> void:

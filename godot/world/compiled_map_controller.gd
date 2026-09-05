@@ -82,12 +82,8 @@ func _setup_player() -> void:
 	add_child(event_player)
 	event_player.register_character_view(character)
 	battle_state.phase = &"exploration"
-	var actor := ActorState.new()
-	actor.id = 1
-	actor.side = &"heroes"
-	actor.hp = 20
-	actor.max_hp = 20
-	actor.position = character.global_position
+	var knight := DefinitionLibrary.get_default().get_actor(&"knight")
+	var actor := ActorState.from_definition(knight, 1, &"heroes", character.global_position)
 	battle_state.actors[1] = actor
 	if not spec.get("objectives", []).is_empty():
 		var raw: Array = spec.objectives[0].position

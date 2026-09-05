@@ -3448,7 +3448,13 @@ The simulation already exposes the actor statistics, turn resources,
 conditions, and events required by a tactical HUD. This milestone makes that
 state visible and usable without weakening the pure simulation boundary.
 
-## Fase C1 — Shared world session and scene prefabs
+## Fase C1 — Shared world session and scene prefabs — completed
+
+Completed: shared session/picker/preview/map-source extraction and reusable
+player, tactical-camera, objective-marker, and directional-light scenes are
+now used by the playable roots. Controller compatibility forwarders remain for
+the arena runtime boundary. GDScript style and diff checks pass; rerun the
+headless Godot suite when the engine executable is available.
 
 - Add `EncounterSession` as the world-side owner of `BattleState`, navigation,
   line-of-sight, resolve → apply → narrate sequencing, and presentation-path
@@ -3465,7 +3471,25 @@ state visible and usable without weakening the pure simulation boundary.
   dressing data-driven through `AssetCatalog` rather than baking Knight art
   into the player prefab.
 
-## Fase C2 — Definitions, equipment, and action availability
+## Fase C2 — Definitions, equipment, and action availability — completed
+
+Completed: rejection reasons and command→ability routing (with an explicit
+reverse map) now live in `sim/rules/`; `Resolver` and the new pure
+`ActionAvailability` share the same command-phase/ability-cost rejection
+rules, closing a prior gap where a perform_attack-effect ability only ever
+checked/spent `costs_action`, ignoring any `costs_bonus_action`/
+`costs_reaction`/`movement_cost` the same definition declared.
+`ActorDefinition`/`ItemDefinition` content (Knight/Longsword/Leather Armor)
+builds actors via `ActorState.from_definition()`, replacing controller-local
+HP constants; `Equipment` aggregates weapon/armor modifiers at resolver read
+time over a fixed slot order, with `EnemyAI` scoring reading through the same
+aggregation. Save/content/rules versions are bumped and
+`SaveLoadService.load_save()` now refuses an incompatible save instead of
+loading it. GDScript style checks and the full headless Godot suite
+(`godot --headless --script res://tests/test_runner.gd`, Godot 4.6.3) pass,
+including new `unit/test_action_availability` and `unit/test_equipment`
+suites plus resolver-agreement/gap-closure/save-rejection cases added to
+`test_definitions`/`test_save_load_service`.
 
 - Add data-driven `ActorDefinition` and `ItemDefinition` resources plus fixed
   manifests, actor/item content, ordered ability accessors, and descriptions.

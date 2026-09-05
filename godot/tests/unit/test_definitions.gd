@@ -15,6 +15,7 @@ static func run() -> Dictionary:
 	_test_unknown_condition_id_is_ignored_safely(failures)
 	_test_definition_library_ignores_definitions_with_missing_id(failures)
 	_test_content_version_round_trip(failures)
+	_test_perform_attack_effect_checks_and_spends_full_ability_cost(failures)
 	return {"name": "unit/test_definitions", "failures": failures}
 
 
@@ -110,6 +111,47 @@ static func _test_content_version_round_trip(failures: Array[String]) -> void:
 	var default_library := DefinitionLibrary.get_default()
 	_expect(default_library.is_compatible_content_version(state.content_version), "default library rejected its own content_version", failures)
 	_expect(not default_library.is_compatible_content_version(state.content_version + 1), "default library accepted a mismatched content_version", failures)
+
+
+## Fase C2: a perform_attack effect ability that also declares
+## costs_bonus_action and movement_cost. Before AbilityCostRules was shared
+## between _resolve_ability_command and _resolve_attack_effect, these were
+## silently ignored for any ability whose effects included perform_attack --
+## checked here to prove the gap is closed for both rejection and spending.
+static func _test_perform_attack_effect_checks_and_spends_full_ability_cost(failures: Array[String]) -> void:
+	var custom := DefinitionLibrary.new()
+	var ability := AbilityDefinition.new()
+	ability.id = &"basic_attack"
+	ability.costs_action = true
+	ability.costs_bonus_action = true
+	ability.movement_cost = 3.0
+	ability.effects = [_make_attack_effect()]
+	custom.add_ability(ability)
+
+	var blocked_state := TestHelpers.make_battle()
+	(blocked_state.actors[1] as ActorState).bonus_action_available = false
+	var blocked_attack := Command.create(&"attack", 1)
+	blocked_attack.target_id = 2
+	var blocked_result := Resolver.resolve(blocked_state, blocked_attack, FakeNavProvider.new(), FakeLosProvider.new(), custom)
+	_expect(blocked_result.events[0].type == &"command_rejected" and blocked_result.events[0].data["reason"] == &"bonus_action_unavailable", "perform_attack effect ability did not reject an unaffordable declared bonus_action cost", failures)
+
+	var state := TestHelpers.make_battle()
+	var hero: ActorState = state.actors[1]
+	var attack := Command.create(&"attack", 1)
+	attack.target_id = 2
+	var result := Resolver.resolve(state, attack, FakeNavProvider.new(), FakeLosProvider.new(), custom)
+	var bonus_spent := false
+	var movement_spent_amount := -1.0
+	for event in result.events:
+		if event.type == &"bonus_action_spent":
+			bonus_spent = true
+		elif event.type == &"movement_spent":
+			movement_spent_amount = float(event.data["amount"])
+	_expect(bonus_spent, "perform_attack effect ability did not emit bonus_action_spent for a declared costs_bonus_action", failures)
+	_expect(is_equal_approx(movement_spent_amount, 3.0), "perform_attack effect ability did not spend its declared movement_cost", failures)
+	TestHelpers.apply_result(state, result)
+	_expect(not hero.bonus_action_available, "bonus_action_spent event did not actually consume the actor's bonus action", failures)
+	_expect(is_equal_approx(hero.movement_remaining, hero.movement_speed - 3.0), "movement_spent event did not actually consume the actor's movement", failures)
 
 
 static func _make_effect(type: StringName, multiplier: float) -> AbilityEffect:

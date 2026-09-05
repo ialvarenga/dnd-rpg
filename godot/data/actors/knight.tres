@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ActorDefinition" format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/actor_definition.gd" id="1_kn1ght"]
+
+[resource]
+script = ExtResource("1_kn1ght")
+id = &"knight"
+display_name = "Knight"
+max_hp = 20
+armor_class = 10
+strength = 14
+dexterity = 12
+constitution = 14
+intelligence = 10
+wisdom = 10
+charisma = 10
+proficiency_bonus = 2
+movement_speed = 9.0
+attack_bonus = 2
+damage_die = 4
+damage_modifier = 0
+ability_ids = Array[StringName]([&"basic_attack", &"dash", &"disengage"])
+equipment_slots = {
+&"weapon": &"longsword",
+&"armor": &"leather_armor"
+}
+starting_inventory = Array[StringName]([])

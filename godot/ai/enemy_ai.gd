@@ -6,6 +6,7 @@ extends RefCounted
 ## asking again, which keeps every decision incremental and replayable.
 
 const ResolverRules = preload("res://sim/resolver.gd")
+const EquipmentRules = preload("res://sim/equipment.gd")
 const ATTACK_RANGE_METERS := 1.5
 const MAX_TARGET_CANDIDATES := 2
 const SCORE_EPSILON := 0.001
@@ -135,10 +136,19 @@ func _score(before: BattleState, after: BattleState, actor: ActorState, command:
 	return score
 
 
+## Reads through Equipment (sim/equipment.gd), the same way Resolver's attack
+## resolution does, so scoring reflects an actor's actual equipped weapon/
+## armor instead of only their unarmed/unarmored base stats. An actor with no
+## equipment aggregates back to exactly its base fields.
 func _expected_damage(attacker: ActorState, target: ActorState) -> float:
-	var hit_faces := clampi(21 - target.armor_class + attacker.attack_bonus, 1, 19)
+	var definitions := DefinitionLibrary.get_default()
+	var attack_bonus := EquipmentRules.aggregate_attack_bonus(attacker, definitions)
+	var armor_class := EquipmentRules.aggregate_armor_class(target, definitions)
+	var damage_die := EquipmentRules.aggregate_damage_die(attacker, definitions)
+	var damage_modifier := EquipmentRules.aggregate_damage_modifier(attacker, definitions)
+	var hit_faces := clampi(21 - armor_class + attack_bonus, 1, 19)
 	var hit_chance := float(hit_faces) / 20.0
-	var average_damage := (float(attacker.damage_die) + 1.0) * 0.5 + attacker.damage_modifier
+	var average_damage := (float(damage_die) + 1.0) * 0.5 + damage_modifier
 	return maxf(1.0, average_damage) * hit_chance
 
 

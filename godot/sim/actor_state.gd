@@ -25,10 +25,57 @@ var reaction_available: bool = true
 var conditions: Array[StringName] = []
 var disengaged: bool = false
 
-# Spike A-0 combat fields.
+# Spike A-0 combat fields. These are the actor's own base stats; Resolver
+# reads through Equipment (sim/equipment.gd) to combine them with whatever is
+# in equipment_slots, so they stay meaningful even for an unequipped actor.
 var attack_bonus: int = 0
 var damage_die: int = 6
 var damage_modifier: int = 0
+
+# Fase C2 content fields. There is no equip command in this milestone:
+# equipment_slots/inventory/ability_ids are populated once (see
+# from_definition) and never mutated by Resolver, so they are immutable
+# content, not simulated state -- kept out of BattleState.stable_snapshot().
+var ability_ids: Array[StringName] = []
+## Slot (Equipment.SLOT_WEAPON/SLOT_ARMOR) -> ItemDefinition id.
+var equipment_slots: Dictionary = {}
+var inventory: Array[StringName] = []
+## Which ActorDefinition this actor was built from, if any (empty for actors
+## constructed ad hoc, e.g. in tests). Save/HUD-facing metadata only; Resolver
+## never looks this up.
+var definition_id: StringName = &""
+
+
+## Builds a fresh ActorState from stable content instead of a caller setting
+## HP/AC/etc. constants by hand. The result is fully independent of
+## `definition` -- later mutation of the ActorState (or of the definition
+## resource, though content is expected to stay immutable at runtime) cannot
+## affect the other.
+static func from_definition(definition: ActorDefinition, actor_id: int, side: StringName, position: Vector3) -> ActorState:
+	var actor := ActorState.new()
+	actor.id = actor_id
+	actor.side = side
+	actor.position = position
+	actor.hp = definition.max_hp
+	actor.max_hp = definition.max_hp
+	actor.armor_class = definition.armor_class
+	actor.strength = definition.strength
+	actor.dexterity = definition.dexterity
+	actor.constitution = definition.constitution
+	actor.intelligence = definition.intelligence
+	actor.wisdom = definition.wisdom
+	actor.charisma = definition.charisma
+	actor.proficiency_bonus = definition.proficiency_bonus
+	actor.movement_speed = definition.movement_speed
+	actor.movement_remaining = definition.movement_speed
+	actor.attack_bonus = definition.attack_bonus
+	actor.damage_die = definition.damage_die
+	actor.damage_modifier = definition.damage_modifier
+	actor.ability_ids = definition.ability_ids.duplicate()
+	actor.equipment_slots = definition.equipment_slots.duplicate()
+	actor.inventory = definition.starting_inventory.duplicate()
+	actor.definition_id = definition.id
+	return actor
 
 
 func clone() -> ActorState:
@@ -56,6 +103,10 @@ func clone() -> ActorState:
 	copy.attack_bonus = attack_bonus
 	copy.damage_die = damage_die
 	copy.damage_modifier = damage_modifier
+	copy.ability_ids = ability_ids.duplicate()
+	copy.equipment_slots = equipment_slots.duplicate()
+	copy.inventory = inventory.duplicate()
+	copy.definition_id = definition_id
 	return copy
 
 
@@ -108,7 +159,18 @@ func to_dict() -> Dictionary:
 		"attack_bonus": attack_bonus,
 		"damage_die": damage_die,
 		"damage_modifier": damage_modifier,
+		"ability_ids": SimulationSerialization.value_to_data(ability_ids),
+		"equipment_slots": _equipment_slots_to_data(equipment_slots),
+		"inventory": SimulationSerialization.value_to_data(inventory),
+		"definition_id": String(definition_id),
 	}
+
+
+static func _equipment_slots_to_data(slots: Dictionary) -> Dictionary:
+	var data := {}
+	for slot in slots.keys():
+		data[String(slot)] = String(slots[slot])
+	return data
 
 
 static func from_dict(data: Dictionary) -> ActorState:
@@ -141,4 +203,17 @@ static func from_dict(data: Dictionary) -> ActorState:
 	actor.attack_bonus = int(data.get("attack_bonus", 0))
 	actor.damage_die = int(data.get("damage_die", 6))
 	actor.damage_modifier = int(data.get("damage_modifier", 0))
+	var restored_ability_ids: Variant = SimulationSerialization.data_to_value(data.get("ability_ids", []))
+	if restored_ability_ids is Array:
+		for ability_id in restored_ability_ids:
+			actor.ability_ids.append(StringName(str(ability_id)))
+	var restored_equipment: Variant = data.get("equipment_slots", {})
+	if restored_equipment is Dictionary:
+		for slot_key in (restored_equipment as Dictionary).keys():
+			actor.equipment_slots[StringName(str(slot_key))] = StringName(str((restored_equipment as Dictionary)[slot_key]))
+	var restored_inventory: Variant = SimulationSerialization.data_to_value(data.get("inventory", []))
+	if restored_inventory is Array:
+		for item_id in restored_inventory:
+			actor.inventory.append(StringName(str(item_id)))
+	actor.definition_id = StringName(str(data.get("definition_id", "")))
 	return actor

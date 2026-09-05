@@ -12,7 +12,9 @@ extends RefCounted
 ## content_version describe the meaning of the BattleState it carries. A
 ## loader must check all three before trusting a save (see is_compatible).
 
-const SCHEMA_VERSION: int = 1
+## Fase C2 bump: ActorState now serializes ability_ids/equipment_slots/
+## inventory/definition_id.
+const SCHEMA_VERSION: int = 2
 const GAME_VERSION: String = "0.1.0"
 
 var schema_version: int = SCHEMA_VERSION
