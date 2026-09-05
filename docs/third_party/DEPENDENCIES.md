@@ -12,6 +12,12 @@ runner to avoid adding a framework before the Reuse Spike. Tactical Slash was
 inspected as a MIT-licensed camera reference; the outcome is documented in
 `reuse-audit.md` and does not add it as a dependency.
 
+## B2
+
+| Name | Version / pin | License | Why used | Update strategy |
+| --- | --- | --- | --- | --- |
+| jsonschema | >=4.23,<5 | MIT | Validate canonical Draft 2020-12 MapSpec and MapPatch contracts in Python authoring tools | Upgrade deliberately after validating the schema fixture suite |
+
 ## A10
 
 | Name | Version / pin | License | Why used | Update strategy |

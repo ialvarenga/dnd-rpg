@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "map_id": "forest_test",
+  "base_map_version": 3,
+  "operations": [{
+    "op": "ADD",
+    "target": { "collection": "structures", "id": "cabin" },
+    "value": { "id": "cabin", "asset": "res://assets/cabin.tscn", "position": [34, 24] }
+  }]
+}

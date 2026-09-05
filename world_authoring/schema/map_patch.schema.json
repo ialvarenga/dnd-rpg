@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dnd-rpg.local/schemas/map_patch.schema.json",
+  "title": "MapPatch v1",
+  "description": "Canonical incremental-edit contract. Operations are applied in listed order against the stated base map version; an authoring tool must reject a patch when its base version does not match, and must validate the resulting MapSpec before compilation. Targets use stable collection/id pairs, never resource paths or executable content.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "map_id", "base_map_version", "operations"],
+  "properties": {
+    "version": { "const": "1.0" },
+    "map_id": { "$ref": "map_spec.schema.json#/$defs/stableId" },
+    "base_map_version": { "type": "integer", "minimum": 1 },
+    "operations": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/operation" } }
+  },
+  "$defs": {
+    "entityTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["collection", "id"],
+      "properties": {
+        "collection": { "enum": ["regions", "vegetation", "structures", "actors", "spawn_points", "interactables"] },
+        "id": { "$ref": "map_spec.schema.json#/$defs/stableId" }
+      }
+    },
+    "movableTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["collection", "id"],
+      "properties": {
+        "collection": { "enum": ["vegetation", "structures", "actors", "spawn_points", "interactables"] },
+        "id": { "$ref": "map_spec.schema.json#/$defs/stableId" }
+      }
+    },
+    "addRegion": {
+      "type": "object", "additionalProperties": false, "required": ["op", "target", "value"],
+      "properties": { "op": { "const": "ADD" }, "target": { "$ref": "#/$defs/regionTarget" }, "value": { "$ref": "map_spec.schema.json#/$defs/region" } }
+    },
+    "addVegetation": {
+      "type": "object", "additionalProperties": false, "required": ["op", "target", "value"],
+      "properties": { "op": { "const": "ADD" }, "target": { "$ref": "#/$defs/vegetationTarget" }, "value": { "$ref": "map_spec.schema.json#/$defs/vegetationPlacement" } }
+    },
+    "addStructure": {
+      "type": "object", "additionalProperties": false, "required": ["op", "target", "value"],
+      "properties": { "op": { "const": "ADD" }, "target": { "$ref": "#/$defs/structureTarget" }, "value": { "$ref": "map_spec.schema.json#/$defs/structure" } }
+    },
+    "addActor": {
+      "type": "object", "additionalProperties": false, "required": ["op", "target", "value"],
+      "properties": { "op": { "const": "ADD" }, "target": { "$ref": "#/$defs/actorTarget" }, "value": { "$ref": "map_spec.schema.json#/$defs/actor" } }
+    },
+    "addSpawnPoint": {
+      "type": "object", "additionalProperties": false, "required": ["op", "target", "value"],
+      "properties": { "op": { "const": "ADD" }, "target": { "$ref": "#/$defs/spawnPointTarget" }, "value": { "$ref": "map_spec.schema.json#/$defs/spawnPoint" } }
+    },
+    "addInteractable": {
+      "type": "object", "additionalProperties": false, "required": ["op", "target", "value"],
+      "properties": { "op": { "const": "ADD" }, "target": { "$ref": "#/$defs/interactableTarget" }, "value": { "$ref": "map_spec.schema.json#/$defs/interactable" } }
+    },
+    "regionTarget": { "type": "object", "additionalProperties": false, "required": ["collection", "id"], "properties": { "collection": { "const": "regions" }, "id": { "$ref": "map_spec.schema.json#/$defs/stableId" } } },
+    "vegetationTarget": { "type": "object", "additionalProperties": false, "required": ["collection", "id"], "properties": { "collection": { "const": "vegetation" }, "id": { "$ref": "map_spec.schema.json#/$defs/stableId" } } },
+    "structureTarget": { "type": "object", "additionalProperties": false, "required": ["collection", "id"], "properties": { "collection": { "const": "structures" }, "id": { "$ref": "map_spec.schema.json#/$defs/stableId" } } },
+    "actorTarget": { "type": "object", "additionalProperties": false, "required": ["collection", "id"], "properties": { "collection": { "const": "actors" }, "id": { "$ref": "map_spec.schema.json#/$defs/stableId" } } },
+    "spawnPointTarget": { "type": "object", "additionalProperties": false, "required": ["collection", "id"], "properties": { "collection": { "const": "spawn_points" }, "id": { "$ref": "map_spec.schema.json#/$defs/stableId" } } },
+    "interactableTarget": { "type": "object", "additionalProperties": false, "required": ["collection", "id"], "properties": { "collection": { "const": "interactables" }, "id": { "$ref": "map_spec.schema.json#/$defs/stableId" } } },
+    "add": {
+      "oneOf": [
+        { "$ref": "#/$defs/addRegion" }, { "$ref": "#/$defs/addVegetation" }, { "$ref": "#/$defs/addStructure" }, { "$ref": "#/$defs/addActor" }, { "$ref": "#/$defs/addSpawnPoint" }, { "$ref": "#/$defs/addInteractable" }
+      ]
+    },
+    "remove": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "target"],
+      "properties": { "op": { "const": "REMOVE" }, "target": { "$ref": "#/$defs/entityTarget" } }
+    },
+    "move": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "target", "position"],
+      "properties": { "op": { "const": "MOVE" }, "target": { "$ref": "#/$defs/movableTarget" }, "position": { "$ref": "map_spec.schema.json#/$defs/vector2" } }
+    },
+    "rotate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "target", "rotation_deg"],
+      "properties": { "op": { "const": "ROTATE" }, "target": { "$ref": "#/$defs/movableTarget" }, "rotation_deg": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 } }
+    },
+    "resize": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "bounds"],
+      "properties": { "op": { "const": "RESIZE" }, "bounds": { "$ref": "map_spec.schema.json#/$defs/bounds" } }
+    },
+    "changeDensity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "target", "density"],
+      "properties": { "op": { "const": "CHANGE_DENSITY" }, "target": { "$ref": "#/$defs/entityTarget" }, "density": { "type": "number", "minimum": 0, "maximum": 1 } }
+    },
+    "changeProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "target", "profile"],
+      "properties": {
+        "op": { "const": "CHANGE_PROFILE" },
+        "target": { "$ref": "#/$defs/entityTarget" },
+        "profile": { "enum": ["flat", "rolling_hills", "valley", "temperate_sparse", "temperate_dense", "none"] }
+      }
+    },
+    "operation": { "oneOf": [ { "$ref": "#/$defs/add" }, { "$ref": "#/$defs/remove" }, { "$ref": "#/$defs/move" }, { "$ref": "#/$defs/rotate" }, { "$ref": "#/$defs/resize" }, { "$ref": "#/$defs/changeDensity" }, { "$ref": "#/$defs/changeProfile" } ] }
+  }
+}

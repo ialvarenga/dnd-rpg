@@ -1,0 +1,6 @@
+{
+  "version": "1.0",
+  "map_id": "forest_test",
+  "base_map_version": 3,
+  "operations": [{ "op": "MOVE", "target": { "collection": "structures", "id": "cabin" } }]
+}

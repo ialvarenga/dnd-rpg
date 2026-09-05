@@ -1,0 +1,3 @@
+# B2 schema validation contract. Keep this major-version bound deliberate:
+# Draft 2020-12 validation behavior is part of the authoring interface.
+jsonschema>=4.23,<5

@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "map_id": "forest_test",
+  "base_map_version": 3,
+  "operations": [
+    {
+      "op": "ADD",
+      "target": { "collection": "structures", "id": "cabin" },
+      "value": { "id": "cabin", "asset": "wall_dungeon_01", "position": [34, 24] }
+    },
+    {
+      "op": "MOVE",
+      "target": { "collection": "structures", "id": "cabin" },
+      "position": [36, 24]
+    }
+  ]
+}

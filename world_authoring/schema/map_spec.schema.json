@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dnd-rpg.local/schemas/map_spec.schema.json",
+  "title": "MapSpec v1",
+  "description": "Canonical language-neutral contract for deterministic map authoring. The version field is the document-contract version: incompatible changes require a new version and an explicit migration, rather than silently changing v1 semantics.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "map"],
+  "properties": {
+    "version": { "const": "1.0", "description": "MapSpec contract version. This schema is the canonical definition of version 1.0." },
+    "map": { "$ref": "#/$defs/mapMetadata" },
+    "terrain": { "$ref": "#/$defs/terrain" },
+    "regions": { "type": "array", "items": { "$ref": "#/$defs/region" }, "uniqueItems": true },
+    "vegetation": { "type": "array", "items": { "$ref": "#/$defs/vegetationPlacement" }, "uniqueItems": true },
+    "structures": { "type": "array", "items": { "$ref": "#/$defs/structure" }, "uniqueItems": true },
+    "actors": { "type": "array", "items": { "$ref": "#/$defs/actor" }, "uniqueItems": true },
+    "spawn_points": { "type": "array", "items": { "$ref": "#/$defs/spawnPoint" }, "uniqueItems": true },
+    "interactables": { "type": "array", "items": { "$ref": "#/$defs/interactable" }, "uniqueItems": true }
+  },
+  "$defs": {
+    "stableId": {
+      "type": "string",
+      "pattern": "^(?!res://)[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+      "description": "Stable identifier, compatible with B1 AssetCatalog IDs. Resource paths, including res:// paths, are not identifiers."
+    },
+    "version": { "type": "string", "pattern": "^[1-9][0-9]*\\.[0-9]+(?:\\.[0-9]+)?$" },
+    "vector2": {
+      "type": "array",
+      "description": "Absolute [east_m, north_m] coordinates measured from the southwest map corner.",
+      "items": { "type": "number" },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width_m", "height_m"],
+      "properties": {
+        "width_m": { "type": "number", "exclusiveMinimum": 0, "maximum": 256 },
+        "height_m": { "type": "number", "exclusiveMinimum": 0, "maximum": 256 }
+      }
+    },
+    "mapMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "preset", "seed", "bounds"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "preset": { "enum": ["encounter", "small", "medium"] },
+        "seed": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+        "bounds": { "$ref": "#/$defs/bounds" },
+        "asset_catalog_version": { "$ref": "#/$defs/version" },
+        "generator_version": { "$ref": "#/$defs/version" }
+      }
+    },
+    "terrain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile"],
+      "properties": {
+        "profile": { "enum": ["flat", "rolling_hills", "valley"] },
+        "generator_version": { "$ref": "#/$defs/version" }
+      }
+    },
+    "region": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "polygon"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "polygon": { "type": "array", "minItems": 3, "items": { "$ref": "#/$defs/vector2" } },
+        "vegetation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["profile"],
+          "properties": {
+            "profile": { "enum": ["temperate_sparse", "temperate_dense", "none"] },
+            "density": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        }
+      }
+    },
+    "assetPlacement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "asset", "position"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "asset": { "$ref": "#/$defs/stableId" },
+        "position": { "$ref": "#/$defs/vector2" },
+        "rotation_deg": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 }
+      }
+    },
+    "vegetationPlacement": { "$ref": "#/$defs/assetPlacement" },
+    "structure": { "$ref": "#/$defs/assetPlacement" },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "archetype", "position"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "archetype": { "$ref": "#/$defs/stableId" },
+        "position": { "$ref": "#/$defs/vector2" },
+        "rotation_deg": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 }
+      }
+    },
+    "spawnPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "position"],
+      "properties": { "id": { "$ref": "#/$defs/stableId" }, "position": { "$ref": "#/$defs/vector2" } }
+    },
+    "interactable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "asset", "position"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "kind": { "enum": ["chest", "door", "lever", "barrel"] },
+        "asset": { "$ref": "#/$defs/stableId" },
+        "position": { "$ref": "#/$defs/vector2" },
+        "rotation_deg": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 }
+      }
+    }
+  }
+}

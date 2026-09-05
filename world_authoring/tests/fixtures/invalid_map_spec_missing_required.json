@@ -1,0 +1,4 @@
+{
+  "version": "1.0",
+  "map": { "id": "forest_test", "preset": "encounter", "bounds": { "width_m": 64, "height_m": 64 } }
+}

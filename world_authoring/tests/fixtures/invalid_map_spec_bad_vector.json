@@ -1,0 +1,5 @@
+{
+  "version": "1.0",
+  "map": { "id": "forest_test", "preset": "encounter", "seed": 1, "bounds": { "width_m": 64, "height_m": 64 } },
+  "spawn_points": [{ "id": "player_start", "position": [12, 8, 0] }]
+}

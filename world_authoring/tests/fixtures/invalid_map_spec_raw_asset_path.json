@@ -1,0 +1,5 @@
+{
+  "version": "1.0",
+  "map": { "id": "forest_test", "preset": "encounter", "seed": 1, "bounds": { "width_m": 64, "height_m": 64 } },
+  "structures": [{ "id": "cabin", "asset": "res://assets/cabin.tscn", "position": [34, 24] }]
+}
