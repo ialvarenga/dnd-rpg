@@ -4,15 +4,18 @@ extends RefCounted
 const TerrainScript = preload("res://world/procedural_terrain_provider.gd")
 const VegetationScript = preload("res://world/vegetation_generator.gd")
 const CompilerScript = preload("res://world/map_compiler.gd")
+const MapSpecSourceScript = preload("res://world/map_spec_source.gd")
 
 
 static func run() -> Dictionary:
 	var failures: Array[String] = []
 	_test_terrain_profiles_and_queries(failures)
+	_test_external_map_spec_path(failures)
 	_test_terrain_seed_variation_and_edge_normals(failures)
 	_test_terrain_surface_materials(failures)
 	_test_vegetation_is_deterministic_and_respects_clearance(failures)
 	_test_compiler_places_reference_map_and_reports_spatial_errors(failures)
+	_test_compiler_places_actor_visuals(failures)
 	_test_paths_are_deterministic_and_crossings_fail(failures)
 	_test_navigation_reachability(failures)
 	_test_wall_blockers_match_navigation(failures)
@@ -32,6 +35,14 @@ static func _test_terrain_profiles_and_queries(failures: Array[String]) -> void:
 	valley.generate(&"valley", 42, Vector2(64, 64))
 	_expect(valley.height_at(32, 32) < valley.height_at(2, 32), "valley center is not lower than edge", failures)
 	_expect(is_nan(a.height_at(-1, 0)), "terrain bounds failure did not return NAN", failures)
+
+
+static func _test_external_map_spec_path(failures: Array[String]) -> void:
+	var source := MapSpecSourceScript.new("../world_authoring/maps/test_map.json")
+	var spec: Dictionary = source.load_spec()
+	var map: Dictionary = spec.get("map", {})
+	var bounds: Dictionary = map.get("bounds", {})
+	_expect(not spec.is_empty() and bounds.get("width_m", 0) == 64, "external authoring MapSpec did not resolve: %s" % source.last_error, failures)
 
 
 static func _test_terrain_seed_variation_and_edge_normals(failures: Array[String]) -> void:
@@ -93,6 +104,15 @@ static func _test_navigation_reachability(failures: Array[String]) -> void:
 	var spec := {"map": {"id": "path_map", "seed": 1, "bounds": {"width_m": 32, "height_m": 32}}, "terrain": {"profile": "flat"}, "structures": [{"id": "wall", "asset": "wall_run_dungeon_01", "position": [16, 16]}], "spawn_points": [{"id": "start", "position": [1, 1]}], "objectives": [{"id": "goal", "position": [31, 31]}]}
 	var result := compiler.compile(spec)
 	_expect(result.is_valid() and result.navigation.is_reachable(Vector2(1, 1), Vector2(31, 31)), "navigation did not preserve reachable route", failures)
+	if result.root != null:
+		result.root.free()
+
+
+static func _test_compiler_places_actor_visuals(failures: Array[String]) -> void:
+	var compiler := CompilerScript.new()
+	var spec := {"map": {"id": "actor_visual_map", "seed": 1, "bounds": {"width_m": 64, "height_m": 64}}, "terrain": {"profile": "flat"}, "actors": [{"id": "guard", "archetype": "character_knight_01", "position": [32, 16]}]}
+	var result := compiler.compile(spec)
+	_expect(result.is_valid() and result.root != null and result.root.get_node_or_null("guard") != null, "actor archetype did not compile into a visual node", failures)
 	if result.root != null:
 		result.root.free()
 

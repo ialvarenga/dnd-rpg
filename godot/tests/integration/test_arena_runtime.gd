@@ -19,6 +19,7 @@ func run() -> Dictionary:
 	await _test_hud_runtime(controller, arena.get_node("HudRoot"), player, failures)
 	await _test_preview_and_clamped_combat_movement(controller, player, event_player, failures)
 	_test_command_event_view_pipeline(controller, player, event_player, failures)
+	await _test_animation_movement_transition(controller, player, event_player, failures)
 	await _test_target_replacement(controller, player, event_player, failures)
 	await _test_obstacle_route(controller, player, event_player, failures)
 	await _test_rejected_and_invalid_clicks(controller, player, failures)
@@ -90,6 +91,23 @@ func _test_command_event_view_pipeline(controller: TestArenaController, player: 
 	_expect(player.is_moving(), "EventPlayer did not start CharacterView movement", failures)
 	var authoritative_position: Vector3 = (controller.battle_state.actors[player.actor_id] as ActorState).position
 	_expect(authoritative_position != start and player.global_position == start, "state was not applied before visual interpolation", failures)
+
+
+func _test_animation_movement_transition(_controller: TestArenaController, player: CharacterView, event_player: EventPlayer, failures: Array[String]) -> void:
+	_expect(player.animator != null, "player prefab has no CharacterAnimator", failures)
+	var start := player.global_position
+	var target := start + Vector3(1.5, 0.0, 0.0)
+	event_player.play_events([Event.create(&"movement_segment", {"actor_id": player.actor_id, "path": PackedVector3Array([start, target]), "to": target})])
+	await get_tree().physics_frame
+	if player.animator != null:
+		_expect(player.animator.current_state == &"locomotion", "movement did not enter locomotion animation state", failures)
+	await _wait_for_destination(player, 180)
+	if player.animator != null:
+		_expect(player.animator.current_state == &"idle", "movement completion did not return animator to idle", failures)
+	# The installed baseline only ships MovementBasic.  These narrated events
+	# must still be harmless when the optional combat/general clips are absent.
+	event_player.play_events([Event.create(&"attack_rolled", {"actor_id": player.actor_id}), Event.create(&"damage_taken", {"actor_id": player.actor_id, "amount": 1}), Event.create(&"actor_died", {"actor_id": player.actor_id})])
+	_expect(player.animator != null and player.animator.current_state in [&"idle", &"attack", &"hit", &"death"], "absent optional clips crashed event narration", failures)
 
 
 func _test_target_replacement(controller: TestArenaController, player: CharacterView, event_player: EventPlayer, failures: Array[String]) -> void:

@@ -22,19 +22,35 @@ func register_character_view(view: CharacterView) -> void:
 func play_events(events: Array[Event]) -> void:
 	last_played_events = events.duplicate()
 	for event in events:
-		if event.type != &"movement_segment":
-			continue
-		var actor_id := int(event.data["actor_id"])
-		if not _views_by_actor.has(actor_id):
-			continue
-		var path_data: Variant = event.data.get("presentation_path", event.data["path"])
-		if not (path_data is PackedVector3Array):
-			continue
-		var path: PackedVector3Array = path_data
-		_last_paths[actor_id] = path.duplicate()
-		var view: CharacterView = _views_by_actor[actor_id]
-		if view.play_movement(path, event.data["to"]):
-			movement_started.emit(actor_id, path.duplicate())
+		_narrate_event(event)
+
+
+func _narrate_event(event: Event) -> void:
+	var actor_id := int(event.data.get("actor_id", -1))
+	var view := get_character_view(actor_id)
+	match event.type:
+		&"movement_segment":
+			if view == null:
+				return
+			var path_data: Variant = event.data.get("presentation_path", event.data.get("path", PackedVector3Array()))
+			if not (path_data is PackedVector3Array):
+				return
+			var path: PackedVector3Array = path_data
+			_last_paths[actor_id] = path.duplicate()
+			if view.play_movement(path, event.data["to"]):
+				movement_started.emit(actor_id, path.duplicate())
+		&"attack_rolled":
+			if view != null:
+				view.present_attack()
+		&"damage_taken":
+			if view != null:
+				view.present_hit()
+		&"interaction_completed":
+			if view != null:
+				view.present_interaction()
+		&"actor_died":
+			if view != null:
+				view.present_death()
 
 
 func get_resolved_path(actor_id: int) -> PackedVector3Array:

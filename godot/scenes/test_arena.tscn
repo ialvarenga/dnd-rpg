@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://dn2hnkfe3w6ch"]
+[gd_scene format=3 uid="uid://bu6saptf7ix0v"]
 
 [ext_resource type="Script" uid="uid://bx4t11h8cy8eu" path="res://world/test_arena_controller.gd" id="1_arena"]
 [ext_resource type="Script" uid="uid://6l20kl4vbp3y" path="res://view/event_player.gd" id="4_event_player"]
@@ -167,20 +167,13 @@ shape = SubResource("ChestShape")
 [node name="PlayerCharacter" parent="." unique_id=1692946117 instance=ExtResource("5_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 1, 0)
 
-[node name="EventPlayer" type="Node" parent="." unique_id=1960922341]
-script = ExtResource("4_event_player")
-
 [node name="CameraRig" parent="PlayerCharacter" unique_id=600628059 instance=ExtResource("6_camera")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, -1, 0)
 
-[node name="Pivot" parent="PlayerCharacter/CameraRig" index="0"]
-rotation_degrees = Vector3(-58, 0, 0)
+[node name="EventPlayer" type="Node" parent="." unique_id=1960922341]
+script = ExtResource("4_event_player")
 
-[node name="Camera3D" parent="PlayerCharacter/CameraRig/Pivot" index="0"]
-position = Vector3(0, 0, 20)
-far = 120.0
-
-[node name="HudRoot" parent="." instance=ExtResource("8_hud")]
+[node name="HudRoot" parent="." unique_id=116947241 instance=ExtResource("8_hud")]
 
 [node name="Debug" type="Node3D" parent="." unique_id=40672315]
 

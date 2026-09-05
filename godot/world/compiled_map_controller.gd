@@ -31,8 +31,15 @@ const ScreenPickerScript = preload("res://world/screen_picker.gd")
 
 
 func _ready() -> void:
+	print("[CompiledMapController] loading MapSpec '%s'" % map_spec_path)
 	map_source = MapSpecSourceScript.new(map_spec_path)
-	compilation = MapCompiler.new().compile(_load_spec())
+	var spec := _load_spec()
+	if spec.is_empty():
+		var load_message := "MapSpec load failed:\n\n%s" % map_source.last_error
+		push_error(load_message)
+		_show_error(load_message)
+		return
+	compilation = MapCompiler.new().compile(spec)
 	if not compilation.is_valid():
 		push_error("Map compilation failed: %s" % compilation.error_dicts())
 		_show_compile_errors()
@@ -118,6 +125,8 @@ func _setup_camera() -> void:
 	camera_rig = TACTICAL_CAMERA_SCENE.instantiate() as TacticalCameraRig
 	camera_rig.position = focus
 	camera_rig.target_focus = focus
+	if spawns.is_empty():
+		camera_rig.target_zoom = camera_rig.maximum_zoom
 	camera_rig.pan_limit = maxf(compilation.terrain.bounds.x, compilation.terrain.bounds.y)
 	camera = camera_rig.get_node("Pivot/Camera3D") as Camera3D
 	add_child(camera_rig)
@@ -149,22 +158,26 @@ func _setup_hud() -> void:
 
 
 func _on_hud_ability_requested(ability_id: StringName) -> void:
-	var result := session.submit_ability(character.actor_id, ability_id, -1, Vector3.INF)
+	var result: ResolutionResult = session.submit_ability(character.actor_id, ability_id, -1, Vector3.INF)
 	event_player.play_events(result.events)
 
 
 func _on_hud_end_turn_requested() -> void:
-	var result := session.end_turn(character.actor_id)
+	var result: ResolutionResult = session.end_turn(character.actor_id)
 	event_player.play_events(result.events)
 
 
 func _show_compile_errors() -> void:
+	_show_error("Map compilation failed:\n\n%s" % JSON.stringify(compilation.error_dicts(), "  "))
+
+
+func _show_error(message: String) -> void:
 	var layer := CanvasLayer.new()
 	var label := Label.new()
 	label.position = Vector2(24, 24)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.size = Vector2(900, 600)
-	label.text = "Map compilation failed:\n\n%s" % JSON.stringify(compilation.error_dicts(), "  ")
+	label.text = message
 	layer.add_child(label)
 	add_child(layer)
 

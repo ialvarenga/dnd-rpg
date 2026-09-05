@@ -29,6 +29,7 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 	_compile_walls(spec.get("walls", []), terrain, bounds, occupied, result)
 	_compile_placements(spec.get("structures", []), &"structure", terrain, bounds, occupied, result)
 	_compile_placements(spec.get("vegetation", []), &"vegetation", terrain, bounds, occupied, result)
+	_compile_actor_visuals(spec.get("actors", []), terrain, bounds, result)
 	if not result.errors.is_empty():
 		return result
 	var generator := VegetationGenerator.new()
@@ -58,11 +59,11 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 			_add(result.errors, &"UNKNOWN_ASSET", "catalog asset '%s' could not instantiate" % placement.asset, placement.id, {"asset": placement.asset})
 			continue
 		node.name = String(placement.id)
-		node.position = placement.position
-		node.rotation.y = placement.rotation_y
+		var definition := AssetCatalog.get_definition(placement.asset)
+		node.position = placement.position + (definition.display_offset if definition != null else Vector3.ZERO)
+		node.rotation.y = placement.rotation_y + (definition.display_rotation_y if definition != null else 0.0)
 		node.scale = placement.get("visual_scale", Vector3.ONE)
 		result.root.add_child(node)
-		var definition := AssetCatalog.get_definition(placement.asset)
 		if definition != null:
 			result.root.add_child(MapRuntimeBlocker.create(placement.id, placement.position, definition, placement.rotation_y, placement.get("collision_size", Vector3.ZERO)))
 	if not result.errors.is_empty():
@@ -108,6 +109,24 @@ func _compile_placements(raw_placements: Array, expected_type: StringName, terra
 		if not result.errors.is_empty() and result.errors.back().entity_id == id:
 			continue
 		occupied.append({"point": point, "radius": definition.footprint_radius, "id": id})
+		result.placements.append({"id": id, "asset": asset, "position": Vector3(point.x, terrain.height_at(point.x, point.y), point.y), "rotation_y": deg_to_rad(float(raw.get("rotation_deg", 0.0))), "radius": definition.footprint_radius})
+
+
+## MapSpec actors are authored as catalog archetype IDs.  This compiler only
+## creates their visual anchors; encounter ownership and BattleState remain
+## outside the map-presentation compiler.
+func _compile_actor_visuals(raw_actors: Array, terrain: TerrainProvider, bounds: Vector2, result: MapCompilationResult) -> void:
+	for raw in raw_actors:
+		var id := StringName(raw.get("id", ""))
+		var asset := StringName(raw.get("archetype", ""))
+		var definition := AssetCatalog.get_definition(asset)
+		if definition == null or not definition.is_usable() or definition.asset_type != &"character":
+			_add(result.errors, &"INVALID_ACTOR_ASSET", "actor '%s' requires a catalog character archetype" % id, id, {"asset": asset})
+			continue
+		var point := _point(raw.get("position", []))
+		if not _fits_bounds(point, definition.footprint_radius, bounds):
+			_add(result.errors, &"OUT_OF_BOUNDS", "actor '%s' footprint is outside map bounds" % id, id)
+			continue
 		result.placements.append({"id": id, "asset": asset, "position": Vector3(point.x, terrain.height_at(point.x, point.y), point.y), "rotation_y": deg_to_rad(float(raw.get("rotation_deg", 0.0))), "radius": definition.footprint_radius})
 
 
@@ -215,12 +234,12 @@ func _validate_required_data(spec: Dictionary, errors: Array[MapValidationError]
 	if not spec.has("map") or not spec.map is Dictionary or not spec.map.has("seed") or not spec.map.has("bounds"):
 		_add(errors, &"MISSING_REQUIRED_DATA", "validated MapSpec requires map.seed and map.bounds", &"map")
 		return
-	for group in ["structures", "walls", "vegetation", "spawn_points", "regions", "rivers", "roads", "bridges", "objectives", "encounters", "doors"]:
+	for group in ["structures", "walls", "vegetation", "actors", "spawn_points", "regions", "rivers", "roads", "bridges", "objectives", "encounters", "doors"]:
 		if spec.has(group) and not spec[group] is Array:
 			_add(errors, &"MISSING_REQUIRED_DATA", "'%s' must be an array" % group, StringName(group))
 	var id_regex := RegEx.new()
 	id_regex.compile(ID_PATTERN)
-	for group in ["structures", "walls", "vegetation", "spawn_points", "regions", "rivers", "roads", "bridges", "objectives", "encounters", "doors"]:
+	for group in ["structures", "walls", "vegetation", "actors", "spawn_points", "regions", "rivers", "roads", "bridges", "objectives", "encounters", "doors"]:
 		for entity in spec.get(group, []):
 			var id := String(entity.get("id", ""))
 			if id_regex.search(id) == null or id_regex.search(id).get_string() != id:
