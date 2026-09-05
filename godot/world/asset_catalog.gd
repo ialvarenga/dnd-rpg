@@ -29,10 +29,8 @@ static func get_definition(id: StringName) -> AssetDefinition:
 static func all_definitions() -> Array[AssetDefinition]:
 	_ensure_loaded()
 	var definitions: Array[AssetDefinition] = []
-	for definition_path in DEFINITION_PATHS:
-		var definition := load(definition_path) as AssetDefinition
-		if definition != null:
-			definitions.append(definition)
+	for definition in _definitions_by_id.values():
+		definitions.append(definition)
 	return definitions
 
 

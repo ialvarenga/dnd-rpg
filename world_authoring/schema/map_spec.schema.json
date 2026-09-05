@@ -13,6 +13,7 @@
     "regions": { "type": "array", "items": { "$ref": "#/$defs/region" }, "uniqueItems": true },
     "vegetation": { "type": "array", "items": { "$ref": "#/$defs/vegetationPlacement" }, "uniqueItems": true },
     "structures": { "type": "array", "items": { "$ref": "#/$defs/structure" }, "uniqueItems": true },
+    "walls": { "type": "array", "items": { "$ref": "#/$defs/wall" }, "uniqueItems": true },
     "actors": { "type": "array", "items": { "$ref": "#/$defs/actor" }, "uniqueItems": true },
     "player": { "$ref": "#/$defs/player" },
     "spawn_points": { "type": "array", "items": { "$ref": "#/$defs/spawnPoint" }, "uniqueItems": true },
@@ -101,6 +102,16 @@
     },
     "vegetationPlacement": { "$ref": "#/$defs/assetPlacement" },
     "structure": { "$ref": "#/$defs/assetPlacement" },
+    "wall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "asset", "control_points"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "asset": { "$ref": "#/$defs/stableId" },
+        "control_points": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "$ref": "#/$defs/vector2" } }
+      }
+    },
     "actor": {
       "type": "object",
       "additionalProperties": false,

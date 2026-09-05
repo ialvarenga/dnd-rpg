@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="MapQualityBudget" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://world/map_quality_budget.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+minimum_cover_fraction = 0.03
+minimum_relief_stdev_m = 0.35
+minimum_objective_distance_m = 5.0
+actor_radius_m = 0.45

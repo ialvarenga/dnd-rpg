@@ -1,6 +1,7 @@
 asset,source,author,license,download_date,local_path,modified
 floor_dirt_large,KayKit Dungeon Pack 1.1 (www.kaylousberg.com),Kay Lousberg,CC0 1.0,2026-09-04,godot/assets/kaykit_dungeon/floor_dirt_large.gltf,no
 floor_tile_small,KayKit Dungeon Pack 1.1 (www.kaylousberg.com),Kay Lousberg,CC0 1.0,2026-09-04,godot/assets/kaykit_dungeon/floor_tile_small.gltf,no
+bridge_wood_01,KayKit Dungeon Pack 1.1 (www.kaylousberg.com),Kay Lousberg,CC0 1.0,2026-09-04,godot/assets/kaykit_dungeon/floor_dirt_large.gltf,yes
 wall_dungeon_01,KayKit Dungeon Pack 1.1 (www.kaylousberg.com),Kay Lousberg,CC0 1.0,2026-09-04,godot/assets/kaykit_dungeon/wall.gltf,no
 wall_run_dungeon_01,KayKit Dungeon Pack 1.1 (www.kaylousberg.com),Kay Lousberg,CC0 1.0,2026-09-04,godot/assets/kaykit_dungeon/wall_run_5.tscn (local composite of wall.gltf),yes
 wall_doorway_dungeon_01,KayKit Dungeon Pack 1.1 (www.kaylousberg.com),Kay Lousberg,CC0 1.0,2026-09-04,godot/assets/kaykit_dungeon/wall_doorway.gltf,no

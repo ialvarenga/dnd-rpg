@@ -26,6 +26,7 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 	var reserved: Array[Dictionary] = _compile_paths(spec, terrain, bounds, result)
 	_compile_bridges(spec.get("bridges", []), terrain, bounds, result)
 	var occupied: Array[Dictionary] = reserved.duplicate(true)
+	_compile_walls(spec.get("walls", []), terrain, bounds, occupied, result)
 	_compile_placements(spec.get("structures", []), &"structure", terrain, bounds, occupied, result)
 	_compile_placements(spec.get("vegetation", []), &"vegetation", terrain, bounds, occupied, result)
 	if not result.errors.is_empty():
@@ -59,10 +60,11 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 		node.name = String(placement.id)
 		node.position = placement.position
 		node.rotation.y = placement.rotation_y
+		node.scale = placement.get("visual_scale", Vector3.ONE)
 		result.root.add_child(node)
 		var definition := AssetCatalog.get_definition(placement.asset)
 		if definition != null:
-			result.root.add_child(MapRuntimeBlocker.create(placement.id, placement.position, placement.radius))
+			result.root.add_child(MapRuntimeBlocker.create(placement.id, placement.position, definition, placement.rotation_y, placement.get("collision_size", Vector3.ZERO)))
 	if not result.errors.is_empty():
 		result.root.queue_free()
 		result.root = null
@@ -73,6 +75,10 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 	if not result.errors.is_empty():
 		result.root.queue_free()
 		result.root = null
+		return result
+	var quality := MapQualityAnalyzer.new().analyze(terrain, result.placements, result.navigation, spec)
+	result.warnings = quality.warnings
+	result.scorecard = quality.scorecard
 	return result
 
 
@@ -103,6 +109,35 @@ func _compile_placements(raw_placements: Array, expected_type: StringName, terra
 			continue
 		occupied.append({"point": point, "radius": definition.footprint_radius, "id": id})
 		result.placements.append({"id": id, "asset": asset, "position": Vector3(point.x, terrain.height_at(point.x, point.y), point.y), "rotation_y": deg_to_rad(float(raw.get("rotation_deg", 0.0))), "radius": definition.footprint_radius})
+
+
+func _compile_walls(raw_walls: Array, terrain: TerrainProvider, bounds: Vector2, occupied: Array[Dictionary], result: MapCompilationResult) -> void:
+	for raw in raw_walls:
+		var id := StringName(raw.get("id", ""))
+		var definition := AssetCatalog.get_definition(StringName(raw.get("asset", "")))
+		var points := _points(raw.get("control_points", []))
+		if definition == null or not definition.is_usable() or not definition.has_box_collision():
+			_add(result.errors, &"INVALID_WALL_ASSET", "wall '%s' requires a catalog asset with box collision" % id, id)
+			continue
+		if points.size() != 2 or points[0].distance_to(points[1]) <= 0.001:
+			_add(result.errors, &"INVALID_WALL", "wall '%s' needs two distinct control points" % id, id)
+			continue
+		if not _fits_bounds(points[0], 0.0, bounds) or not _fits_bounds(points[1], 0.0, bounds):
+			_add(result.errors, &"OUT_OF_BOUNDS", "wall '%s' endpoint is outside map bounds" % id, id)
+			continue
+		var direction := (points[1] - points[0]).normalized()
+		var length := points[0].distance_to(points[1])
+		var offset := 0.0
+		var part := 0
+		while offset < length - 0.001:
+			var part_length := minf(definition.collision_size.x, length - offset)
+			var center := points[0] + direction * (offset + part_length * 0.5)
+			var radius := Vector2(part_length * 0.5, definition.collision_size.z * 0.5).length()
+			occupied.append({"point": center, "radius": radius, "id": id})
+			var collision_size := Vector3(part_length, definition.collision_size.y, definition.collision_size.z)
+			result.placements.append({"id": &"%s_%d" % [id, part + 1], "asset": definition.id, "position": Vector3(center.x, terrain.height_at(center.x, center.y), center.y), "rotation_y": atan2(-direction.y, direction.x), "radius": radius, "collision_size": collision_size, "visual_scale": Vector3(part_length / definition.collision_size.x, 1.0, 1.0)})
+			offset += part_length
+			part += 1
 
 
 func _compile_paths(spec: Dictionary, terrain: TerrainProvider, bounds: Vector2, result: MapCompilationResult) -> Array[Dictionary]:
@@ -180,12 +215,12 @@ func _validate_required_data(spec: Dictionary, errors: Array[MapValidationError]
 	if not spec.has("map") or not spec.map is Dictionary or not spec.map.has("seed") or not spec.map.has("bounds"):
 		_add(errors, &"MISSING_REQUIRED_DATA", "validated MapSpec requires map.seed and map.bounds", &"map")
 		return
-	for group in ["structures", "vegetation", "spawn_points", "regions", "rivers", "roads", "bridges", "objectives", "encounters", "doors"]:
+	for group in ["structures", "walls", "vegetation", "spawn_points", "regions", "rivers", "roads", "bridges", "objectives", "encounters", "doors"]:
 		if spec.has(group) and not spec[group] is Array:
 			_add(errors, &"MISSING_REQUIRED_DATA", "'%s' must be an array" % group, StringName(group))
 	var id_regex := RegEx.new()
 	id_regex.compile(ID_PATTERN)
-	for group in ["structures", "vegetation", "spawn_points", "regions", "rivers", "roads", "bridges", "objectives", "encounters", "doors"]:
+	for group in ["structures", "walls", "vegetation", "spawn_points", "regions", "rivers", "roads", "bridges", "objectives", "encounters", "doors"]:
 		for entity in spec.get(group, []):
 			var id := String(entity.get("id", ""))
 			if id_regex.search(id) == null or id_regex.search(id).get_string() != id:
@@ -256,7 +291,12 @@ func _navigation_blockers(placements: Array[Dictionary], paths: Array[Dictionary
 	for placement in placements:
 		var definition := AssetCatalog.get_definition(placement.asset)
 		if definition != null and definition.blocks_navigation:
-			blockers.append({"point": Vector2(placement.position.x, placement.position.z), "radius": placement.radius, "id": placement.id})
+			var blocker := {"point": Vector2(placement.position.x, placement.position.z), "radius": placement.radius, "id": placement.id}
+			if definition.has_box_collision():
+				blocker["kind"] = &"box"
+				blocker["size"] = placement.get("collision_size", definition.collision_size)
+				blocker["rotation_y"] = placement.rotation_y
+			blockers.append(blocker)
 	for river in paths:
 		if river.kind != &"river":
 			continue

@@ -11,4 +11,6 @@ tags = PackedStringArray("dungeon", "wall")
 footprint_radius = 10.0
 placement_max_slope_deg = 3.0
 blocks_navigation = true
+collision_shape = "box"
+collision_size = Vector3(20, 4, 1)
 display_offset = Vector3(0, -1.4, 0)

@@ -50,16 +50,7 @@
       ]
     }
   ],
-  "structures": [
-    {
-      "id": "structure_1",
-      "asset": "wall_dungeon_01",
-      "position": [
-        34,
-        40
-      ]
-    }
-  ],
+  "structures": [],
   "actors": [
     {
       "id": "actor_1",
@@ -89,5 +80,21 @@
   "bridges": [],
   "player": {
     "character_asset": "character_knight_01"
-  }
+  },
+  "walls": [
+    {
+      "id": "wall_1",
+      "asset": "wall_dungeon_01",
+      "control_points": [
+        [
+          18.555555555555557,
+          40
+        ],
+        [
+          45.666666666666664,
+          39.8888888888889
+        ]
+      ]
+    }
+  ]
 }

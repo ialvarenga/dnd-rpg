@@ -21,6 +21,17 @@ files/concepts used, local modifications, and required attribution here and in
   into `godot/assets/kaykit_forest/`.
 - See `assets.csv` for the full per-asset audit trail.
 
+### KayKit Character Animations 1.1
+
+- Author: Kay Lousberg, www.kaylousberg.com
+- License: CC0 1.0 (Creative Commons Zero / public domain).
+- Files used: `Rig_Medium_MovementBasic.glb`, copied unmodified into
+  `godot/assets/kaykit_character_animations/`. Its `Walking_A` clip plays on
+  the compatible `Rig_Medium` skeleton used by the knight while the character
+  follows a resolved movement path.
+- This shared animation library is not a placeable catalog asset, so its audit
+  record lives here rather than in `assets.csv`.
+
 ### KayKit Dungeon Pack 1.1 (A10, B1)
 
 - Author: Kay Lousberg, www.kaylousberg.com
@@ -40,8 +51,6 @@ files/concepts used, local modifications, and required attribution here and in
 - Author: Kay Lousberg, www.kaylousberg.com
 - License: CC0 1.0 (Creative Commons Zero / public domain).
 - Files used: `Knight.glb` (self-contained: mesh, skeleton, and texture all
-  embedded), copied unmodified into `godot/assets/kaykit_adventurers/`. No
-  animation clips from the pack's separate `Animations/` library are wired up
-  yet -- the arena has no animation-playback layer at all currently, so this
-  is a static bind-pose swap only.
+  embedded), copied unmodified into `godot/assets/kaykit_adventurers/`. The
+  compatible movement clips are documented separately above.
 - See `assets.csv` for the full per-asset audit trail.

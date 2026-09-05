@@ -19,8 +19,8 @@ func find_path(from: Vector3, to: Vector3) -> PackedVector3Array:
 	if not is_reachable(from, to):
 		return PackedVector3Array()
 	var map := _navigation_map()
-	var closest_from := NavigationServer3D.map_get_closest_point(map, from)
-	var closest_to := NavigationServer3D.map_get_closest_point(map, to)
+	var closest_from := _vertical_closest_point(map, from)
+	var closest_to := _vertical_closest_point(map, to)
 	var raw_path := NavigationServer3D.map_get_path(map, closest_from, closest_to, true, navigation_layers)
 	if raw_path.is_empty():
 		return PackedVector3Array()
@@ -51,8 +51,8 @@ func is_reachable(from: Vector3, to: Vector3) -> bool:
 	if not _is_finite_vector(from) or not _is_finite_vector(to) or not _has_navigation_map():
 		return false
 	var map := _navigation_map()
-	var closest_from := NavigationServer3D.map_get_closest_point(map, from)
-	var closest_to := NavigationServer3D.map_get_closest_point(map, to)
+	var closest_from := _vertical_closest_point(map, from)
+	var closest_to := _vertical_closest_point(map, to)
 	if _planar_distance(from, closest_from) > snap_tolerance or _planar_distance(to, closest_to) > snap_tolerance:
 		return false
 	var path := NavigationServer3D.map_get_path(map, closest_from, closest_to, true, navigation_layers)
@@ -84,6 +84,10 @@ func _has_navigation_map() -> bool:
 
 func _planar_distance(a: Vector3, b: Vector3) -> float:
 	return Vector2(a.x, a.z).distance_to(Vector2(b.x, b.z))
+
+
+func _vertical_closest_point(map: RID, point: Vector3) -> Vector3:
+	return NavigationServer3D.map_get_closest_point_to_segment(map, point + Vector3.UP * 1000.0, point + Vector3.DOWN * 1000.0)
 
 
 func _is_finite_vector(value: Vector3) -> bool:

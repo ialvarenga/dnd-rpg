@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TerrainProfileSettings" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://world/terrain_profile_settings.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+amplitude_m = 0.0
+feature_size_m = 48.0
+octaves = 1
+lacunarity = 2.0
+persistence = 0.5
+warp_amplitude_m = 0.0
+hard_slope_deg = 35.0

@@ -9,11 +9,15 @@ const CompilerScript = preload("res://world/map_compiler.gd")
 static func run() -> Dictionary:
 	var failures: Array[String] = []
 	_test_terrain_profiles_and_queries(failures)
+	_test_terrain_seed_variation_and_edge_normals(failures)
 	_test_terrain_surface_materials(failures)
 	_test_vegetation_is_deterministic_and_respects_clearance(failures)
 	_test_compiler_places_reference_map_and_reports_spatial_errors(failures)
 	_test_paths_are_deterministic_and_crossings_fail(failures)
 	_test_navigation_reachability(failures)
+	_test_wall_blockers_match_navigation(failures)
+	_test_authored_wall_path_is_tiled(failures)
+	_test_quality_scorecard_is_advisory_and_repeatable(failures)
 	return {"name": "unit/test_map_compiler", "failures": failures}
 
 
@@ -28,6 +32,22 @@ static func _test_terrain_profiles_and_queries(failures: Array[String]) -> void:
 	valley.generate(&"valley", 42, Vector2(64, 64))
 	_expect(valley.height_at(32, 32) < valley.height_at(2, 32), "valley center is not lower than edge", failures)
 	_expect(is_nan(a.height_at(-1, 0)), "terrain bounds failure did not return NAN", failures)
+
+
+static func _test_terrain_seed_variation_and_edge_normals(failures: Array[String]) -> void:
+	var first := TerrainScript.new()
+	var second := TerrainScript.new()
+	first.generate(&"rolling_hills", 17, Vector2(64, 64))
+	second.generate(&"rolling_hills", 18, Vector2(64, 64))
+	var differences := 0
+	for x in range(4, 64, 8):
+		for z in range(4, 64, 8):
+			if not is_equal_approx(first.height_at(x, z), second.height_at(x, z)):
+				differences += 1
+	_expect(differences > 24, "different terrain seeds do not produce structurally different fields", failures)
+	var edge_slope := first.slope_at(0, 32)
+	var near_edge_slope := first.slope_at(1, 32)
+	_expect(absf(edge_slope - near_edge_slope) < 12.0, "edge terrain normal is inconsistent with the cached heightfield", failures)
 
 
 static func _test_terrain_surface_materials(failures: Array[String]) -> void:
@@ -77,6 +97,39 @@ static func _test_navigation_reachability(failures: Array[String]) -> void:
 		result.root.free()
 
 
+static func _test_wall_blockers_match_navigation(failures: Array[String]) -> void:
+	var compiler := CompilerScript.new()
+	var spec := {"map": {"id": "wall_collision_map", "seed": 1, "bounds": {"width_m": 32, "height_m": 32}}, "terrain": {"profile": "flat"}, "structures": [{"id": "wall", "asset": "wall_dungeon_01", "position": [16, 16], "rotation_deg": 90}], "spawn_points": [{"id": "start", "position": [2, 2]}]}
+	var result := compiler.compile(spec)
+	_expect(result.is_valid(), "wall collision fixture did not compile", failures)
+	if result.root == null:
+		return
+	var blocker := result.root.get_node_or_null("wall_Blocker") as MapRuntimeBlocker
+	var collision := blocker.get_child(0) as CollisionShape3D if blocker != null else null
+	var box := collision.shape as BoxShape3D if collision != null else null
+	_expect(box != null and box.size == Vector3(4, 4, 1), "wall did not receive its authored box collider", failures)
+	_expect(blocker != null and is_equal_approx(blocker.rotation.y, PI * 0.5), "wall collider did not retain placement rotation", failures)
+	_expect(result.navigation._walkable(Vector2(16, 16)) == false, "navigation still treats the wall center as walkable", failures)
+	_expect(result.navigation._walkable(Vector2(16, 18)) == false, "navigation did not preserve player clearance along the wall", failures)
+	_expect(result.navigation._walkable(Vector2(16, 19)), "navigation over-blocked space beyond the wall", failures)
+	result.root.free()
+
+
+static func _test_authored_wall_path_is_tiled(failures: Array[String]) -> void:
+	var compiler := CompilerScript.new()
+	var spec := {"map": {"id": "authored_wall_map", "seed": 1, "bounds": {"width_m": 32, "height_m": 32}}, "terrain": {"profile": "flat"}, "walls": [{"id": "wall_path", "asset": "wall_dungeon_01", "control_points": [[4, 8], [14, 8]]}], "spawn_points": [{"id": "start", "position": [2, 2]}]}
+	var result := compiler.compile(spec)
+	_expect(result.is_valid() and result.placements.size() == 3, "authored wall was not split into visual/collision modules", failures)
+	if result.root == null:
+		return
+	var final_blocker := result.root.get_node_or_null("wall_path_3_Blocker") as MapRuntimeBlocker
+	var collision := final_blocker.get_child(0) as CollisionShape3D if final_blocker != null else null
+	var shape := collision.shape as BoxShape3D if collision != null else null
+	_expect(shape != null and is_equal_approx(shape.size.x, 2.0), "wall end module does not stop at point B", failures)
+	_expect(result.navigation._walkable(Vector2(9, 8)) == false, "authored wall path does not block navigation", failures)
+	result.root.free()
+
+
 static func _test_paths_are_deterministic_and_crossings_fail(failures: Array[String]) -> void:
 	var compiler := CompilerScript.new()
 	var base := {"map": {"id": "path_fixture", "seed": 1, "bounds": {"width_m": 32, "height_m": 32}}, "terrain": {"profile": "flat"}, "rivers": [{"id": "river", "control_points": [[0, 16], [32, 16]], "width_m": 3.0}]}
@@ -111,6 +164,20 @@ static func _test_paths_are_deterministic_and_crossings_fail(failures: Array[Str
 	degenerate.rivers[0].control_points = [[8, 8], [8, 8]]
 	var safely_rejected := compiler.compile(degenerate)
 	_expect(not safely_rejected.is_valid() and safely_rejected.errors[0].code == &"MISSING_REQUIRED_DATA", "degenerate river was not safely rejected", failures)
+
+
+static func _test_quality_scorecard_is_advisory_and_repeatable(failures: Array[String]) -> void:
+	var compiler := CompilerScript.new()
+	var spec := {"map": {"id": "quality_map", "seed": 9, "bounds": {"width_m": 32, "height_m": 32}}, "terrain": {"profile": "rolling_hills"}, "spawn_points": [{"id": "start", "position": [2, 2]}], "objectives": [{"id": "near_goal", "position": [3, 2]}]}
+	var first := compiler.compile(spec)
+	var second := compiler.compile(spec)
+	_expect(first.is_valid() and not first.scorecard.is_empty(), "valid map did not receive an advisory quality scorecard", failures)
+	_expect(not first.warnings.is_empty(), "degenerate tactical map did not receive advisory warnings", failures)
+	_expect(first.scorecard == second.scorecard and first.warning_dicts() == second.warning_dicts(), "quality analysis is not deterministic", failures)
+	if first.root != null:
+		first.root.free()
+	if second.root != null:
+		second.root.free()
 
 
 static func _expect(condition: bool, message: String, failures: Array[String]) -> void:

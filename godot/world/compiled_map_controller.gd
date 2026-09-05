@@ -14,6 +14,8 @@ var event_player: EventPlayer
 var camera: Camera3D
 var camera_rig: TacticalCameraRig
 var objective: Vector3
+var _path_line: MeshInstance3D
+var _line_mesh := ImmediateMesh.new()
 
 
 func _ready() -> void:
@@ -26,6 +28,7 @@ func _ready() -> void:
 	_setup_player()
 	_setup_camera()
 	_setup_light()
+	_setup_path_preview()
 	nav_provider = GodotNavProvider.new(compilation.navigation.navigation_region)
 	NavigationServer3D.map_force_update(compilation.navigation.navigation_region.get_navigation_map())
 
@@ -33,9 +36,15 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if camera == null or nav_provider == null:
 		return
+	if event is InputEventMouseMotion:
+		var preview_target: Variant = _terrain_hit(event.position)
+		if preview_target is Vector3:
+			_show_path_preview(preview_target)
+		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		var target: Variant = _terrain_hit(event.position)
 		if target is Vector3:
+			_show_path_preview(target)
 			_move(target)
 
 
@@ -144,6 +153,19 @@ func _setup_light() -> void:
 	add_child(light)
 
 
+func _setup_path_preview() -> void:
+	_path_line = MeshInstance3D.new()
+	_path_line.name = "PathPreview"
+	_path_line.mesh = _line_mesh
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = Color("f5d742")
+	material.emission_enabled = true
+	material.emission = Color("f5d742")
+	_path_line.material_override = material
+	add_child(_path_line)
+
+
 func _show_compile_errors() -> void:
 	var layer := CanvasLayer.new()
 	var label := Label.new()
@@ -170,3 +192,16 @@ func _move(target: Vector3) -> void:
 		Resolver.apply(battle_state, event)
 	battle_state.rng_state = result.next_rng_state
 	event_player.play_events(result.events)
+
+
+func _show_path_preview(target: Vector3) -> void:
+	if character == null or _path_line == null:
+		return
+	var path := nav_provider.find_path(character.global_position, target)
+	_line_mesh.clear_surfaces()
+	if path.size() < 2:
+		return
+	_line_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
+	for point in path:
+		_line_mesh.surface_add_vertex(point + Vector3.UP * 0.12)
+	_line_mesh.surface_end()

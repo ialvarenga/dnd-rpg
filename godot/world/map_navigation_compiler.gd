@@ -5,6 +5,7 @@ extends RefCounted
 ## this compact grid is also the deterministic validation/reachability model.
 
 const CELL_SIZE_M := 1.0
+const CHARACTER_CLEARANCE_M := 0.45
 
 var bounds := Vector2.ZERO
 var terrain: TerrainProvider
@@ -26,7 +27,7 @@ func build(source_terrain: TerrainProvider, blocked_areas: Array[Dictionary], pa
 	for triangle in terrain.export_navigation_geometry():
 		if triangle.size() != 3:
 			continue
-		if _triangle_is_blocked(triangle):
+		if _triangle_is_blocked(triangle) or _triangle_exceeds_slope(triangle):
 			continue
 		var offset := vertices.size()
 		vertices.append_array(triangle)
@@ -46,11 +47,11 @@ func _triangle_is_blocked(triangle: PackedVector3Array) -> bool:
 		Vector2((triangle[0].x + triangle[1].x + triangle[2].x) / 3.0, (triangle[0].z + triangle[1].z + triangle[2].z) / 3.0),
 	])
 	for area in blocked:
+		for sample in samples:
+			if _area_blocks(sample, area):
+				return true
 		if area.get("kind", &"") != &"river":
 			continue
-		for sample in samples:
-			if _river_blocks(sample, area):
-				return true
 		# A narrow diagonal river can cut an edge without containing a vertex.
 		var points: PackedVector2Array = area.get("points", PackedVector2Array())
 		for edge in range(3):
@@ -71,8 +72,10 @@ func is_reachable(from: Vector2, to: Vector2) -> bool:
 	var target := Vector2i(floori(to.x / CELL_SIZE_M), floori(to.y / CELL_SIZE_M))
 	var frontier: Array[Vector2i] = [start]
 	var visited := {start: true}
-	while not frontier.is_empty():
-		var current: Vector2i = frontier.pop_front()
+	var cursor := 0
+	while cursor < frontier.size():
+		var current: Vector2i = frontier[cursor]
+		cursor += 1
 		if current == target:
 			return true
 		for offset in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
@@ -86,14 +89,37 @@ func is_reachable(from: Vector2, to: Vector2) -> bool:
 func _walkable(point: Vector2) -> bool:
 	if point.x < 0.0 or point.y < 0.0 or point.x > bounds.x or point.y > bounds.y:
 		return false
+	if terrain.slope_at(point.x, point.y) > _slope_limit():
+		return false
 	for area in blocked:
-		if area.get("kind", &"") == &"river":
-			if _river_blocks(point, area):
-				return false
-			continue
-		if point.distance_to(area.get("point", Vector2.ZERO)) < float(area.get("radius", 0.0)):
+		if _area_blocks(point, area):
 			return false
 	return true
+
+
+func _area_blocks(point: Vector2, area: Dictionary) -> bool:
+	if area.get("kind", &"") == &"river":
+		return _river_blocks(point, area)
+	if area.get("kind", &"") == &"box":
+		var size: Vector3 = area.get("size", Vector3.ZERO)
+		var center: Vector2 = area.get("point", Vector2.ZERO)
+		var offset := point - center
+		var rotation := -float(area.get("rotation_y", 0.0))
+		var local := Vector2(
+			offset.x * cos(rotation) - offset.y * sin(rotation),
+			offset.x * sin(rotation) + offset.y * cos(rotation)
+		)
+		return absf(local.x) < size.x * 0.5 + CHARACTER_CLEARANCE_M and absf(local.y) < size.z * 0.5 + CHARACTER_CLEARANCE_M
+	return point.distance_to(area.get("point", Vector2.ZERO)) < float(area.get("radius", 0.0)) + CHARACTER_CLEARANCE_M
+
+
+func _triangle_exceeds_slope(triangle: PackedVector3Array) -> bool:
+	var normal := (triangle[1] - triangle[0]).cross(triangle[2] - triangle[0]).normalized()
+	return rad_to_deg(acos(clampf(absf(normal.y), 0.0, 1.0))) > _slope_limit()
+
+
+func _slope_limit() -> float:
+	return float(terrain.call("navigation_slope_limit")) if terrain.has_method("navigation_slope_limit") else 35.0
 
 
 func _river_blocks(point: Vector2, river: Dictionary) -> bool:
