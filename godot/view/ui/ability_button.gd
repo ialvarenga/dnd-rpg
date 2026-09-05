@@ -4,15 +4,16 @@ extends Button
 signal ability_pressed(ability_id: StringName)
 var ability_id: StringName
 
-func configure(data: Dictionary, slot: int) -> void:
+@onready var hotkey_label: Label = $Hotkey
+
+func configure(data: Dictionary, slot: int, icon_set: IconSet) -> void:
 	ability_id = StringName(data.get("ability_id", ""))
-	text = "%d: %s" % [slot + 1, String(ability_id).replace("_", " ").capitalize()]
+	text = ""
+	hotkey_label.text = str(slot + 1)
+	icon = icon_set.texture_for(ability_id) if icon_set != null else null
 	disabled = not data.get("available", false)
-	tooltip_text = String(data.get("reason", "")) if disabled else String(ability_id)
-	shortcut = Shortcut.new()
-	var input := InputEventAction.new()
-	input.action = StringName("hotbar_%d" % (slot + 1))
-	shortcut.events = [input]
+	var display_name := String(ability_id).replace("_", " ").capitalize()
+	tooltip_text = String(data.get("reason", "")) if disabled else display_name
 
 func _ready() -> void:
 	pressed.connect(func(): ability_pressed.emit(ability_id))

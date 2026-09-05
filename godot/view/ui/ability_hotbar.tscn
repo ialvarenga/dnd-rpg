@@ -1,5 +1,10 @@
 [gd_scene format=3]
 [ext_resource type="Script" path="res://view/ui/ability_hotbar.gd" id="1"]
-[node name="AbilityHotbar" type="HBoxContainer"]
+[ext_resource type="Resource" path="res://data/ui/hud_icons.tres" id="2_icons"]
+[node name="AbilityHotbar" type="GridContainer"]
 script = ExtResource("1")
+icon_set = ExtResource("2_icons")
 mouse_filter = 2
+columns = 3
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 6

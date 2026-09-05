@@ -9,7 +9,16 @@ cd map_builder
 python -m http.server 8000
 ```
 
-Open `http://localhost:8000/`. Use the toolbar to place point entities or draw regions, roads, and rivers; each entry also has precise numeric/JSON coordinate controls. Export downloads a JSON file only—it never writes to the repository.
+Open `http://localhost:8000/`. Use the toolbar to place point entities or draw regions, roads, and rivers; each entry also has precise numeric/JSON coordinate controls.
+
+**Export JSON** always downloads a copy—it never writes to the repository.
+
+In Chrome/Edge (browsers with the File System Access API), Import/Save work like a native editor instead:
+- **Import JSON** opens a file picker; the picked file is remembered for the rest of the session.
+- **Save** writes back to that same file in place (e.g. straight into `world_authoring/maps/`). The first time you save a map that wasn't imported, it behaves like Save As and asks where to create the file.
+- **Save As** always prompts for a new file location and switches subsequent Saves to it.
+
+Browsers without the API (e.g. Firefox, Safari) fall back to the old Import-via-file-input / Export-only flow.
 
 Before adding an exported map to `world_authoring/maps/`, run the canonical validation check from the repository root:
 

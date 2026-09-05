@@ -3,11 +3,20 @@ extends RefCounted
 
 static func run() -> Dictionary:
 	var failures: Array[String] = []
+	_test_stable_verb_vocabulary(failures)
 	_test_selects_stable_verb_clip(failures)
 	_test_missing_verb_falls_back_to_idle(failures)
 	_test_missing_idle_uses_safe_fallback(failures)
+	_test_missing_idle_uses_available_safe_clip(failures)
 	_test_no_available_clip_is_safe(failures)
 	return {"name": "unit/test_character_animator", "failures": failures}
+
+
+static func _test_stable_verb_vocabulary(failures: Array[String]) -> void:
+	var animation_set := ActorAnimationSet.new()
+	for verb in [&"idle", &"locomotion", &"jump", &"crouch", &"dodge", &"interact", &"attack", &"block", &"hit", &"death"]:
+		_expect(animation_set.clip_for(verb) != &"", "animation set has no clip mapping for %s" % verb, failures)
+	_expect(animation_set.clip_for(&"unknown") == &"", "animation set mapped an unknown verb", failures)
 
 
 static func _test_selects_stable_verb_clip(failures: Array[String]) -> void:
@@ -34,6 +43,12 @@ static func _test_missing_idle_uses_safe_fallback(failures: Array[String]) -> vo
 	var animator := _animator_with(PackedStringArray(["Jump_Idle"]))
 	animator.locomotion_stopped()
 	_expect(animator.current_state == &"idle" and animator.current_clip == &"Jump_Idle", "missing idle did not use a safe fallback clip", failures)
+
+
+static func _test_missing_idle_uses_available_safe_clip(failures: Array[String]) -> void:
+	var animator := _animator_with(PackedStringArray(["Walk"]))
+	animator.present_hit()
+	_expect(animator.current_state == &"idle" and animator.current_clip == &"Walk", "missing idle did not use the available locomotion clip", failures)
 
 
 static func _animator_with(clips: PackedStringArray) -> CharacterAnimator:

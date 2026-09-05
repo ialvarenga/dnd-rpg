@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="IconSet" format=3]
+
+[ext_resource type="Script" path="res://view/ui/icon_set.gd" id="1_icon_set"]
+[ext_resource type="Texture2D" path="res://assets/game_icons/broadsword.svg" id="2_attack"]
+[ext_resource type="Texture2D" path="res://assets/game_icons/run.svg" id="3_dash"]
+[ext_resource type="Texture2D" path="res://assets/game_icons/bordered-shield.svg" id="4_disengage"]
+[ext_resource type="Texture2D" path="res://assets/game_icons/return-arrow.svg" id="5_end_turn"]
+
+[resource]
+script = ExtResource("1_icon_set")
+textures = {
+&"basic_attack": ExtResource("2_attack"),
+&"dash": ExtResource("3_dash"),
+&"disengage": ExtResource("4_disengage"),
+&"end_turn": ExtResource("5_end_turn")
+}

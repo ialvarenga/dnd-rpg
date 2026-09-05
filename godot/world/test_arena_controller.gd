@@ -51,6 +51,7 @@ func _ready() -> void:
 	hud.bind(session, character.actor_id)
 	hud.ability_requested.connect(_on_hud_ability_requested)
 	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
+	hud.cancel_requested.connect(_on_hud_cancel_requested)
 
 
 ## The hand-authored arena consumes the same ID-only catalog as the future map
@@ -70,10 +71,6 @@ func _process(_delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if camera == null or not is_instance_valid(camera):
-		return
-	if event.is_action_pressed(&"tactical_cancel"):
-		$DebugOverlay.visible = not $DebugOverlay.visible
-		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseMotion:
 		var preview_target: Variant = ScreenPickerScript.terrain_point(camera, get_world_3d().direct_space_state, event.position)
@@ -165,6 +162,12 @@ func _on_hud_ability_requested(ability_id: StringName) -> void:
 func _on_hud_end_turn_requested() -> void:
 	last_resolution = session.end_turn(character.actor_id)
 	event_player.play_events(last_resolution.events)
+
+
+func _on_hud_cancel_requested() -> void:
+	# Cancel changes only a presentation overlay; it never creates a command or
+	# changes BattleState outside EncounterSession.
+	$DebugOverlay.visible = not $DebugOverlay.visible
 
 
 func _initialize_exploration_state() -> void:

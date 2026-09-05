@@ -21,6 +21,28 @@ files/concepts used, local modifications, and required attribution here and in
   into `godot/assets/kaykit_forest/`.
 - See `assets.csv` for the full per-asset audit trail.
 
+### Kenney UI Pack - Adventure 1.0 (C5)
+
+- Author/source: Kenney, https://kenney.nl/assets/ui-pack-adventure
+- License: CC0 1.0. Credit is not required; this project credits Kenney anyway.
+- File used: `panel_brown_dark.png`, copied unmodified from the pack into
+  `godot/assets/kenney_ui/` and nine-sliced only on the HUD actor panel.
+
+### game-icons.net HUD icons (C5)
+
+All icons below are CC BY 3.0 and are copied unmodified from the
+[`game-icons/icons`](https://github.com/game-icons/icons) repository. Required
+credit: “Icons made by Lorc, available on https://game-icons.net”. The
+view-side `IconSet` resource assigns them by stable UI id; no icon is gameplay
+authority.
+
+| Local file | Icon | Artist | Source |
+| --- | --- | --- | --- |
+| `godot/assets/game_icons/broadsword.svg` | Broadsword | Lorc | https://game-icons.net/1x1/lorc/broadsword.html |
+| `godot/assets/game_icons/run.svg` | Run | Lorc | https://game-icons.net/1x1/lorc/run.html |
+| `godot/assets/game_icons/bordered-shield.svg` | Bordered Shield | Lorc | https://game-icons.net/1x1/lorc/bordered-shield.html |
+| `godot/assets/game_icons/return-arrow.svg` | Return Arrow | Lorc | https://game-icons.net/1x1/lorc/return-arrow.html |
+
 ### KayKit Character Animations 1.1
 
 - Author: Kay Lousberg, www.kaylousberg.com

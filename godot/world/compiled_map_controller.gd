@@ -125,6 +125,11 @@ func _setup_camera() -> void:
 	camera_rig = TACTICAL_CAMERA_SCENE.instantiate() as TacticalCameraRig
 	camera_rig.position = focus
 	camera_rig.target_focus = focus
+	# Keep the generated-map view centered on the interpolated player view, so
+	# camera motion stays in sync with the visible character rather than the
+	# simulation's instantaneous position.
+	camera_rig.follow_target = character
+	camera_rig.follow_offset = Vector3.ZERO
 	if spawns.is_empty():
 		camera_rig.target_zoom = camera_rig.maximum_zoom
 	camera_rig.pan_limit = maxf(compilation.terrain.bounds.x, compilation.terrain.bounds.y)
@@ -155,6 +160,7 @@ func _setup_hud() -> void:
 	hud.bind(session, character.actor_id)
 	hud.ability_requested.connect(_on_hud_ability_requested)
 	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
+	hud.cancel_requested.connect(_on_hud_cancel_requested)
 
 
 func _on_hud_ability_requested(ability_id: StringName) -> void:
@@ -165,6 +171,13 @@ func _on_hud_ability_requested(ability_id: StringName) -> void:
 func _on_hud_end_turn_requested() -> void:
 	var result: ResolutionResult = session.end_turn(character.actor_id)
 	event_player.play_events(result.events)
+
+
+func _on_hud_cancel_requested() -> void:
+	# The generated-map HUD has no targeting mode yet. Cancel only clears the
+	# presentation path preview and deliberately does not submit a simulation
+	# command.
+	_line_mesh.clear_surfaces()
 
 
 func _show_compile_errors() -> void:

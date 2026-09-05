@@ -30,3 +30,15 @@ Only specific files were copied out of each pack, into their own
 `godot/assets/kaykit_*/` directory, from the full packs downloaded to a local
 machine path outside the repo. See `assets.csv` for the per-asset audit row
 and `NOTICE.md` for attribution.
+
+## C5
+
+| Name | Version / pin | License | Why used | Update strategy |
+| --- | --- | --- | --- | --- |
+| Kenney UI Pack - Adventure | 1.0 (2024) | CC0 1.0 | One nine-sliced brown panel texture for the actor HUD panel | Re-download from the source archive; keep only HUD textures assigned in scenes |
+| game-icons.net | `game-icons/icons` `82d948812bfe3f269ef8f731dcdb07b08160edc4` | CC BY 3.0 | Four view-side SVG icons mapped by `IconSet` to HUD ability/end-turn ids | Re-audit each icon's artist, URL, and license before adding or replacing an SVG |
+
+The C5 UI assets are presentation-only. `godot/data/ui/hud_icons.tres` maps
+stable view ids to textures; it is not gameplay content and is never read by
+the simulation or a controller decision branch. See `NOTICE.md` for the exact
+files, authors, sources, and attribution text.

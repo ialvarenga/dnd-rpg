@@ -1,5 +1,5 @@
 class_name ActorPortrait
-extends PanelContainer
+extends Control
 
 @onready var name_label: Label = $Margin/Rows/Name
 @onready var hp_bar: ProgressBar = $Margin/Rows/HP

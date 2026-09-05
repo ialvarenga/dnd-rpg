@@ -84,7 +84,9 @@ func request_state(verb: StringName) -> void:
 	current_state = resolved_state
 	var selected: AnimationPlayer = resolved["player"]
 	var selected_clip: StringName = resolved["name"]
-	current_clip = selected_clip
+	# AnimationPlayer keys may be qualified (for example "movement/Walk"),
+	# while this component exposes the data-facing clip name to views and tests.
+	current_clip = StringName(String(selected_clip).get_file())
 	_play(selected, selected_clip)
 
 
@@ -102,6 +104,18 @@ func _resolve_idle_clip() -> Dictionary:
 		resolved = _resolve_clip(StringName(fallback_clip))
 		if not resolved.is_empty():
 			return resolved
+	# An actor may only ship a movement library.  Keep it animated in that
+	# case instead of assuming the optional General library supplied idle.
+	resolved = _resolve_clip(animation_set.locomotion)
+	if not resolved.is_empty():
+		return resolved
+	# Custom actor libraries need not use KayKit names at all.  Last, select a
+	# deterministic first clip from the configured players rather than failing
+	# presentation because a non-authoritative asset package is incomplete.
+	for player in _players:
+		var available := player.get_animation_list()
+		if not available.is_empty():
+			return {"player": player, "name": available[0]}
 	return {}
 
 

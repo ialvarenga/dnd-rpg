@@ -17,6 +17,7 @@ func run() -> Dictionary:
 		arena.queue_free()
 		return {"name": "integration/test_arena_runtime", "failures": failures}
 	await _test_hud_runtime(controller, arena.get_node("HudRoot"), player, failures)
+	_test_hud_input_routing(controller, arena.get_node("HudRoot"), failures)
 	await _test_preview_and_clamped_combat_movement(controller, player, event_player, failures)
 	_test_command_event_view_pipeline(controller, player, event_player, failures)
 	await _test_animation_movement_transition(controller, player, event_player, failures)
@@ -41,6 +42,38 @@ func _test_hud_runtime(controller: TestArenaController, hud: HudRoot, player: Ch
 	_expect(move.value <= 100.0 and (controller.battle_state.actors[player.actor_id] as ActorState).movement_remaining <= before, "HUD did not sync pips after state_changed", failures)
 	var end_turn: Button = hud.get_node("Margin/Layout/EndTurn")
 	_expect(end_turn.mouse_filter == Control.MOUSE_FILTER_STOP, "HUD controls must consume clicks before terrain input", failures)
+	_expect(hud.hotbar.mouse_filter == Control.MOUSE_FILTER_IGNORE, "empty hotbar space should remain pass-through", failures)
+	for button in hud.hotbar.get_children():
+		_expect((button as Control).mouse_filter == Control.MOUSE_FILTER_STOP, "hotbar buttons must consume clicks before terrain input", failures)
+		_expect((button as Button).get_theme_constant(&"icon_max_width") == 24, "hotbar SVG icons must be constrained to HUD scale", failures)
+	_expect(end_turn.get_theme_constant(&"icon_max_width") == 24, "end-turn SVG icon must be constrained to HUD scale", failures)
+
+
+func _test_hud_input_routing(controller: TestArenaController, hud: HudRoot, failures: Array[String]) -> void:
+	for slot in range(6):
+		_expect(InputMap.has_action(StringName("hotbar_%d" % (slot + 1))), "missing hotbar_%d input action" % (slot + 1), failures)
+	_expect(InputMap.has_action(&"tactical_end_turn"), "missing tactical_end_turn input action", failures)
+	_expect(InputMap.has_action(&"tactical_cancel"), "missing tactical_cancel input action", failures)
+	var ability_requests: Array[StringName] = []
+	var end_turn_requests := [0]
+	hud.ability_requested.connect(func(ability_id): ability_requests.append(ability_id))
+	hud.end_turn_requested.connect(func(): end_turn_requests[0] += 1)
+	var first_button := hud.hotbar.get_child(0) as AbilityButton
+	first_button.disabled = false
+	_send_hud_action(hud, &"hotbar_1")
+	_expect(ability_requests == [&"basic_attack"], "hotbar input did not route through HudRoot", failures)
+	_send_hud_action(hud, &"tactical_end_turn")
+	_expect(end_turn_requests[0] == 1, "end-turn input did not route through HudRoot", failures)
+	var overlay_was_visible: bool = (controller.get_node("DebugOverlay") as CanvasLayer).visible
+	_send_hud_action(hud, &"tactical_cancel")
+	_expect((controller.get_node("DebugOverlay") as CanvasLayer).visible != overlay_was_visible, "cancel input did not reach the presentation controller through HudRoot", failures)
+
+
+func _send_hud_action(hud: HudRoot, action: StringName) -> void:
+	var event := InputEventAction.new()
+	event.action = action
+	event.pressed = true
+	hud._unhandled_input(event)
 
 
 func _test_preview_and_clamped_combat_movement(controller: TestArenaController, player: CharacterView, event_player: EventPlayer, failures: Array[String]) -> void:
@@ -104,10 +137,28 @@ func _test_animation_movement_transition(_controller: TestArenaController, playe
 	await _wait_for_destination(player, 180)
 	if player.animator != null:
 		_expect(player.animator.current_state == &"idle", "movement completion did not return animator to idle", failures)
-	# The installed baseline only ships MovementBasic.  These narrated events
-	# must still be harmless when the optional combat/general clips are absent.
-	event_player.play_events([Event.create(&"attack_rolled", {"actor_id": player.actor_id}), Event.create(&"damage_taken", {"actor_id": player.actor_id, "amount": 1}), Event.create(&"actor_died", {"actor_id": player.actor_id})])
-	_expect(player.animator != null and player.animator.current_state in [&"idle", &"attack", &"hit", &"death"], "absent optional clips crashed event narration", failures)
+		# The installed baseline only ships MovementBasic.  These narrated events
+		# must still be harmless when the optional combat/general clips are absent.
+		event_player.play_events([Event.create(&"attack_rolled", {"actor_id": player.actor_id}), Event.create(&"damage_taken", {"actor_id": player.actor_id, "amount": 1}), Event.create(&"interaction_completed", {"actor_id": player.actor_id}), Event.create(&"actor_died", {"actor_id": player.actor_id})])
+		_expect(player.animator != null and player.animator.current_state in [&"idle", &"attack", &"hit", &"death"], "absent optional clips crashed event narration", failures)
+		_configure_event_animation_clips(player.animator)
+		event_player.play_events([Event.create(&"attack_rolled", {"actor_id": player.actor_id})])
+		_expect(player.animator.current_state == &"attack", "attack_rolled did not narrate attack", failures)
+		event_player.play_events([Event.create(&"damage_taken", {"actor_id": player.actor_id, "amount": 1})])
+		_expect(player.animator.current_state == &"hit", "damage_taken did not narrate hit", failures)
+		event_player.play_events([Event.create(&"interaction_completed", {"actor_id": player.actor_id})])
+		_expect(player.animator.current_state == &"interact", "interaction_completed did not narrate interact", failures)
+		event_player.play_events([Event.create(&"actor_died", {"actor_id": player.actor_id})])
+		_expect(player.animator.current_state == &"death", "actor_died did not narrate death", failures)
+
+
+func _configure_event_animation_clips(animator: CharacterAnimator) -> void:
+	var player := AnimationPlayer.new()
+	var library := AnimationLibrary.new()
+	for clip in PackedStringArray(["Idle_A", "Walking_A", "Attack_A", "Hit_A", "Interact_A", "Death_A"]):
+		library.add_animation(clip, Animation.new())
+	player.add_animation_library(&"test", library)
+	animator.configure_players([player])
 
 
 func _test_target_replacement(controller: TestArenaController, player: CharacterView, event_player: EventPlayer, failures: Array[String]) -> void:

@@ -1,6 +1,6 @@
 # Deterministic Tactical RPG
 
-The current milestone is A8: a headless, deterministic simulation with
+The current milestone includes C5: a headless, deterministic simulation with
 authoritative turns, action economy, basic attacks, conditions, opportunity
 attacks, bounded utility enemy AI, data-driven ability/condition definitions,
 and save/load/replay. Enemy AI evaluates a small set of commands against state
@@ -16,6 +16,14 @@ terrain hover resolves a non-mutating movement preview; terrain clicks resolve
 and apply commands and events, while Godot presentation plays only accepted
 movement paths.
 
+The reusable HUD is an explicit `EncounterSession` read-model. It displays
+actor resources, turn order, conditions, event narration, and an advisory
+action bar; hotbar/end-turn input is emitted to the world controller and then
+submitted only through `EncounterSession` and `Resolver`. HUD controls consume
+their clicks before terrain picking. `1`–`6` select hotbar slots, `Space` ends
+a turn, and `Escape` cancels presentation state. See
+`docs/ADR/ADR-005-hud-session-boundary.md` and `docs/third_party/NOTICE.md`.
+
 ## Requirements
 
 - Godot 4.6.x (Jolt 3D physics explicitly selected in project settings)
@@ -30,8 +38,9 @@ godot --headless --path godot --script res://tests/test_runner.gd
 godot --headless --path godot --editor --quit
 ```
 
-The test command runs unit, deterministic replay, and integration-safe
-headless checks. It exits non-zero on failure.
+The test command runs unit, deterministic replay, arena runtime, compiled-map
+runtime, animation, HUD input, and integration-safe headless checks. It exits
+non-zero on failure.
 
 ## Layout
 

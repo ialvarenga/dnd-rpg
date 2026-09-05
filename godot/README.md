@@ -10,6 +10,12 @@ The playable 64×64 m test arena has a tactical camera, navigation region,
 obstacle route, hover preview, and click-to-move playback through
 Command/Event.
 
+C5 adds a reusable HUD that is bound explicitly to `EncounterSession`. Its
+view model is advisory and presentation-only: controller code receives HUD
+intent signals and uses the existing session submission methods, so only
+`Resolver` accepts or rejects commands. See
+`../docs/ADR/ADR-005-hud-session-boundary.md`.
+
 The main architectural rule is that authoritative gameplay state belongs in
 `sim/`, independently of scenes and Godot nodes. Engine-facing code will live
 in `world/` and presentation code in `view/`.
@@ -131,6 +137,9 @@ Contains the lightweight headless test runner and its suites.
 - `integration/test_arena_runtime.gd` exercises terrain-input Command creation,
   EventPlayer/CharacterView playback, replacement, rejection, and obstacle
   routing in the main scene.
+
+The same runtime suite also checks HUD binding, hotbar/end-turn/cancel routing,
+and that interactive HUD buttons consume pointer input before terrain handling.
 - `unit/test_save_game.gd` checks `SaveGame` round-tripping a mid-combat
   state (HP, position, movement, action/bonus/reaction resources,
   conditions, `disengaged`, RNG state, `world_flags`/`world_state`) and
@@ -169,6 +178,9 @@ Open `res://scenes/test_arena.tscn` to inspect the current arena. In play mode:
 
 - `W`, `A`, `S`, `D` pan the camera;
 - middle-mouse drag pans; mouse wheel zooms; `Q`/`E` rotate;
+- `1`–`6` request hotbar slots, `Space` requests end turn, and `Escape`
+  cancels presentation state. HUD input never writes `BattleState` directly;
+  interactive HUD controls consume pointer clicks before terrain picking;
 - move the pointer over terrain to preview the resolved path, cost, and
   remaining movement (exploration explicitly ignores the budget); left-click
   terrain to create or replace a move Command. Accepted events update the

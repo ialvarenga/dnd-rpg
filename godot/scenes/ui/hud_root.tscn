@@ -5,29 +5,209 @@
 [ext_resource type="PackedScene" path="res://view/ui/ability_hotbar.tscn" id="4_hotbar"]
 [ext_resource type="PackedScene" path="res://view/ui/turn_order_bar.tscn" id="5_turns"]
 [ext_resource type="PackedScene" path="res://view/ui/condition_strip.tscn" id="6_conditions"]
-[ext_resource type="PackedScene" path="res://view/ui/combat_log.tscn" id="7_log"]
+[ext_resource type="Texture2D" path="res://assets/kenney_ui/panel_brown_dark.png" id="8_panel"]
+[ext_resource type="Theme" path="res://data/ui/hud_theme.tres" id="9_theme"]
+
+[sub_resource type="StyleBoxTexture" id="StyleBox_hud_panel"]
+texture = ExtResource("8_panel")
+texture_margin_left = 8.0
+texture_margin_top = 8.0
+texture_margin_right = 8.0
+texture_margin_bottom = 8.0
+
+[sub_resource type="ButtonGroup" id="TabGroup"]
+
 [node name="HudRoot" type="CanvasLayer"]
 script = ExtResource("1_root")
 layer = 10
-[node name="Margin" type="MarginContainer" parent="."]
-offset_right = 1280.0
-offset_bottom = 720.0
+
+[node name="Margin" type="Control" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 16
-theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 16
-[node name="Layout" type="VBoxContainer" parent="Margin"]
+theme = ExtResource("9_theme")
+
+[node name="TopBar" type="VBoxContainer" parent="Margin"]
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+offset_left = 16.0
+offset_top = 16.0
+grow_horizontal = 1
+grow_vertical = 1
 mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="Conditions" parent="Margin/TopBar" instance=ExtResource("6_conditions")]
+[node name="TurnOrder" parent="Margin/TopBar" instance=ExtResource("5_turns")]
+
+[node name="Layout" type="HBoxContainer" parent="Margin"]
+anchor_left = 0.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -170.0
+offset_right = -16.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+alignment = 1
+theme_override_constants/separation = 14
+
 [node name="ActorPortrait" parent="Margin/Layout" instance=ExtResource("2_portrait")]
+size_flags_vertical = 4
+
 [node name="ResourcePips" parent="Margin/Layout" instance=ExtResource("3_pips")]
-[node name="Conditions" parent="Margin/Layout" instance=ExtResource("6_conditions")]
-[node name="TurnOrder" parent="Margin/Layout" instance=ExtResource("5_turns")]
-[node name="CombatLog" parent="Margin/Layout" instance=ExtResource("7_log")]
-[node name="Spacer" type="Control" parent="Margin/Layout"]
-custom_minimum_size = Vector2(0, 300)
+size_flags_vertical = 4
+
+[node name="HotbarPanel" type="PanelContainer" parent="Margin/Layout"]
+size_flags_vertical = 4
+theme_override_styles/panel = SubResource("StyleBox_hud_panel")
+
+[node name="PanelMargin" type="MarginContainer" parent="Margin/Layout/HotbarPanel"]
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 8
+
+[node name="Rows" type="VBoxContainer" parent="Margin/Layout/HotbarPanel/PanelMargin"]
+theme_override_constants/separation = 6
+
+[node name="Groups" type="HBoxContainer" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows"]
+theme_override_constants/separation = 10
+
+[node name="AbilityHotbar" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups" instance=ExtResource("4_hotbar")]
+
+[node name="Sep1" type="VSeparator" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups"]
+
+[node name="SpellSlots" type="GridContainer" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups"]
 mouse_filter = 2
-[node name="AbilityHotbar" parent="Margin/Layout" instance=ExtResource("4_hotbar")]
+columns = 3
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 6
+
+[node name="Slot1" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
+custom_minimum_size = Vector2(64, 64)
+disabled = true
+tooltip_text = "Spells — not yet implemented"
+
+[node name="Slot2" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
+custom_minimum_size = Vector2(64, 64)
+disabled = true
+tooltip_text = "Spells — not yet implemented"
+
+[node name="Slot3" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
+custom_minimum_size = Vector2(64, 64)
+disabled = true
+tooltip_text = "Spells — not yet implemented"
+
+[node name="Slot4" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
+custom_minimum_size = Vector2(64, 64)
+disabled = true
+tooltip_text = "Spells — not yet implemented"
+
+[node name="Slot5" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
+custom_minimum_size = Vector2(64, 64)
+disabled = true
+tooltip_text = "Spells — not yet implemented"
+
+[node name="Slot6" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
+custom_minimum_size = Vector2(64, 64)
+disabled = true
+tooltip_text = "Spells — not yet implemented"
+
+[node name="Sep2" type="VSeparator" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups"]
+
+[node name="ItemSlots" type="GridContainer" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups"]
+mouse_filter = 2
+columns = 2
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 6
+
+[node name="ItemSlot1" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
+custom_minimum_size = Vector2(64, 64)
+disabled = true
+tooltip_text = "Items — not yet implemented"
+
+[node name="ItemSlot2" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
+custom_minimum_size = Vector2(64, 64)
+disabled = true
+tooltip_text = "Items — not yet implemented"
+
+[node name="ItemSlot3" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
+custom_minimum_size = Vector2(64, 64)
+disabled = true
+tooltip_text = "Items — not yet implemented"
+
+[node name="ItemSlot4" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
+custom_minimum_size = Vector2(64, 64)
+disabled = true
+tooltip_text = "Items — not yet implemented"
+
+[node name="Tabs" type="HBoxContainer" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows"]
+alignment = 1
+theme_override_constants/separation = 4
+
+[node name="TabComum" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Tabs"]
+custom_minimum_size = Vector2(76, 26)
+theme_type_variation = &"HudTab"
+toggle_mode = true
+button_group = SubResource("TabGroup")
+text = "Comum"
+tooltip_text = "Category filters — coming soon"
+
+[node name="TabMago" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Tabs"]
+custom_minimum_size = Vector2(76, 26)
+theme_type_variation = &"HudTab"
+toggle_mode = true
+button_group = SubResource("TabGroup")
+text = "Mago"
+tooltip_text = "Category filters — coming soon"
+
+[node name="TabItens" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Tabs"]
+custom_minimum_size = Vector2(76, 26)
+theme_type_variation = &"HudTab"
+toggle_mode = true
+button_group = SubResource("TabGroup")
+text = "Itens"
+tooltip_text = "Category filters — coming soon"
+
+[node name="TabPassivas" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Tabs"]
+custom_minimum_size = Vector2(76, 26)
+theme_type_variation = &"HudTab"
+toggle_mode = true
+button_group = SubResource("TabGroup")
+text = "Passivas"
+tooltip_text = "Category filters — coming soon"
+
+[node name="TabPersonalizado" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Tabs"]
+custom_minimum_size = Vector2(96, 26)
+theme_type_variation = &"HudTab"
+toggle_mode = true
+button_pressed = true
+button_group = SubResource("TabGroup")
+text = "Personalizado"
+tooltip_text = "Current loadout"
+
 [node name="EndTurn" type="Button" parent="Margin/Layout"]
-text = "End Turn (Space)"
+theme_type_variation = &"CircleButton"
+text = ""
 mouse_filter = 0
+custom_minimum_size = Vector2(72, 72)
+size_flags_vertical = 4
+theme_override_constants/icon_max_width = 24
+tooltip_text = "End Turn (Space)"
+
+[node name="Settings" type="Button" parent="Margin/Layout"]
+theme_type_variation = &"CircleButton"
+text = ""
+disabled = true
+custom_minimum_size = Vector2(48, 48)
+size_flags_vertical = 4
+tooltip_text = "Settings — coming soon"

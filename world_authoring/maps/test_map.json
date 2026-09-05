@@ -51,16 +51,7 @@
     }
   ],
   "structures": [],
-  "actors": [
-    {
-      "id": "actor_1",
-      "archetype": "character_knight_01",
-      "position": [
-        58,
-        12
-      ]
-    }
-  ],
+  "actors": [],
   "rivers": [
     {
       "id": "river_1",
@@ -94,6 +85,17 @@
           45.666666666666664,
           39.8888888888889
         ]
+      ]
+    }
+  ],
+  "interactables": [
+    {
+      "id": "interactable_1",
+      "asset": "chest_wood_01",
+      "kind": "chest",
+      "position": [
+        32,
+        60
       ]
     }
   ]
