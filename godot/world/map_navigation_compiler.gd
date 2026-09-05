@@ -20,10 +20,13 @@ func build(source_terrain: TerrainProvider, blocked_areas: Array[Dictionary], pa
 	navigation_region.name = "CompiledNavigation"
 	var mesh := NavigationMesh.new()
 	# The engine navigation surface uses the same triangle field as terrain
-	# rendering/collision. Obstacle circles remain shared with validation.
+	# rendering/collision. Rivers are removed from the walkable surface here as
+	# well as from the deterministic reachability grid below.
 	var vertices := PackedVector3Array()
 	for triangle in terrain.export_navigation_geometry():
 		if triangle.size() != 3:
+			continue
+		if _triangle_is_blocked(triangle):
 			continue
 		var offset := vertices.size()
 		vertices.append_array(triangle)
@@ -33,6 +36,32 @@ func build(source_terrain: TerrainProvider, blocked_areas: Array[Dictionary], pa
 	if parent != null:
 		parent.add_child(navigation_region)
 	return navigation_region
+
+
+func _triangle_is_blocked(triangle: PackedVector3Array) -> bool:
+	var samples := PackedVector2Array([
+		Vector2(triangle[0].x, triangle[0].z),
+		Vector2(triangle[1].x, triangle[1].z),
+		Vector2(triangle[2].x, triangle[2].z),
+		Vector2((triangle[0].x + triangle[1].x + triangle[2].x) / 3.0, (triangle[0].z + triangle[1].z + triangle[2].z) / 3.0),
+	])
+	for area in blocked:
+		if area.get("kind", &"") != &"river":
+			continue
+		for sample in samples:
+			if _river_blocks(sample, area):
+				return true
+		# A narrow diagonal river can cut an edge without containing a vertex.
+		var points: PackedVector2Array = area.get("points", PackedVector2Array())
+		for edge in range(3):
+			var a := samples[edge]
+			var b := samples[(edge + 1) % 3]
+			for segment in range(1, points.size()):
+				if Geometry2D.segment_intersects_segment(a, b, points[segment - 1], points[segment]) != null:
+					var midpoint := (a + b) * 0.5
+					if _river_blocks(midpoint, area):
+						return true
+	return false
 
 
 func is_reachable(from: Vector2, to: Vector2) -> bool:

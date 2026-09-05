@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "map": {
-    "id": "untitled_map",
+    "id": "test_map",
     "preset": "encounter",
     "seed": 0,
     "bounds": {
@@ -83,8 +83,11 @@
           51
         ]
       ],
-      "width_m": 3
+      "width_m": 9
     }
   ],
-  "bridges": []
+  "bridges": [],
+  "player": {
+    "character_asset": "character_knight_01"
+  }
 }
