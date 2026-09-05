@@ -143,6 +143,29 @@ func _test_chest_interaction(controller: TestArenaController, failures: Array[St
 ## positive_y), so naively multiplying by input_vector.y inverted the pan.
 func _test_camera_pan_direction(rig: TacticalCameraRig, failures: Array[String]) -> void:
 	var forward := Vector3(-sin(rig.target_yaw), 0.0, -cos(rig.target_yaw))
+	var right := Vector3(-forward.z, 0.0, forward.x)
+
+	var before_left := rig.target_focus
+	Input.action_press(&"camera_pan_left")
+	rig._process(0.1)
+	Input.action_release(&"camera_pan_left")
+	var left_delta := rig.target_focus - before_left
+	_expect(
+		left_delta.length() > 0.01 and left_delta.normalized().dot(right) < -0.9,
+		"camera_pan_left should move target_focus left of the rig's forward vector; moved %s" % left_delta,
+		failures,
+	)
+
+	var before_right := rig.target_focus
+	Input.action_press(&"camera_pan_right")
+	rig._process(0.1)
+	Input.action_release(&"camera_pan_right")
+	var right_delta := rig.target_focus - before_right
+	_expect(
+		right_delta.length() > 0.01 and right_delta.normalized().dot(right) > 0.9,
+		"camera_pan_right should move target_focus right of the rig's forward vector; moved %s" % right_delta,
+		failures,
+	)
 
 	var before_forward := rig.target_focus
 	Input.action_press(&"camera_pan_forward")

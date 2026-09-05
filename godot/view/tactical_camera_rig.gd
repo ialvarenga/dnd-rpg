@@ -28,7 +28,7 @@ func _process(delta: float) -> void:
 	var input_vector := Input.get_vector(&"camera_pan_left", &"camera_pan_right", &"camera_pan_forward", &"camera_pan_back")
 	if input_vector.length_squared() > 0.0:
 		var forward := Vector3(-sin(target_yaw), 0.0, -cos(target_yaw))
-		var right := Vector3(forward.z, 0.0, -forward.x)
+		var right := Vector3(-forward.z, 0.0, forward.x)
 		# Input.get_vector's forward/back pair is (negative_y, positive_y), so
 		# holding "camera_pan_forward" yields input_vector.y == -1 -- negate it
 		# so pressing forward actually moves toward `forward`, not away from it.
@@ -63,7 +63,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func pan_by_screen_delta(relative: Vector2) -> void:
 	var forward := Vector3(-sin(target_yaw), 0.0, -cos(target_yaw))
-	var right := Vector3(forward.z, 0.0, -forward.x)
+	var right := Vector3(-forward.z, 0.0, forward.x)
 	var scale := target_zoom * 0.0018
 	target_focus += (-right * relative.x + forward * relative.y) * scale
 	_clamp_focus()

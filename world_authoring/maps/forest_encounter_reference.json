@@ -24,7 +24,7 @@
       ],
       "vegetation": {
         "profile": "temperate_sparse",
-        "density": 0.35
+        "density": 0.75
       }
     }
   ],
