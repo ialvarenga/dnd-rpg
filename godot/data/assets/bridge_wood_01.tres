@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="AssetDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://world/asset_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"bridge_wood_01"
+scene_path = "res://assets/kaykit_dungeon/floor_dirt_large.gltf"
+asset_type = &"bridge"
+tags = PackedStringArray("bridge", "wood")
+footprint_radius = 2.0
+placement_max_slope_deg = 12.0

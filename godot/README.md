@@ -182,6 +182,7 @@ around the central obstacle.
 Validate imports and scripts:
 
 ```sh
+python3 scripts/check_gdscript_style.py
 godot --headless --path godot --editor --quit
 ```
 
@@ -190,6 +191,26 @@ Run all automated tests:
 ```sh
 godot --headless --path godot --script res://tests/test_runner.gd
 ```
+
+## B11 generated-map smoke test
+
+`res://scenes/compiled_forest_map.tscn` compiles the hand-authored
+`world_authoring/maps/forest_encounter_reference.json` at runtime. It renders
+the heightfield with matching collision, catalog props and blockers, road
+ribbons, and the same terrain-triangle navigation surface used by runtime
+movement. It composes the existing `TacticalCameraRig`, so its controls match
+the hand-authored arena: `W`/`A`/`S`/`D` pan, middle-drag pans, mouse wheel
+zooms, and `Q`/`E` rotate. Start it directly:
+
+```sh
+godot --path godot --editor res://scenes/compiled_forest_map.tscn
+```
+
+Press Play and left-click the terrain to move. The gold cylinder marks the
+reference objective/encounter destination. A full 256×256m dense-forest bake
+benchmark remains a manual profiling gate: this implementation deliberately
+keeps one navigation region and does not introduce chunks until that measured
+budget requires it.
 
 For the architectural rationale and upcoming phases, see the repository-level
 `implementation_plan.md` and the ADRs under `docs/ADR/`.

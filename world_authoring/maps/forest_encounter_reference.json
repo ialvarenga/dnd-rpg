@@ -60,5 +60,17 @@
       "id": "player_start",
       "position": [12, 8]
     }
+  ],
+  "roads": [
+    { "id": "forest_trail", "control_points": [[15, 10], [28, 24], [48, 45]], "width_m": 3 }
+  ],
+  "objectives": [
+    { "id": "forest_objective", "position": [20, 18] }
+  ],
+  "actors": [
+    { "id": "forest_scout", "archetype": "character_knight_01", "position": [22, 20] }
+  ],
+  "encounters": [
+    { "id": "forest_encounter", "position": [22, 20], "actor_ids": ["forest_scout"] }
   ]
 }

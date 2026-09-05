@@ -3360,6 +3360,88 @@ must work reliably.
 
 ---
 
+# Fase B11 — Playable map completion (required before Marco C)
+
+The compiler’s deterministic data path is not sufficient by itself for a
+player-facing map. Complete this phase before any AI authoring work so that
+MapSpec has proven runtime semantics and generated maps can actually be played.
+
+## B11.1 — Terrain presentation and collision
+
+- Convert `TerrainProvider.export_navigation_geometry()` / the procedural
+  heightfield into a visible terrain mesh with a material.
+- Add terrain collision that agrees with `height_at`, `normal_at`, and slope
+  queries.
+- Verify a character can move, raycast/click, and stand correctly on flat,
+  rolling-hills, and valley maps.
+
+## B11.2 — Complete rivers, roads, and bridges
+
+- Render bounded-width road and water ribbons from B8 control points.
+- Keep the current deterministic road flattening and add river-bed/water
+  presentation without hydraulic simulation.
+- Add a catalog-backed bridge entity and explicit MapSpec bridge semantics.
+- Permit road/river crossings only when a compatible bridge validates and
+  compiles; retain `INVALID_RIVER_CROSSING` otherwise.
+
+## B11.3 — Vegetation rendering and runtime blockers
+
+- Replace per-instance generated vegetation rendering with `MultiMesh` where
+  profiling shows it is worthwhile, while preserving catalog placement
+  metadata and deterministic placement IDs.
+- Add collision/navigation blockers that match each catalog footprint.
+- Profile a representative 256×256m dense forest before choosing batching
+  thresholds.
+
+## B11.4 — Production navigation bake
+
+- Build Godot navigation source geometry from completed terrain, structures,
+  vegetation blockers, roads, bridges, and walls.
+- Bake and measure one `NavigationRegion3D` for the maximum 256×256m map.
+- Drive runtime path queries through the existing `GodotNavProvider`; ensure
+  click-to-move, AI, and compiler reachability observe the same walkable map.
+- Introduce 64×64m navigation regions only if the measured single bake fails
+  the agreed responsiveness/memory budget; document the measurement either way.
+
+## B11.5 — Gameplay MapSpec semantics and validation
+
+- Define canonical schema fields for encounter targets/objectives, doors and
+  required states, bridges, and any spawn/actor runtime data needed to play.
+- Extend the structured validation pipeline for spawn-to-objective,
+  spawn-to-encounter, and required-door-state reachability on the baked map.
+- Keep JSON Schema as structural truth and use compiler errors only for engine,
+  spatial, and gameplay checks.
+
+## B11.6 — End-to-end playable reference map
+
+- Compile the B3 `forest_encounter_reference.json` without replacing its
+  hand-authored source.
+- Load the compiled root into a runtime test scene with terrain, catalog
+  structures/vegetation, navigation, spawn points, and an objective/encounter.
+- Add headless integration coverage for compile → instantiate → navigation →
+  click-to-move/AI reachability, plus a short manual playable smoke test.
+
+### Exit criteria
+
+```text
+validated MapSpec
+↓
+compile with no structured errors
+↓
+load generated map
+↓
+player can move from spawn to objective/encounter
+↓
+navigation and collision agree
+↓
+combat can begin and finish
+```
+
+Deferred beyond B11: hydraulic simulation, arbitrary terrain editing, world
+streaming, and navigation chunking unless measurement requires the latter.
+
+---
+
 # MARCO C — AI WORLD AUTHORING
 
 ---

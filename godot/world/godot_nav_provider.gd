@@ -26,7 +26,9 @@ func find_path(from: Vector3, to: Vector3) -> PackedVector3Array:
 		return PackedVector3Array()
 	var path := PackedVector3Array()
 	for point in raw_path:
-		path.append(Vector3(point.x, from.y, point.z))
+		# Generated terrain needs the navigation surface elevation; it is built
+		# from the same triangles as visual terrain and physics collision.
+		path.append(point)
 	if path.size() == 1 and from.distance_to(path[0]) > 0.001:
 		path.insert(0, from)
 	return path

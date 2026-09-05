@@ -15,7 +15,13 @@
     "structures": { "type": "array", "items": { "$ref": "#/$defs/structure" }, "uniqueItems": true },
     "actors": { "type": "array", "items": { "$ref": "#/$defs/actor" }, "uniqueItems": true },
     "spawn_points": { "type": "array", "items": { "$ref": "#/$defs/spawnPoint" }, "uniqueItems": true },
-    "interactables": { "type": "array", "items": { "$ref": "#/$defs/interactable" }, "uniqueItems": true }
+    "interactables": { "type": "array", "items": { "$ref": "#/$defs/interactable" }, "uniqueItems": true },
+    "rivers": { "type": "array", "items": { "$ref": "#/$defs/path" }, "uniqueItems": true },
+    "roads": { "type": "array", "items": { "$ref": "#/$defs/path" }, "uniqueItems": true },
+    "bridges": { "type": "array", "items": { "$ref": "#/$defs/bridge" }, "uniqueItems": true },
+    "objectives": { "type": "array", "items": { "$ref": "#/$defs/objective" }, "uniqueItems": true },
+    "encounters": { "type": "array", "items": { "$ref": "#/$defs/encounter" }, "uniqueItems": true },
+    "doors": { "type": "array", "items": { "$ref": "#/$defs/door" }, "uniqueItems": true }
   },
   "$defs": {
     "stableId": {
@@ -120,6 +126,58 @@
         "asset": { "$ref": "#/$defs/stableId" },
         "position": { "$ref": "#/$defs/vector2" },
         "rotation_deg": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 }
+      }
+    },
+    "path": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "control_points"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "control_points": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/vector2" } },
+        "width_m": { "type": "number", "exclusiveMinimum": 0, "maximum": 24 }
+      }
+    },
+    "objective": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "position"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "position": { "$ref": "#/$defs/vector2" }
+      }
+    },
+    "encounter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "position", "actor_ids"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "position": { "$ref": "#/$defs/vector2" },
+        "actor_ids": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/stableId" }, "uniqueItems": true }
+      }
+    },
+    "door": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "position", "initial_state", "required_state"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "position": { "$ref": "#/$defs/vector2" },
+        "initial_state": { "enum": ["open", "closed"] },
+        "required_state": { "enum": ["open", "closed"] }
+      }
+    },
+    "bridge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "asset", "position", "river_id", "road_id"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "asset": { "$ref": "#/$defs/stableId" },
+        "position": { "$ref": "#/$defs/vector2" },
+        "river_id": { "$ref": "#/$defs/stableId" },
+        "road_id": { "$ref": "#/$defs/stableId" }
       }
     }
   }

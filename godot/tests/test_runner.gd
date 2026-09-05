@@ -1,12 +1,15 @@
 extends SceneTree
 
+const TestTerrainProviderScript = preload("res://tests/unit/test_terrain_provider.gd")
+const TestMapCompilerScript = preload("res://tests/unit/test_map_compiler.gd")
+
 func _init() -> void:
 	call_deferred("_run")
 
 
 func _run() -> void:
 	var failure_count := 0
-	var suites := [TestSimulation, TestDefinitions, TestInteractables, TestAssetCatalog, TestEnemyAI, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion]
+	var suites := [TestSimulation, TestDefinitions, TestInteractables, TestAssetCatalog, TestTerrainProviderScript, TestMapCompilerScript, TestEnemyAI, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion]
 	for suite in suites:
 		var report: Dictionary = suite.run()
 		var failures: Array = report["failures"]

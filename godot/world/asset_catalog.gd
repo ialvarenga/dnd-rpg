@@ -6,6 +6,7 @@ extends RefCounted
 
 const DEFINITION_PATHS: Array[String] = [
 	"res://data/assets/floor_dirt_large.tres", "res://data/assets/floor_tile_small.tres",
+	"res://data/assets/bridge_wood_01.tres",
 	"res://data/assets/wall_dungeon_01.tres", "res://data/assets/wall_run_dungeon_01.tres",
 	"res://data/assets/wall_doorway_dungeon_01.tres",
 	"res://data/assets/barrier_dungeon_01.tres", "res://data/assets/chest_wood_01.tres",
