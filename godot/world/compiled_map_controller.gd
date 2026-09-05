@@ -19,6 +19,7 @@ var camera_rig: TacticalCameraRig
 var objective: Vector3
 var _path_line: MeshInstance3D
 var _line_mesh := ImmediateMesh.new()
+var hud: HudRoot
 
 const PLAYER_CHARACTER_SCENE = preload("res://scenes/actors/player_character.tscn")
 const TACTICAL_CAMERA_SCENE = preload("res://scenes/camera/tactical_camera_rig.tscn")
@@ -45,6 +46,7 @@ func _ready() -> void:
 	los_provider = GodotLosProvider.new(get_world_3d(), 8)
 	session = EncounterSessionScript.new()
 	session.configure(battle_state, nav_provider, los_provider)
+	_setup_hud()
 	NavigationServer3D.map_force_update(compilation.navigation.navigation_region.get_navigation_map())
 
 
@@ -136,6 +138,24 @@ func _setup_path_preview() -> void:
 	material.emission = Color("f5d742")
 	_path_line.material_override = material
 	add_child(_path_line)
+
+
+func _setup_hud() -> void:
+	hud = preload("res://scenes/ui/hud_root.tscn").instantiate() as HudRoot
+	add_child(hud)
+	hud.bind(session, character.actor_id)
+	hud.ability_requested.connect(_on_hud_ability_requested)
+	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
+
+
+func _on_hud_ability_requested(ability_id: StringName) -> void:
+	var result := session.submit_ability(character.actor_id, ability_id, -1, Vector3.INF)
+	event_player.play_events(result.events)
+
+
+func _on_hud_end_turn_requested() -> void:
+	var result := session.end_turn(character.actor_id)
+	event_player.play_events(result.events)
 
 
 func _show_compile_errors() -> void:

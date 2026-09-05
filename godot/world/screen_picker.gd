@@ -30,6 +30,8 @@ static func actor_id_at(camera: Camera3D, space: PhysicsDirectSpaceState3D, scre
 
 
 static func _raycast(camera: Camera3D, space: PhysicsDirectSpaceState3D, screen_position: Vector2, mask: int) -> Dictionary:
+	if camera == null or space == null:
+		return {}
 	var ray_origin := camera.project_ray_origin(screen_position)
 	var ray_end := ray_origin + camera.project_ray_normal(screen_position) * 500.0
 	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end, mask)

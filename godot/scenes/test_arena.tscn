@@ -1,12 +1,11 @@
 [gd_scene format=3 uid="uid://dn2hnkfe3w6ch"]
 
 [ext_resource type="Script" uid="uid://bx4t11h8cy8eu" path="res://world/test_arena_controller.gd" id="1_arena"]
-[ext_resource type="Script" uid="uid://b5483b8ys63l2" path="res://view/tactical_camera_rig.gd" id="2_camera"]
-[ext_resource type="Script" uid="uid://fqevt6p7grqd" path="res://view/character_view.gd" id="3_character"]
 [ext_resource type="Script" uid="uid://6l20kl4vbp3y" path="res://view/event_player.gd" id="4_event_player"]
 [ext_resource type="PackedScene" path="res://scenes/actors/player_character.tscn" id="5_player"]
 [ext_resource type="PackedScene" path="res://scenes/camera/tactical_camera_rig.tscn" id="6_camera"]
 [ext_resource type="PackedScene" path="res://scenes/world/tactical_sun.tscn" id="7_sun"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hud_root.tscn" id="8_hud"]
 
 [sub_resource type="StandardMaterial3D" id="FloorMaterial"]
 albedo_color = Color(0.18, 0.28, 0.2, 1)
@@ -28,8 +27,8 @@ bottom_radius = 0.4
 height = 3.0
 
 [sub_resource type="CylinderShape3D" id="TreeTrunkShape"]
-radius = 0.4
 height = 3.0
+radius = 0.4
 
 [sub_resource type="BoxMesh" id="WallMesh"]
 size = Vector3(20, 3, 0.5)
@@ -59,22 +58,10 @@ albedo_color = Color(0.45, 0.32, 0.14, 1)
 
 [sub_resource type="BoxMesh" id="ChestMesh"]
 material = SubResource("ChestMaterial")
-size = Vector3(1.7, 1.0, 1.9)
+size = Vector3(1.7, 1, 1.9)
 
 [sub_resource type="BoxShape3D" id="ChestShape"]
-size = Vector3(1.7, 1.0, 1.9)
-
-[sub_resource type="CapsuleShape3D" id="CharacterShape"]
-radius = 0.45
-height = 1.8
-
-[sub_resource type="StandardMaterial3D" id="CharacterMaterial"]
-albedo_color = Color(0.18, 0.55, 0.92, 1)
-
-[sub_resource type="CapsuleMesh" id="CharacterMesh"]
-material = SubResource("CharacterMaterial")
-radius = 0.45
-height = 1.8
+size = Vector3(1.7, 1, 1.9)
 
 [sub_resource type="StandardMaterial3D" id="MarkerMaterial"]
 albedo_color = Color(1, 0.7, 0.08, 1)
@@ -94,7 +81,8 @@ albedo_color = Color(1, 0.78, 0.08, 1)
 [node name="TestArena" type="Node3D" unique_id=1090467907]
 script = ExtResource("1_arena")
 
-[node name="DirectionalLight3D" parent="." instance=ExtResource("7_sun")]
+[node name="DirectionalLight3D" parent="." unique_id=1809729842 instance=ExtResource("7_sun")]
+transform = Transform3D(0.90630776, 0.34618863, -0.24240388, 0, 0.57357645, 0.81915206, 0.42261827, -0.74240386, 0.5198368, 0, 0, 0)
 
 [node name="Floor" type="StaticBody3D" parent="." unique_id=1411529601]
 collision_mask = 0
@@ -105,29 +93,29 @@ mesh = SubResource("FloorMesh")
 [node name="Collision" type="CollisionShape3D" parent="Floor" unique_id=886800481]
 shape = SubResource("FloorShape")
 
-[node name="TreeA" type="StaticBody3D" parent="."]
+[node name="TreeA" type="StaticBody3D" parent="." unique_id=1254183891]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0.361, -4)
 collision_layer = 8
 collision_mask = 0
 
-[node name="Mesh" type="MeshInstance3D" parent="TreeA"]
+[node name="Mesh" type="MeshInstance3D" parent="TreeA" unique_id=826504568]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.239, 0)
 mesh = SubResource("TreeTrunkMesh")
 
-[node name="Collision" type="CollisionShape3D" parent="TreeA"]
+[node name="Collision" type="CollisionShape3D" parent="TreeA" unique_id=659480925]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.239, 0)
 shape = SubResource("TreeTrunkShape")
 
-[node name="TreeB" type="StaticBody3D" parent="."]
+[node name="TreeB" type="StaticBody3D" parent="." unique_id=2085342071]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.361, 7)
 collision_layer = 8
 collision_mask = 0
 
-[node name="Mesh" type="MeshInstance3D" parent="TreeB"]
+[node name="Mesh" type="MeshInstance3D" parent="TreeB" unique_id=1577553282]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.239, 0)
 mesh = SubResource("TreeTrunkMesh")
 
-[node name="Collision" type="CollisionShape3D" parent="TreeB"]
+[node name="Collision" type="CollisionShape3D" parent="TreeB" unique_id=1300457521]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.239, 0)
 shape = SubResource("TreeTrunkShape")
 
@@ -136,10 +124,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, -16)
 collision_layer = 8
 collision_mask = 0
 
-[node name="Mesh" type="MeshInstance3D" parent="NorthWall"]
+[node name="Mesh" type="MeshInstance3D" parent="NorthWall" unique_id=894035852]
 mesh = SubResource("WallMesh")
 
-[node name="Collision" type="CollisionShape3D" parent="NorthWall"]
+[node name="Collision" type="CollisionShape3D" parent="NorthWall" unique_id=946855259]
 shape = SubResource("WallShape")
 
 [node name="DoorPlaceholder" type="MeshInstance3D" parent="." unique_id=1097692504]
@@ -162,34 +150,37 @@ mesh = SubResource("BarrierMesh")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.217, 0)
 shape = SubResource("BarrierShape")
 
-[node name="Chest" type="StaticBody3D" parent="."]
+[node name="Chest" type="StaticBody3D" parent="." unique_id=1546343148]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0.265, -10)
 collision_layer = 12
 collision_mask = 0
 metadata/interactable_id = "chest_a"
 
-[node name="Mesh" type="MeshInstance3D" parent="Chest"]
+[node name="Mesh" type="MeshInstance3D" parent="Chest" unique_id=324773273]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.335, 0)
 mesh = SubResource("ChestMesh")
 
-[node name="Collision" type="CollisionShape3D" parent="Chest"]
+[node name="Collision" type="CollisionShape3D" parent="Chest" unique_id=1297783836]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.335, 0)
 shape = SubResource("ChestShape")
 
-[node name="PlayerCharacter" parent="." instance=ExtResource("5_player")]
+[node name="PlayerCharacter" parent="." unique_id=1692946117 instance=ExtResource("5_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 1, 0)
 
 [node name="EventPlayer" type="Node" parent="." unique_id=1960922341]
 script = ExtResource("4_event_player")
 
-[node name="CameraRig" parent="." instance=ExtResource("6_camera")]
+[node name="CameraRig" parent="PlayerCharacter" unique_id=600628059 instance=ExtResource("6_camera")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, -1, 0)
 
-[node name="Pivot" parent="CameraRig" index="0"]
+[node name="Pivot" parent="PlayerCharacter/CameraRig" index="0"]
 rotation_degrees = Vector3(-58, 0, 0)
 
-[node name="Camera3D" parent="CameraRig/Pivot" index="0"]
+[node name="Camera3D" parent="PlayerCharacter/CameraRig/Pivot" index="0"]
 position = Vector3(0, 0, 20)
 far = 120.0
+
+[node name="HudRoot" parent="." instance=ExtResource("8_hud")]
 
 [node name="Debug" type="Node3D" parent="." unique_id=40672315]
 

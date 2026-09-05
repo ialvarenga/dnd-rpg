@@ -5,13 +5,15 @@ extends Node3D
 ## confirmed input creates Commands, applies accepted events immediately, and
 ## EventPlayer alone narrates movement on the CharacterView.
 
-@onready var camera: Camera3D = $CameraRig/Pivot/Camera3D
+@onready var camera_rig: TacticalCameraRig = $PlayerCharacter/CameraRig
+@onready var camera: Camera3D = camera_rig.camera
 @onready var character: CharacterView = $PlayerCharacter
 @onready var navigation_region: NavigationRegion3D = $NavigationRegion3D
 @onready var event_player: EventPlayer = $EventPlayer
 @onready var destination_marker: MeshInstance3D = $Debug/DestinationMarker
 @onready var path_mesh: MeshInstance3D = $Debug/PathLine
 @onready var debug_label: Label = $DebugOverlay/Panel/Label
+@onready var hud: HudRoot = $HudRoot
 
 var battle_state := BattleState.new()
 var nav_provider: NavProvider
@@ -31,6 +33,11 @@ const ScreenPickerScript = preload("res://world/screen_picker.gd")
 
 
 func _ready() -> void:
+	# This view-only attachment deliberately follows the interpolated character
+	# view, never the BattleState. The rig can therefore remain a child of the
+	# character without affecting simulation or screen picking.
+	camera_rig.follow_target = character
+	camera_rig.follow_offset = camera_rig.global_position - character.global_position
 	path_mesh.mesh = _line_mesh
 	destination_marker.visible = false
 	_dress_arena_props()
@@ -41,6 +48,9 @@ func _ready() -> void:
 	session.configure(battle_state, nav_provider, los_provider)
 	event_player.register_character_view(character)
 	event_player.movement_completed.connect(_synchronize_completed_movement)
+	hud.bind(session, character.actor_id)
+	hud.ability_requested.connect(_on_hud_ability_requested)
+	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
 
 
 ## The hand-authored arena consumes the same ID-only catalog as the future map
@@ -59,6 +69,12 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if camera == null or not is_instance_valid(camera):
+		return
+	if event.is_action_pressed(&"tactical_cancel"):
+		$DebugOverlay.visible = not $DebugOverlay.visible
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventMouseMotion:
 		var preview_target: Variant = ScreenPickerScript.terrain_point(camera, get_world_3d().direct_space_state, event.position)
 		if preview_target is Vector3:
@@ -137,6 +153,18 @@ func submit_interact(interactable_id: String) -> ResolutionResult:
 			last_input_status = &"interacted"
 	event_player.play_events(last_resolution.events)
 	return last_resolution
+
+
+func _on_hud_ability_requested(ability_id: StringName) -> void:
+	# Target selection remains a controller concern; untargeted abilities work
+	# immediately, while Resolver rejects an attack without a valid target.
+	last_resolution = session.submit_ability(character.actor_id, ability_id, -1, Vector3.INF)
+	event_player.play_events(last_resolution.events)
+
+
+func _on_hud_end_turn_requested() -> void:
+	last_resolution = session.end_turn(character.actor_id)
+	event_player.play_events(last_resolution.events)
 
 
 func _initialize_exploration_state() -> void:

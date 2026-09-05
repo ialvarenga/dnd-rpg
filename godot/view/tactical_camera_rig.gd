@@ -15,9 +15,16 @@ var target_focus := Vector3.ZERO
 var target_yaw := deg_to_rad(35.0)
 var target_zoom := 20.0
 var _middle_dragging := false
+## Optional presentation target.  Keeping this on the rig (rather than in
+## simulation) allows a rig to be parented to, or simply follow, a view node.
+var follow_target: Node3D
+var follow_offset := Vector3.ZERO
 
 
 func _ready() -> void:
+	# The rig may live under a rotating CharacterView for ownership/following,
+	# but a tactical camera must not inherit the actor's facing yaw.
+	top_level = true
 	target_focus = global_position
 	target_zoom = clampf(camera.position.z, minimum_zoom, maximum_zoom)
 	rotation.y = target_yaw
@@ -25,6 +32,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if follow_target != null and is_instance_valid(follow_target):
+		target_focus = follow_target.global_position + follow_offset
 	var input_vector := Input.get_vector(&"camera_pan_left", &"camera_pan_right", &"camera_pan_forward", &"camera_pan_back")
 	if input_vector.length_squared() > 0.0:
 		var forward := Vector3(-sin(target_yaw), 0.0, -cos(target_yaw))

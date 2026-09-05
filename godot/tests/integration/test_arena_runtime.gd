@@ -16,15 +16,30 @@ func run() -> Dictionary:
 	if not navigation_ready:
 		arena.queue_free()
 		return {"name": "integration/test_arena_runtime", "failures": failures}
+	await _test_hud_runtime(controller, arena.get_node("HudRoot"), player, failures)
 	await _test_preview_and_clamped_combat_movement(controller, player, event_player, failures)
 	_test_command_event_view_pipeline(controller, player, event_player, failures)
 	await _test_target_replacement(controller, player, event_player, failures)
 	await _test_obstacle_route(controller, player, event_player, failures)
 	await _test_rejected_and_invalid_clicks(controller, player, failures)
 	_test_chest_interaction(controller, failures)
-	_test_camera_pan_direction(arena.get_node("CameraRig"), failures)
+	_test_camera_pan_direction(arena.get_node("PlayerCharacter/CameraRig"), failures)
 	arena.queue_free()
 	return {"name": "integration/test_arena_runtime", "failures": failures}
+
+
+func _test_hud_runtime(controller: TestArenaController, hud: HudRoot, player: CharacterView, failures: Array[String]) -> void:
+	# The signal-driven HUD has rendered the initial state after bind(). A real
+	# UI click is consuming (STOP), while decorative layout remains pass-through.
+	var hp_label: Label = hud.get_node("Margin/Layout/ActorPortrait/Margin/Rows/HPText")
+	_expect(hp_label.text.begins_with("HP"), "HUD did not render actor data after bind", failures)
+	var before := (controller.battle_state.actors[player.actor_id] as ActorState).movement_remaining
+	controller.session.submit_move(player.actor_id, player.global_position + Vector3(0.5, 0.0, 0.0), player.global_position)
+	await get_tree().process_frame
+	var move: ProgressBar = hud.get_node("Margin/Layout/ResourcePips/Move")
+	_expect(move.value <= 100.0 and (controller.battle_state.actors[player.actor_id] as ActorState).movement_remaining <= before, "HUD did not sync pips after state_changed", failures)
+	var end_turn: Button = hud.get_node("Margin/Layout/EndTurn")
+	_expect(end_turn.mouse_filter == Control.MOUSE_FILTER_STOP, "HUD controls must consume clicks before terrain input", failures)
 
 
 func _test_preview_and_clamped_combat_movement(controller: TestArenaController, player: CharacterView, event_player: EventPlayer, failures: Array[String]) -> void:

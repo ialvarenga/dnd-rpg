@@ -1,0 +1,8 @@
+[gd_scene format=3]
+[ext_resource type="Script" path="res://view/ui/tooltip_layer.gd" id="1"]
+[node name="TooltipLayer" type="CanvasLayer"]
+script = ExtResource("1")
+layer = 20
+[node name="Label" type="Label" parent="."]
+visible = false
+mouse_filter = 2
