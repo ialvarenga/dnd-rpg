@@ -18,6 +18,11 @@ Godot receives already validated JSON. Starting in B3 it will nevertheless
 perform critical runtime sanity checks and fail loudly in development for an
 unknown asset, impossible enum, or missing required runtime object.
 
+`maps/forest_encounter_reference.json` is the B3 hand-authored reference
+fixture. It proves the canonical contract can describe a compact deterministic
+encounter map; compiling or instantiating that map remains deferred to later B
+phases.
+
 Schema versions are document-contract versions. A breaking schema change must
 introduce a deliberate version/migration decision; never silently reinterpret
 an existing version.

@@ -1,0 +1,64 @@
+{
+  "version": "1.0",
+  "map": {
+    "id": "forest_encounter_reference",
+    "preset": "encounter",
+    "seed": 918273,
+    "bounds": {
+      "width_m": 64,
+      "height_m": 64
+    },
+    "asset_catalog_version": "1.0"
+  },
+  "terrain": {
+    "profile": "rolling_hills"
+  },
+  "regions": [
+    {
+      "id": "north_forest",
+      "polygon": [
+        [0, 32],
+        [64, 32],
+        [64, 64],
+        [0, 64]
+      ],
+      "vegetation": {
+        "profile": "temperate_sparse",
+        "density": 0.35
+      }
+    }
+  ],
+  "vegetation": [
+    {
+      "id": "oak_northwest",
+      "asset": "tree_oak_01",
+      "position": [14, 46],
+      "rotation_deg": 35
+    },
+    {
+      "id": "oak_northeast",
+      "asset": "tree_oak_02",
+      "position": [49, 49],
+      "rotation_deg": 210
+    },
+    {
+      "id": "trail_bush",
+      "asset": "bush_01",
+      "position": [28, 37]
+    }
+  ],
+  "structures": [
+    {
+      "id": "trail_barrier",
+      "asset": "barrier_dungeon_01",
+      "position": [32, 29],
+      "rotation_deg": 90
+    }
+  ],
+  "spawn_points": [
+    {
+      "id": "player_start",
+      "position": [12, 8]
+    }
+  ]
+}
