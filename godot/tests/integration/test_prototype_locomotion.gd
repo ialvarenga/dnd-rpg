@@ -9,6 +9,7 @@ static func run() -> Dictionary:
 	_test_repeated_clicks(failures)
 	_test_target_replacement(failures)
 	_test_near_target(failures)
+	_test_elevated_path(failures)
 	_test_click_outside_terrain(failures)
 	return {"name": "integration/test_prototype_locomotion", "failures": failures}
 
@@ -57,6 +58,14 @@ static func _test_near_target(failures: Array[String]) -> void:
 	follower.begin_path(PackedVector3Array([Vector3.ZERO, Vector3(0.1, 0.0, 0.0)]), Vector3(0.1, 0.0, 0.0))
 	var step: Dictionary = follower.step(Vector3.ZERO, 0.1)
 	_expect(bool(step["finished"]) and (step["velocity"] as Vector3).is_zero_approx(), "near target did not finish without jitter", failures)
+
+
+static func _test_elevated_path(failures: Array[String]) -> void:
+	var follower := _follower()
+	var target := Vector3(4.0, 2.0, 0.0)
+	follower.begin_path(PackedVector3Array([Vector3(0.0, 1.0, 0.0), target]), target)
+	var final_position := _run_to_completion(follower, Vector3(0.0, 1.0, 0.0))
+	_expect(final_position.distance_to(target) < 0.25, "elevated navigation path did not preserve terrain elevation", failures)
 
 
 static func _test_click_outside_terrain(failures: Array[String]) -> void:

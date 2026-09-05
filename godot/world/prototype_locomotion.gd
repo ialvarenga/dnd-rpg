@@ -45,7 +45,6 @@ func step(current_position: Vector3, delta: float) -> Dictionary:
 
 	while _waypoint_index < _path.size():
 		var waypoint := _path[_waypoint_index]
-		waypoint.y = current_position.y
 		if current_position.distance_to(waypoint) > waypoint_tolerance:
 			break
 		_waypoint_index += 1
@@ -55,9 +54,7 @@ func step(current_position: Vector3, delta: float) -> Dictionary:
 		return {"velocity": Vector3.ZERO, "finished": true}
 
 	var next_waypoint := _path[_waypoint_index]
-	next_waypoint.y = current_position.y
 	var offset := next_waypoint - current_position
-	offset.y = 0.0
 	var distance := offset.length()
 	if distance <= EPSILON:
 		_waypoint_index += 1

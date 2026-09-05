@@ -24,11 +24,15 @@ func find_path(from: Vector3, to: Vector3) -> PackedVector3Array:
 	var raw_path := NavigationServer3D.map_get_path(map, closest_from, closest_to, true, navigation_layers)
 	if raw_path.is_empty():
 		return PackedVector3Array()
+	# Navigation geometry describes the walkable *surface*. CharacterBody3D
+	# transforms, on the other hand, are normally at the center of their
+	# collision shape. Preserve that clearance while projecting every waypoint
+	# onto generated heightfields; otherwise a terrain click ends with the
+	# character's center snapped to the terrain surface.
+	var surface_clearance := from.y - closest_from.y
 	var path := PackedVector3Array()
 	for point in raw_path:
-		# Generated terrain needs the navigation surface elevation; it is built
-		# from the same triangles as visual terrain and physics collision.
-		path.append(point)
+		path.append(point + Vector3.UP * surface_clearance)
 	if path.size() == 1 and from.distance_to(path[0]) > 0.001:
 		path.insert(0, from)
 	return path

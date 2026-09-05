@@ -48,12 +48,7 @@
     }
   ],
   "structures": [
-    {
-      "id": "trail_barrier",
-      "asset": "barrier_dungeon_01",
-      "position": [32, 29],
-      "rotation_deg": 90
-    }
+    
   ],
   "spawn_points": [
     {
