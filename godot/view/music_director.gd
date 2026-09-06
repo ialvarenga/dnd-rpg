@@ -20,10 +20,6 @@ var _phase: StringName = &"exploration"
 
 
 func _ready() -> void:
-	for tracks in [AMBIENT_TRACKS, BATTLE_TRACKS]:
-		for stream in tracks.values():
-			if stream is AudioStreamWAV:
-				stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	_player.finished.connect(_play_current_track)
 	call_deferred("_play_current_track")
 
