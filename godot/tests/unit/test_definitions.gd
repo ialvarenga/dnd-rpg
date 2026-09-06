@@ -17,6 +17,7 @@ static func run() -> Dictionary:
 	_test_unknown_condition_id_is_ignored_safely(failures)
 	_test_definition_library_ignores_definitions_with_missing_id(failures)
 	_test_content_version_round_trip(failures)
+	_test_consumable_metadata_defaults_clone_and_resource_round_trip(failures)
 	_test_perform_attack_effect_checks_and_spends_full_ability_cost(failures)
 	_test_attack_targeting_range_uses_ability_data(failures)
 	return {"name": "unit/test_definitions", "failures": failures}
@@ -114,6 +115,46 @@ static func _test_content_version_round_trip(failures: Array[String]) -> void:
 	var default_library := DefinitionLibrary.get_default()
 	_expect(default_library.is_compatible_content_version(state.content_version), "default library rejected its own content_version", failures)
 	_expect(not default_library.is_compatible_content_version(state.content_version + 1), "default library accepted a mismatched content_version", failures)
+
+
+static func _test_consumable_metadata_defaults_clone_and_resource_round_trip(failures: Array[String]) -> void:
+	var default_effect := AbilityEffect.new()
+	var default_item := ItemDefinition.new()
+	_expect(default_effect.heal_die == 0 and default_effect.heal_dice_count == 1 and default_effect.heal_modifier == 0 and default_effect.consumes_item_id == &"", "consumable effect metadata did not preserve backwards-compatible defaults", failures)
+	_expect(default_item.use_ability_id == &"", "item use_ability_id did not default to non-consumable", failures)
+
+	var effect := AbilityEffect.new()
+	effect.type = &"heal"
+	effect.heal_die = 4
+	effect.heal_dice_count = 2
+	effect.heal_modifier = 2
+	effect.consumes_item_id = &"healing_potion"
+	var item := ItemDefinition.new()
+	item.id = &"healing_potion"
+	item.display_name = "Healing Potion"
+	item.use_ability_id = &"quaff_healing_potion"
+	var effect_clone := effect.duplicate(true) as AbilityEffect
+	var item_clone := item.duplicate(true) as ItemDefinition
+	_expect(_has_consumable_effect_metadata(effect_clone, effect), "consumable effect metadata did not survive Resource cloning", failures)
+	_expect(item_clone != null and item_clone.use_ability_id == item.use_ability_id, "item use_ability_id did not survive Resource cloning", failures)
+
+	var ability := _make_ability(&"quaff_healing_potion", true, [effect])
+	var ability_path := "user://test_consumable_ability_definition.tres"
+	var item_path := "user://test_consumable_item_definition.tres"
+	var ability_save_error := ResourceSaver.save(ability, ability_path)
+	var item_save_error := ResourceSaver.save(item, item_path)
+	var restored_ability := load(ability_path) as AbilityDefinition
+	var restored_item := load(item_path) as ItemDefinition
+	_expect(ability_save_error == OK and restored_ability != null and restored_ability.effects.size() == 1, "consumable ability definition did not serialize as a valid resource", failures)
+	if restored_ability != null and restored_ability.effects.size() == 1:
+		_expect(_has_consumable_effect_metadata(restored_ability.effects[0], effect), "consumable effect metadata did not survive resource serialization", failures)
+	_expect(item_save_error == OK and restored_item != null and restored_item.use_ability_id == item.use_ability_id, "item use_ability_id did not survive resource serialization", failures)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(ability_path))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(item_path))
+
+
+static func _has_consumable_effect_metadata(candidate: AbilityEffect, expected: AbilityEffect) -> bool:
+	return candidate != null and candidate.heal_die == expected.heal_die and candidate.heal_dice_count == expected.heal_dice_count and candidate.heal_modifier == expected.heal_modifier and candidate.consumes_item_id == expected.consumes_item_id
 
 
 ## Fase C2: a perform_attack effect ability that also declares

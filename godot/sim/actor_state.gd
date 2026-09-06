@@ -33,9 +33,10 @@ var damage_die: int = 6
 var damage_modifier: int = 0
 
 # Fase C2 content fields. There is no equip command in this milestone:
-# equipment_slots/inventory/ability_ids are populated once (see
-# from_definition) and never mutated by Resolver, so they are immutable
-# content, not simulated state -- kept out of BattleState.stable_snapshot().
+# equipment_slots/ability_ids are populated once (see from_definition) and
+# remain immutable content. Inventory starts from content but is mutable
+# authoritative state: consumable effects remove entries and BattleState's
+# stable snapshot therefore includes it.
 var ability_ids: Array[StringName] = []
 ## Slot (Equipment.SLOT_WEAPON/SLOT_ARMOR) -> ItemDefinition id.
 var equipment_slots: Dictionary = {}

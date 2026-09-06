@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="AssetDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://world/asset_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"healing_potion_pickup_01"
+scene_path = "res://scenes/world/healing_potion_pickup.tscn"
+asset_type = &"pickup"
+tags = PackedStringArray("potion", "healing", "pickup", "interactable")
+footprint_radius = 0.55
+placement_max_slope_deg = 20.0

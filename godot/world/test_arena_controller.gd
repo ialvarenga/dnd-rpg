@@ -14,6 +14,7 @@ extends Node3D
 @onready var path_mesh: MeshInstance3D = $Debug/PathLine
 @onready var debug_label: Label = $DebugOverlay/Panel/Label
 @onready var hud: HudRoot = $HudRoot
+@onready var music: MusicDirector = $MusicDirector
 
 var battle_state := BattleState.new()
 var nav_provider: NavProvider
@@ -50,6 +51,7 @@ func _ready() -> void:
 	event_player.movement_completed.connect(_synchronize_completed_movement)
 	hud.bind(session, character.actor_id)
 	hud.ability_requested.connect(_on_hud_ability_requested)
+	hud.inventory_item_requested.connect(_on_inventory_item_requested)
 	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
 	hud.cancel_requested.connect(_on_hud_cancel_requested)
 
@@ -66,6 +68,8 @@ func _dress_arena_props() -> void:
 
 
 func _process(_delta: float) -> void:
+	if music != null:
+		music.set_phase(battle_state.phase)
 	_update_debug_view()
 
 
@@ -157,6 +161,13 @@ func _on_hud_ability_requested(ability_id: StringName) -> void:
 	# immediately, while Resolver rejects an attack without a valid target.
 	last_resolution = session.submit_ability(character.actor_id, ability_id, -1, Vector3.INF)
 	event_player.play_events(last_resolution.events)
+
+
+func _on_inventory_item_requested(item_id: StringName) -> void:
+	var item := DefinitionLibrary.get_default().get_item(item_id)
+	if item != null and item.use_ability_id != &"":
+		last_resolution = session.submit_ability(character.actor_id, item.use_ability_id, -1, Vector3.INF)
+		event_player.play_events(last_resolution.events)
 
 
 func _on_hud_end_turn_requested() -> void:

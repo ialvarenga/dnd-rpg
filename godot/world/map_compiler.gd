@@ -30,6 +30,7 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 	_compile_walls(spec.get("walls", []), terrain, bounds, occupied, result)
 	_compile_placements(spec.get("structures", []), &"structure", terrain, bounds, occupied, result)
 	_compile_placements(spec.get("vegetation", []), &"vegetation", terrain, bounds, occupied, result)
+	_compile_placements(spec.get("pickups", []), &"pickup", terrain, bounds, occupied, result)
 	_compile_actor_visuals(spec.get("actors", []), terrain, bounds, result)
 	if not result.errors.is_empty():
 		return result
@@ -92,8 +93,8 @@ func _compile_placements(raw_placements: Array, expected_type: StringName, terra
 		if definition == null or not definition.is_usable():
 			_add(result.errors, &"UNKNOWN_ASSET", "'%s' references unknown catalog asset '%s'" % [id, asset], id, {"asset": asset})
 			continue
-		if expected_type == &"structure" and definition.asset_type != &"structure":
-			_add(result.errors, &"INVALID_ASSET_TYPE", "'%s' must use a structure asset" % id, id, {"asset": asset})
+		if definition.asset_type != expected_type:
+			_add(result.errors, &"INVALID_ASSET_TYPE", "'%s' must use a %s asset" % [id, expected_type], id, {"asset": asset})
 			continue
 		var point := _point(raw.get("position", []))
 		if not _fits_bounds(point, definition.footprint_radius, bounds):

@@ -27,3 +27,7 @@ extends Resource
 ## Weapon-only, presentation-facing. Path to the held model CharacterView
 ## attaches to the wielder's hand bone; empty means nothing is shown.
 @export var held_model_path: String = ""
+
+## Ability granted when this carried item is used. Empty means the item is not
+## consumable.
+@export var use_ability_id: StringName = &""

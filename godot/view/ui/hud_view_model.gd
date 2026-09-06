@@ -12,6 +12,7 @@ static func for_actor(state: BattleState, actor_id: int, defs: DefinitionLibrary
 	if actor_def != null and not actor_def.display_name.is_empty():
 		name = actor_def.display_name
 	if actions.is_empty():
+		# Carried items are inventory interactions, not combat-hotbar actions.
 		actions = ActionAvailability.evaluate_all(state, actor_id, actor.ability_ids, defs)
 	return {
 		"actor_id": actor_id, "name": name, "hp": actor.hp, "max_hp": actor.max_hp,
@@ -59,6 +60,8 @@ static func narrate(event: Event, state: BattleState, defs: DefinitionLibrary) -
 		&"disengage_applied": return "%s disengages." % actor_name
 		&"attack_rolled": return "%s %s %s (roll %d)." % [actor_name, "hits" if d.get("hit", false) else "misses", target_name, int(d.get("roll", 0))]
 		&"damage_taken": return "%s takes %d damage." % [actor_name, int(d.get("amount", 0))]
+		&"healing_received": return "%s recovers %d HP." % [actor_name, int(d.get("amount", 0))]
+		&"item_consumed": return "%s consumes %s." % [actor_name, String(d.get("item_id", "an item")).replace("_", " ")]
 		&"actor_downed": return "%s is downed." % actor_name
 		&"actor_died": return "%s dies." % actor_name
 		&"condition_added": return "%s gains %s." % [actor_name, String(d.get("condition", "a condition"))]

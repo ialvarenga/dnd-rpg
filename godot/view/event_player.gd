@@ -7,6 +7,9 @@ extends Node
 
 signal movement_started(actor_id: int, path: PackedVector3Array)
 signal movement_completed(actor_id: int)
+signal feedback_presented(event: Event, feedback: FloatingCombatText)
+
+const FLOATING_COMBAT_TEXT_SCENE := preload("res://view/ui/floating_combat_text.tscn")
 
 var _views_by_actor: Dictionary = {}
 var _last_paths: Dictionary = {}
@@ -52,12 +55,23 @@ func _narrate_event(event: Event) -> void:
 				var target_view := get_character_view(int(event.data.get("target_id", -1)))
 				if target_view != null:
 					target_view.present_dodge()
+					_present_floating_feedback(target_view, event)
 		&"damage_taken":
 			if view != null:
 				view.present_hit()
+				_present_floating_feedback(view, event)
+		&"healing_received":
+			if view != null:
+				_present_floating_feedback(view, event)
+		&"item_consumed":
+			if view != null:
+				_present_floating_feedback(view, event)
 		&"interaction_completed":
 			if view != null:
 				view.present_interaction()
+		&"actor_downed", &"condition_added", &"condition_removed", &"command_rejected":
+			if view != null:
+				_present_floating_feedback(view, event)
 		&"actor_died":
 			if view != null:
 				view.present_death()
@@ -71,6 +85,21 @@ func get_resolved_path(actor_id: int) -> PackedVector3Array:
 
 func get_character_view(actor_id: int) -> CharacterView:
 	return _views_by_actor.get(actor_id) as CharacterView
+
+
+## A CharacterView is the anchor because it follows the interpolated world
+## position. This deliberately creates no command and never reads or mutates
+## BattleState: EncounterSession has already applied the event before playback.
+func _present_floating_feedback(view: CharacterView, event: Event) -> void:
+	var feedback := FLOATING_COMBAT_TEXT_SCENE.instantiate() as FloatingCombatText
+	if feedback == null:
+		return
+	view.add_child(feedback)
+	feedback.show_event(event)
+	if feedback.text.is_empty():
+		feedback.queue_free()
+		return
+	feedback_presented.emit(event, feedback)
 
 
 func _on_character_movement_completed(actor_id: int) -> void:

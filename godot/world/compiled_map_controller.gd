@@ -38,6 +38,7 @@ const EncounterSessionScript = preload("res://world/encounter_session.gd")
 const MapSpecSourceScript = preload("res://world/map_spec_source.gd")
 const ScreenPickerScript = preload("res://world/screen_picker.gd")
 const MusicDirectorScript = preload("res://view/music_director.gd")
+const WORLD_HEALTH_BAR_SCENE = preload("res://view/ui/world_health_bar.tscn")
 
 
 func _ready() -> void:
@@ -56,6 +57,7 @@ func _ready() -> void:
 		return
 	add_child(compilation.root)
 	_setup_player()
+	_setup_pickups(spec)
 	_setup_hostiles(spec)
 	_setup_camera()
 	_setup_light()
@@ -64,6 +66,8 @@ func _ready() -> void:
 	los_provider = GodotLosProvider.new(get_world_3d(), 8)
 	session = EncounterSessionScript.new()
 	session.configure(battle_state, nav_provider, los_provider)
+	session.state_changed.connect(_update_world_health_bars)
+	_update_world_health_bars()
 	_setup_music(compilation.music)
 	_setup_hud()
 	NavigationServer3D.map_force_update(compilation.navigation.navigation_region.get_navigation_map())
@@ -81,6 +85,17 @@ func _unhandled_input(event: InputEvent) -> void:
 			_show_path_preview(preview_target)
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		var interactable_id := ScreenPickerScript.interactable_id(camera, get_world_3d().direct_space_state, event.position)
+		if interactable_id != "":
+			var interact_result: ResolutionResult = session.submit_interact(character.actor_id, interactable_id)
+			event_player.play_events(interact_result.events)
+			for resolved_event in interact_result.events:
+				if resolved_event.type == &"items_looted":
+					var pickup_view := compilation.root.get_node_or_null(NodePath(str(resolved_event.data["interactable_id"])))
+					if pickup_view != null:
+						pickup_view.queue_free()
+			get_viewport().set_input_as_handled()
+			return
 		var hostile := _hostile_at_screen_position(event.position)
 		if _targeting_ability_id != &"":
 			if hostile != null:
@@ -124,12 +139,32 @@ func _setup_player() -> void:
 	var actor := ActorState.from_definition(knight, 1, &"heroes", character.global_position)
 	battle_state.actors[1] = actor
 	character.held_weapon_model_path = Equipment.held_weapon_model_path(actor, DefinitionLibrary.get_default())
+	_attach_world_health_bar(character)
 	if not spec.get("objectives", []).is_empty():
 		var raw: Array = spec.objectives[0].position
 		objective = Vector3(float(raw[0]), compilation.terrain.height_at(float(raw[0]), float(raw[1])) + 0.2, float(raw[1]))
 		var marker := OBJECTIVE_MARKER_SCENE.instantiate() as MeshInstance3D
 		marker.position = objective
 		add_child(marker)
+
+
+func _setup_pickups(spec: Dictionary) -> void:
+	for raw_pickup in spec.get("pickups", []):
+		var pickup_id := str(raw_pickup.get("id", ""))
+		var position_data: Array = raw_pickup.get("position", [])
+		if pickup_id.is_empty() or position_data.size() != 2:
+			continue
+		var pickup := InteractableState.new()
+		pickup.id = pickup_id
+		pickup.type = &"pickup"
+		pickup.state = &"ready"
+		pickup.position = Vector3(float(position_data[0]), compilation.terrain.height_at(float(position_data[0]), float(position_data[1])), float(position_data[1]))
+		pickup.interact_range = 2.0
+		pickup.contents = [StringName(str(raw_pickup.get("item_id", "healing_potion")))]
+		battle_state.interactables[pickup.id] = pickup
+		var pickup_view := compilation.root.get_node_or_null(NodePath(pickup_id))
+		if pickup_view != null:
+			pickup_view.set_meta("interactable_id", pickup.id)
 
 
 ## Actors are visual map data until this composition root turns hostile ones
@@ -164,7 +199,40 @@ func _setup_hostiles(spec: Dictionary) -> void:
 		var raider_actor := ActorState.from_definition(raider, actor_id, &"enemies", hostile.global_position)
 		battle_state.actors[actor_id] = raider_actor
 		hostile.held_weapon_model_path = Equipment.held_weapon_model_path(raider_actor, DefinitionLibrary.get_default())
+		_attach_world_health_bar(hostile)
 		actor_id += 1
+
+
+## Health bars are a read-only projection of already-applied session state.
+## They deliberately do not inspect events or participate in combat resolution.
+func _attach_world_health_bar(view: CharacterView) -> void:
+	if view == null or not is_instance_valid(view):
+		return
+	var bar := view.get_node_or_null("WorldHealthBar") as WorldHealthBar
+	if bar == null:
+		bar = WORLD_HEALTH_BAR_SCENE.instantiate() as WorldHealthBar
+		if bar == null:
+			return
+		bar.name = "WorldHealthBar"
+		bar.position = Vector3.UP * 2.0
+		view.add_child(bar)
+	_update_world_health_bar(view)
+
+
+func _update_world_health_bars() -> void:
+	_update_world_health_bar(character)
+	for hostile in hostile_views.values():
+		_update_world_health_bar(hostile as CharacterView)
+
+
+func _update_world_health_bar(view: CharacterView) -> void:
+	if view == null or not is_instance_valid(view) or not battle_state.actors.has(view.actor_id):
+		return
+	var bar := view.get_node_or_null("WorldHealthBar") as WorldHealthBar
+	var actor := battle_state.actors.get(view.actor_id) as ActorState
+	if bar == null or actor == null:
+		return
+	bar.fraction = clampf(float(actor.hp) / maxf(1.0, float(actor.max_hp)), 0.0, 1.0)
 
 
 func _process(delta: float) -> void:
@@ -303,6 +371,7 @@ func _setup_hud() -> void:
 	add_child(hud)
 	hud.bind(session, character.actor_id)
 	hud.ability_requested.connect(_on_hud_ability_requested)
+	hud.inventory_item_requested.connect(_on_inventory_item_requested)
 	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
 	hud.cancel_requested.connect(_on_hud_cancel_requested)
 
@@ -330,6 +399,14 @@ func _on_hud_ability_requested(ability_id: StringName) -> void:
 		return
 	_clear_targeting()
 	var result: ResolutionResult = session.submit_ability(character.actor_id, ability_id, -1, Vector3.INF)
+	event_player.play_events(result.events)
+
+
+func _on_inventory_item_requested(item_id: StringName) -> void:
+	var item := DefinitionLibrary.get_default().get_item(item_id)
+	if item == null or item.use_ability_id == &"":
+		return
+	var result: ResolutionResult = session.submit_ability(character.actor_id, item.use_ability_id, -1, Vector3.INF)
 	event_player.play_events(result.events)
 
 

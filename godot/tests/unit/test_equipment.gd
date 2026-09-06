@@ -25,7 +25,7 @@ static func _test_default_library_has_ordered_knight_content(failures: Array[Str
 	_expect(defs.has_item(&"leather_armor"), "default library is missing the leather_armor ItemDefinition", failures)
 	_expect(defs.has_item(&"dagger"), "default library is missing the dagger ItemDefinition", failures)
 	_expect(defs.ordered_actor_ids() == [&"knight", &"raider"], "ordered_actor_ids did not match the fixed actor manifest order", failures)
-	_expect(defs.ordered_item_ids() == [&"longsword", &"leather_armor", &"dagger"], "ordered_item_ids did not match the fixed item manifest order", failures)
+	_expect(defs.ordered_item_ids() == [&"longsword", &"leather_armor", &"dagger", &"healing_potion"], "ordered_item_ids did not match the fixed item manifest order", failures)
 
 
 static func _test_from_definition_builds_independent_actor(failures: Array[String]) -> void:
@@ -47,7 +47,7 @@ static func _test_from_definition_builds_independent_actor(failures: Array[Strin
 	var second_actor := ActorState.from_definition(knight, 8, &"heroes", Vector3.ZERO)
 	_expect(not second_actor.ability_ids.has(&"extra_ability"), "actors built from the same ActorDefinition shared a mutable ability_ids array", failures)
 	_expect(second_actor.equipment_slots.get(&"weapon") == &"longsword", "actors built from the same ActorDefinition shared a mutable equipment_slots dictionary", failures)
-	_expect(second_actor.inventory.is_empty(), "actors built from the same ActorDefinition shared a mutable inventory array", failures)
+	_expect(second_actor.inventory == [&"healing_potion"], "actors built from the same ActorDefinition shared a mutable inventory array", failures)
 
 
 static func _test_equipment_aggregates_over_base_stats(failures: Array[String]) -> void:

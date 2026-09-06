@@ -12,5 +12,6 @@ textures = {
 &"basic_attack": ExtResource("2_attack"),
 &"dash": ExtResource("3_dash"),
 &"disengage": ExtResource("4_disengage"),
-&"end_turn": ExtResource("5_end_turn")
+	&"quaff_healing_potion": ExtResource("5_end_turn"),
+	&"end_turn": ExtResource("5_end_turn")
 }

@@ -3579,17 +3579,17 @@ crafting, and spell slots.
 
 ## Fase D1 — Wire existing feedback into the running game
 
-1. Instantiate `CombatLog` and `TooltipLayer` in `scenes/ui/hud_root.tscn`.
+1. [READY] Instantiate `CombatLog` and `TooltipLayer` in `scenes/ui/hud_root.tscn`.
    `HudRoot` subscribes to `EncounterSession.events_resolved` and appends
    `HudViewModel.narrate()` output after the events have been applied. It still
    emits only intent and never creates commands, per ADR-005.
-2. Extend `view/event_player.gd` to create `FloatingCombatText` for
+2. [READY] Extend `view/event_player.gd` to create `FloatingCombatText` for
    `damage_taken` (and `healing_received` in D2) and present the currently
    silent `actor_downed`, condition, and command-rejection events. Playback
    remains strictly post-apply under ADR-003.
-3. Attach `WorldHealthBar` to each `CharacterView` in
+3. [READY] Attach `WorldHealthBar` to each `CharacterView` in
    `CompiledMapController`, updating from `session.state_changed`.
-4. Add `MusicDirector` to the test arena too, or document the intended
+4. [READY] Add `MusicDirector` to the test arena too, or document the intended
    asymmetry with the compiled-map scene.
 
 **Value:** readable combat log, damage numbers, and enemy health bars from
@@ -3601,32 +3601,32 @@ Model a consumable as an ability, not a new command. `Resolver.resolve()`
 already dispatches registered ability ids and the generic action hotbar already
 renders available ability dictionaries.
 
-1. Add `heal_die`, `heal_dice_count = 1`, `heal_modifier`, and
+1. [READY] Add `heal_die`, `heal_dice_count = 1`, `heal_modifier`, and
    `consumes_item_id` to `AbilityEffect`; add `use_ability_id` to
    `ItemDefinition` (empty means not consumable).
-2. Add `Dice.roll_dice(rng_state, count, sides)`. Its RNG advance order must
+2. [READY] Add `Dice.roll_dice(rng_state, count, sides)`. Its RNG advance order must
    match repeated `roll_die` calls exactly.
-3. Add resolver effects `heal` and `consume_item`. They emit
+3. [READY] Add resolver effects `heal` and `consume_item`. They emit
    `healing_received { actor_id, amount, hp_before, hp_after }` and
    `item_consumed { actor_id, item_id }`; `apply()` clamps healing to max HP
    and removes exactly one matching inventory item.
-4. Extend shared `AbilityCostRules.rejection_for_cost()` to receive
+4. [READY] Extend shared `AbilityCostRules.rejection_for_cost()` to receive
    definitions and reject a required missing item with
    `ITEM_NOT_IN_INVENTORY` in `RejectionReason`. Both Resolver and
    `ActionAvailability` use this one rule path.
-5. Add `ActionAvailability.effective_ability_ids(actor, defs)`: actor
+5. [READY] Add `ActionAvailability.effective_ability_ids(actor, defs)`: actor
    abilities plus each carried item's `use_ability_id`. Use it in the HUD view
    model and encounter session so an unavailable potion is shown consistently.
-6. Treat inventory as mutable state: update its `ActorState` documentation and
+6. [READY] Treat inventory as mutable state: update its `ActorState` documentation and
    include it in `BattleState.stable_snapshot()` so replay hashes catch
    inventory divergence.
-7. Add an AI consumable candidate and score healing more highly as HP falls.
+7. [READY] Add an AI consumable candidate and score healing more highly as HP falls.
    Candidates continue to be validated by the real Resolver before scoring.
-8. Add `quaff_healing_potion` (action, no target, heal 2d4+2 then consume) and
+8. [READY] Add `quaff_healing_potion` (action, no target, heal 2d4+2 then consume) and
    `healing_potion` resources; give knight and raider one, register an icon,
    add both resources to fixed manifests, update ordering tests, and bump the
    content version.
-9. Narrate healing and consumption, add full event-coverage tests, and bump
+9. [READY] Narrate healing and consumption, add full event-coverage tests, and bump
    save schema version according to the existing incompatible-save policy.
 
 ## Fase D3 — Chests contain loot

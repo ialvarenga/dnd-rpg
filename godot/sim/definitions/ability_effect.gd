@@ -18,3 +18,13 @@ extends Resource
 @export var range_meters: float = 1.5
 @export var is_ranged: bool = false
 @export var attack_kind: StringName = &"basic"
+
+## heal: roll heal_dice_count d heal_die and add heal_modifier. A heal_die of
+## 0 means the effect has no dice metadata, preserving existing effects.
+@export var heal_die: int = 0
+@export var heal_dice_count: int = 1
+@export var heal_modifier: int = 0
+
+## consume_item: stable inventory item id required by this effect. Empty means
+## the effect does not consume an item.
+@export var consumes_item_id: StringName = &""

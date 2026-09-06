@@ -65,6 +65,7 @@ func stable_snapshot() -> Dictionary:
 			"reaction_available": actor.reaction_available,
 			"disengaged": actor.disengaged,
 			"conditions": actor.conditions,
+			"inventory": actor.inventory,
 		})
 	var interactable_snapshots: Array[Dictionary] = []
 	var interactable_ids: Array = interactables.keys()
@@ -75,6 +76,7 @@ func stable_snapshot() -> Dictionary:
 			"id": interactable.id,
 			"type": String(interactable.type),
 			"state": String(interactable.state),
+			"contents": interactable.contents,
 		})
 	return {
 		"actors": actor_snapshots,

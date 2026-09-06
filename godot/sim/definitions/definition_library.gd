@@ -15,14 +15,14 @@ extends RefCounted
 ## Bumped whenever the shape or meaning of shipped content changes, so saves
 ## (A8) can carry/validate a content_version alongside rules/schema versioning.
 ## Fase C3 bump: adds the raider actor definition used by map encounters.
-## Bump 4: adds the dagger item (raider's visual-only weapon) and gives it a
-## held_model_path.
-const CONTENT_VERSION: int = 4
+## Bump 5: adds the shared healing-potion consumable ability and item.
+const CONTENT_VERSION: int = 5
 
 const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/basic_attack.tres",
 	"res://data/abilities/dash.tres",
 	"res://data/abilities/disengage.tres",
+	"res://data/abilities/quaff_healing_potion.tres",
 ]
 
 const CONDITION_MANIFEST: Array[String] = [
@@ -36,6 +36,7 @@ const ITEM_MANIFEST: Array[String] = [
 	"res://data/items/longsword.tres",
 	"res://data/items/leather_armor.tres",
 	"res://data/items/dagger.tres",
+	"res://data/items/healing_potion.tres",
 ]
 
 const ACTOR_MANIFEST: Array[String] = [

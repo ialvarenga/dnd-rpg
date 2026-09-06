@@ -16,6 +16,7 @@ func run() -> Dictionary:
 	if not navigation_ready:
 		arena.queue_free()
 		return {"name": "integration/test_arena_runtime", "failures": failures}
+	_test_music_director(controller, failures)
 	await _test_hud_runtime(controller, arena.get_node("HudRoot"), player, failures)
 	_test_hud_input_routing(controller, arena.get_node("HudRoot"), failures)
 	await _test_preview_and_clamped_combat_movement(controller, player, event_player, failures)
@@ -28,6 +29,20 @@ func run() -> Dictionary:
 	_test_camera_pan_direction(arena.get_node("PlayerCharacter/CameraRig"), failures)
 	arena.queue_free()
 	return {"name": "integration/test_arena_runtime", "failures": failures}
+
+
+func _test_music_director(controller: TestArenaController, failures: Array[String]) -> void:
+	var music := controller.get_node_or_null("MusicDirector") as MusicDirector
+	var player := music.get_node_or_null("AudioStreamPlayer") as AudioStreamPlayer if music != null else null
+	_expect(music != null and player != null, "test arena has no MusicDirector presentation node", failures)
+	if music == null or player == null:
+		return
+	_expect(player.stream == MusicDirector.AMBIENT_TRACKS[music.ambient_track_id], "test arena did not start the selected ambient cue", failures)
+	controller.battle_state.phase = &"combat"
+	controller._process(0.0)
+	_expect(player.stream == MusicDirector.BATTLE_TRACKS[music.battle_track_id], "MusicDirector did not follow the test arena combat phase", failures)
+	controller.battle_state.phase = &"exploration"
+	controller._process(0.0)
 
 
 func _test_hud_runtime(controller: TestArenaController, hud: HudRoot, player: CharacterView, failures: Array[String]) -> void:

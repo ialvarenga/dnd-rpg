@@ -69,6 +69,12 @@ func _evaluate_candidates(snapshot: BattleState, actor_id: int, nav: NavProvider
 
 func _candidate_commands(snapshot: BattleState, actor: ActorState, targets: Array[ActorState]) -> Array[Command]:
 	var commands: Array[Command] = []
+	# Candidate generation is deliberately permissive; Resolver validates the
+	# actual inventory/costs for every candidate before it can be selected.
+	for ability_id in ActionAvailability.effective_ability_ids(actor):
+		var ability := DefinitionLibrary.get_default().get_ability(ability_id)
+		if ability != null and _has_heal_effect(ability):
+			commands.append(Command.create(ability_id, actor.id))
 	if actor.action_available:
 		for target in targets:
 			if actor.position.distance_to(target.position) <= ATTACK_RANGE_METERS + SCORE_EPSILON and _has_formation_space(snapshot, actor):
@@ -84,6 +90,13 @@ func _candidate_commands(snapshot: BattleState, actor: ActorState, targets: Arra
 			commands.append(move)
 	commands.append(Command.create(&"end_turn", actor.id))
 	return commands
+
+
+func _has_heal_effect(ability: AbilityDefinition) -> bool:
+	for effect in ability.effects:
+		if effect.type == &"heal":
+			return true
+	return false
 
 
 func _prioritized_targets(snapshot: BattleState, actor: ActorState) -> Array[ActorState]:
@@ -176,6 +189,12 @@ func _score(before: BattleState, after: BattleState, actor: ActorState, command:
 			if (after.actors[actor.id] as ActorState).action_available:
 				score += 25.0
 		&"end_turn": score = 0.0
+		_:
+			for event in result.events:
+				if event.type == &"healing_received" and int(event.data.get("actor_id", -1)) == actor.id:
+					var missing_hp: int = max(0, actor.max_hp - actor.hp)
+					# The same heal becomes increasingly valuable nearer to being downed.
+					score += float(event.data.get("amount", 0)) * (20.0 + 180.0 * float(missing_hp) / maxf(1.0, actor.max_hp))
 	for event in result.events:
 		if event.type == &"reaction_triggered" and int(event.data.get("target_id", -1)) == actor.id:
 			score -= 10000.0

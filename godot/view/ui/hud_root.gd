@@ -6,6 +6,7 @@ extends CanvasLayer
 signal ability_requested(ability_id: StringName)
 signal end_turn_requested
 signal cancel_requested
+signal inventory_item_requested(item_id: StringName)
 
 ## DefinitionLibrary is a RefCounted catalog, not an inspector Resource.
 ## Controllers may inject it at runtime; otherwise _ready() uses the default.
@@ -20,6 +21,7 @@ var actor_id := -1
 @onready var conditions: ConditionStrip = $Margin/TopBar/Conditions
 @onready var combat_log: CombatLog = $CombatLog
 @onready var tooltip_layer: TooltipLayer = $TooltipLayer
+@onready var item_slots: GridContainer = $Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots
 
 func _ready() -> void:
 	definitions = definitions if definitions != null else DefinitionLibrary.get_default()
@@ -47,6 +49,37 @@ func sync() -> void:
 	hotbar.set_actions(data.action_availability)
 	turns.set_turn_order(HudViewModel.turn_order(session.battle_state, definitions))
 	conditions.set_conditions(data.conditions)
+	_sync_inventory(session.battle_state.actors[actor_id] as ActorState)
+
+
+func _sync_inventory(actor: ActorState) -> void:
+	var counts: Dictionary = {}
+	for item_id in actor.inventory:
+		counts[item_id] = int(counts.get(item_id, 0)) + 1
+	var index := 0
+	for item_id in counts.keys():
+		if index >= item_slots.get_child_count():
+			break
+		var button := item_slots.get_child(index) as Button
+		button.disabled = false
+		button.text = "%s ×%d" % [String(item_id).replace("_", " ").capitalize(), counts[item_id]]
+		button.tooltip_text = "Double-click to use"
+		button.set_meta("item_id", item_id)
+		if not button.gui_input.is_connected(_on_item_slot_gui_input):
+			button.gui_input.connect(_on_item_slot_gui_input.bind(button))
+		index += 1
+	for empty_index in range(index, item_slots.get_child_count()):
+		var empty_button := item_slots.get_child(empty_index) as Button
+		empty_button.disabled = true
+		empty_button.text = ""
+		empty_button.tooltip_text = "No item"
+		empty_button.remove_meta("item_id")
+
+
+func _on_item_slot_gui_input(event: InputEvent, button: Button) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and event.double_click and button.has_meta("item_id"):
+		inventory_item_requested.emit(StringName(str(button.get_meta("item_id"))))
+		get_viewport().set_input_as_handled()
 
 
 ## Events are applied before EncounterSession emits this signal, so narration

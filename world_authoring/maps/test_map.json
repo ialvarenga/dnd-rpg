@@ -19,7 +19,7 @@
   },
   "regions": [
     {
-      "id": "region_1",
+      "id": "forest",
       "polygon": [
         [
           0,
@@ -40,7 +40,7 @@
       ],
       "vegetation": {
         "profile": "temperate_sparse",
-        "density": 0
+        "density": 0.69
       }
     }
   ],
@@ -58,9 +58,12 @@
   "actors": [
     {
       "id": "rogue_scout",
-      "archetype": "character_rogue_01",
+      "archetype": "character_barbarian_01",
       "side": "enemies",
-      "position": [12, 43]
+      "position": [
+        12,
+        43
+      ]
     }
   ],
   "rivers": [
@@ -83,22 +86,7 @@
   "player": {
     "character_asset": "character_knight_01"
   },
-  "walls": [
-    {
-      "id": "wall_1",
-      "asset": "wall_dungeon_01",
-      "control_points": [
-        [
-          18.555555555555557,
-          40
-        ],
-        [
-          45.666666666666664,
-          39.8888888888889
-        ]
-      ]
-    }
-  ],
+  "walls": [],
   "interactables": [
     {
       "id": "interactable_1",
@@ -107,6 +95,17 @@
       "position": [
         32,
         60
+      ]
+    }
+  ],
+  "pickups": [
+    {
+      "id": "healing_potion_1",
+      "asset": "healing_potion_pickup_01",
+      "item_id": "healing_potion",
+      "position": [
+        60,
+        40
       ]
     }
   ]

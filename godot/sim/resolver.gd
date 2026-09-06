@@ -31,6 +31,8 @@ const EFFECT_APPLY_CONDITION := &"apply_condition"
 const EFFECT_REMOVE_CONDITION := &"remove_condition"
 const EFFECT_APPLY_DISENGAGE := &"apply_disengage"
 const EFFECT_PERFORM_ATTACK := &"perform_attack"
+const EFFECT_HEAL := &"heal"
+const EFFECT_CONSUME_ITEM := &"consume_item"
 
 const INTERACT_RANGE_EPSILON := 0.0001
 
@@ -42,6 +44,7 @@ const INTERACTABLE_TRANSITIONS := {
 	&"door": {&"closed": &"open", &"open": &"closed"},
 	&"chest": {&"closed": &"open"},
 	&"lever": {&"off": &"on", &"on": &"off"},
+	&"pickup": {&"ready": &"collected"},
 }
 
 
@@ -196,6 +199,8 @@ static func _resolve_interact(state: BattleState, cmd: Command, result: Resoluti
 		"previous_state": interactable.state,
 		"new_state": next_state,
 	}))
+	if not interactable.contents.is_empty():
+		result.events.append(Event.create(&"items_looted", {"actor_id": actor.id, "interactable_id": interactable.id, "item_ids": interactable.contents.duplicate()}))
 	return result
 
 
@@ -208,11 +213,13 @@ static func _resolve_ability_command(state: BattleState, cmd: Command, los: LosP
 	for effect in ability.effects:
 		if effect.type == EFFECT_PERFORM_ATTACK:
 			return _resolve_attack_effect(state, cmd, ability, effect, los, definitions, result)
-	var cost_rejection := AbilityCostRulesScript.rejection_for_cost(actor, ability)
+	var cost_rejection := AbilityCostRulesScript.rejection_for_cost(actor, ability, definitions)
 	if cost_rejection != &"": return _rejected(result, cmd, cost_rejection)
 	_spend_ability_cost(result, actor, ability)
+	var working := state.clone()
 	for effect in ability.effects:
-		_apply_generic_effect(result, actor, effect)
+		_apply_generic_effect(result, working, working.actors[actor.id], effect)
+	result.next_rng_state = working.rng_state
 	return result
 
 
@@ -231,7 +238,7 @@ static func _spend_ability_cost(result: ResolutionResult, actor: ActorState, abi
 		}))
 
 
-static func _apply_generic_effect(result: ResolutionResult, actor: ActorState, effect: AbilityEffect) -> void:
+static func _apply_generic_effect(result: ResolutionResult, working: BattleState, actor: ActorState, effect: AbilityEffect) -> void:
 	match effect.type:
 		EFFECT_ADD_BASE_MOVEMENT:
 			var amount := actor.movement_speed * effect.multiplier
@@ -242,6 +249,15 @@ static func _apply_generic_effect(result: ResolutionResult, actor: ActorState, e
 			result.events.append(Event.create(&"condition_added", {"actor_id": actor.id, "condition": effect.condition_id}))
 		EFFECT_REMOVE_CONDITION:
 			result.events.append(Event.create(&"condition_removed", {"actor_id": actor.id, "condition": effect.condition_id}))
+		EFFECT_HEAL:
+			var roll := Dice.roll_dice(working.rng_state, effect.heal_dice_count, effect.heal_die)
+			working.rng_state = int(roll["next_rng_state"])
+			var amount: int = max(0, int(roll["total"]) + effect.heal_modifier)
+			var hp_before := actor.hp
+			var hp_after := mini(actor.max_hp, hp_before + amount)
+			_append_and_apply(result, working, Event.create(&"healing_received", {"actor_id": actor.id, "amount": hp_after - hp_before, "hp_before": hp_before, "hp_after": hp_after, "rolls": roll["values"]}))
+		EFFECT_CONSUME_ITEM:
+			_append_and_apply(result, working, Event.create(&"item_consumed", {"actor_id": actor.id, "item_id": effect.consumes_item_id}))
 		_:
 			push_error("Unknown ability effect type: %s" % effect.type)
 
@@ -256,7 +272,7 @@ static func _resolve_attack_effect(state: BattleState, cmd: Command, ability: Ab
 	# effect ability that declares costs_bonus_action/costs_reaction/
 	# movement_cost is rejected on an unaffordable one instead of only ever
 	# checking costs_action.
-	var cost_rejection := AbilityCostRulesScript.rejection_for_cost(attacker, ability)
+	var cost_rejection := AbilityCostRulesScript.rejection_for_cost(attacker, ability, definitions)
 	if cost_rejection != &"": return _rejected(result, cmd, cost_rejection)
 	if not los.has_line_of_sight(attacker.position, target.position): return _rejected(result, cmd, RejectionReasonRules.NO_LINE_OF_SIGHT)
 	var attack_range := maxf(effect.range_meters, float(cmd.metadata.get("range_meters", effect.range_meters)))
@@ -455,6 +471,8 @@ static func apply(state: BattleState, event: Event) -> void:
 			if event.data["action_spent"]: attacking_actor.action_available = false
 			if event.data.get("reaction_spent", false): attacking_actor.reaction_available = false
 		&"damage_taken": (state.actors[event.data["actor_id"]] as ActorState).hp = max(0, (state.actors[event.data["actor_id"]] as ActorState).hp - event.data["amount"])
+		&"healing_received": (state.actors[event.data["actor_id"]] as ActorState).hp = mini((state.actors[event.data["actor_id"]] as ActorState).max_hp, (state.actors[event.data["actor_id"]] as ActorState).hp + int(event.data["amount"]))
+		&"item_consumed": (state.actors[event.data["actor_id"]] as ActorState).inventory.erase(StringName(str(event.data["item_id"])))
 		&"actor_downed":
 			var downed_actor: ActorState = state.actors[event.data["actor_id"]]
 			if not downed_actor.conditions.has(&"unconscious"): downed_actor.conditions.append(&"unconscious")
@@ -470,6 +488,11 @@ static func apply(state: BattleState, event: Event) -> void:
 		&"interaction_completed":
 			var interactable: InteractableState = state.interactables[event.data["interactable_id"]]
 			interactable.state = event.data["new_state"]
+		&"items_looted":
+			var looter: ActorState = state.actors[event.data["actor_id"]]
+			for item_id in event.data["item_ids"]:
+				looter.inventory.append(StringName(str(item_id)))
+			(state.interactables[event.data["interactable_id"]] as InteractableState).contents.clear()
 		&"combat_started", &"combat_ending": state.phase = event.data["phase"]
 		&"initiative_established":
 			state.initiative_order = _actor_ids(event.data["initiative_order"])

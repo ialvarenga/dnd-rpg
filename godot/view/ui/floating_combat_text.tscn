@@ -1,5 +1,10 @@
 [gd_scene format=3]
 [ext_resource type="Script" path="res://view/ui/floating_combat_text.gd" id="1"]
-[node name="FloatingCombatText" type="Label"]
+[node name="FloatingCombatText" type="Label3D"]
 script = ExtResource("1")
-mouse_filter = 2
+pixel_size = 0.008
+font_size = 44
+outline_size = 8
+billboard = 1
+no_depth_test = true
+position = Vector3(0, 2.15, 0)

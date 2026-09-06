@@ -15,7 +15,8 @@ static func run() -> Dictionary:
 	var order := HudViewModel.turn_order(state, DefinitionLibrary.get_default())
 	_expect(order.size() == 2 and order[0].actor_id == 1, "turn order should follow authoritative initiative order", failures)
 	state.actors[2].hp = 0
-	state.actors[2].conditions = [&"dead"]
+	state.actors[2].conditions.clear()
+	state.actors[2].conditions.append(&"dead")
 	order = HudViewModel.turn_order(state, DefinitionLibrary.get_default())
 	_expect(order.size() == 1 and order[0].actor_id == 1, "turn order should remove dead actors", failures)
 	for event_type in _event_narration_expectations():
@@ -38,6 +39,8 @@ static func _event_narration_expectations() -> Dictionary:
 		&"disengage_applied": "Knight disengages.",
 		&"attack_rolled": "Knight hits Actor 2 (roll 12).",
 		&"damage_taken": "Knight takes 2 damage.",
+		&"healing_received": "Knight recovers 2 HP.",
+		&"item_consumed": "Knight consumes an item.",
 		&"actor_downed": "Knight is downed.",
 		&"actor_died": "Knight dies.",
 		&"condition_added": "Knight gains poisoned.",

@@ -39,7 +39,7 @@ static func evaluate(state: BattleState, actor_id: int, ability_id: StringName, 
 	var ability := definitions.get_ability(ability_id)
 	if ability == null:
 		return _result(ability_id, false, RejectionReasonRules.UNKNOWN_ABILITY_DEFINITION)
-	var cost_rejection := AbilityCostRulesScript.rejection_for_cost(actor, ability)
+	var cost_rejection := AbilityCostRulesScript.rejection_for_cost(actor, ability, definitions)
 	if cost_rejection != &"":
 		return _result(ability_id, false, cost_rejection)
 	return _result(ability_id, true, &"")
@@ -52,6 +52,18 @@ static func evaluate_all(state: BattleState, actor_id: int, ability_ids: Array[S
 	for ability_id in ability_ids:
 		evaluations.append(evaluate(state, actor_id, ability_id, defs))
 	return evaluations
+
+
+## Stable actor abilities followed by abilities granted by carried items.
+## Duplicate ids are omitted so an item cannot create duplicate hotbar slots.
+static func effective_ability_ids(actor: ActorState, defs: DefinitionLibrary = null) -> Array[StringName]:
+	var definitions := defs if defs != null else DefinitionLibrary.get_default()
+	var ids: Array[StringName] = actor.ability_ids.duplicate()
+	for item_id in actor.inventory:
+		var item := definitions.get_item(item_id)
+		if item != null and item.use_ability_id != &"" and not ids.has(item.use_ability_id):
+			ids.append(item.use_ability_id)
+	return ids
 
 
 static func _result(ability_id: StringName, available: bool, reason: StringName) -> Dictionary:

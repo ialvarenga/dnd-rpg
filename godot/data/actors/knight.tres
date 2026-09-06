@@ -24,4 +24,4 @@ equipment_slots = {
 &"weapon": &"longsword",
 &"armor": &"leather_armor"
 }
-starting_inventory = Array[StringName]([])
+starting_inventory = Array[StringName]([&"healing_potion"])

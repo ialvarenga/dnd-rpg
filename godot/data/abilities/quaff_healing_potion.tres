@@ -1,0 +1,24 @@
+[gd_resource type="Resource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/ability_definition.gd" id="1_ability"]
+[ext_resource type="Script" path="res://sim/definitions/ability_effect.gd" id="2_effect"]
+
+[sub_resource type="Resource" id="AbilityEffect_heal"]
+script = ExtResource("2_effect")
+type = &"heal"
+heal_die = 4
+heal_dice_count = 2
+heal_modifier = 2
+
+[sub_resource type="Resource" id="AbilityEffect_consume"]
+script = ExtResource("2_effect")
+type = &"consume_item"
+consumes_item_id = &"healing_potion"
+
+[resource]
+script = ExtResource("1_ability")
+id = &"quaff_healing_potion"
+display_name = "Quaff Healing Potion"
+costs_action = true
+targeting = &"none"
+effects = Array[ExtResource("2_effect")]([SubResource("AbilityEffect_heal"), SubResource("AbilityEffect_consume")])

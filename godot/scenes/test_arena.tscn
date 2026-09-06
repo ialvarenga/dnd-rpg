@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" path="res://scenes/camera/tactical_camera_rig.tscn" id="6_camera"]
 [ext_resource type="PackedScene" path="res://scenes/world/tactical_sun.tscn" id="7_sun"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud_root.tscn" id="8_hud"]
+[ext_resource type="Script" path="res://view/music_director.gd" id="9_music"]
 
 [sub_resource type="StandardMaterial3D" id="FloorMaterial"]
 albedo_color = Color(0.18, 0.28, 0.2, 1)
@@ -174,6 +175,11 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, -1, 0)
 script = ExtResource("4_event_player")
 
 [node name="HudRoot" parent="." unique_id=116947241 instance=ExtResource("8_hud")]
+
+[node name="MusicDirector" type="Node" parent="."]
+script = ExtResource("9_music")
+
+[node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="MusicDirector"]
 
 [node name="Debug" type="Node3D" parent="." unique_id=40672315]
 

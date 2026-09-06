@@ -1,3 +1,3 @@
 import {footprint} from './asset-catalog.js';
-const KEYS=['vegetation','structures','interactables','bridges'];
+const KEYS=['vegetation','structures','interactables','pickups','bridges'];
 export function validateCollisions(spec){const objects=[];for(const key of KEYS)for(const [index,entity] of (spec[key]||[]).entries())if(Array.isArray(entity.position)&&entity.position.length===2)objects.push({key,index,id:entity.id||`${key}/${index}`,position:entity.position,radius:footprint(entity.asset)});const errors=[];for(let i=0;i<objects.length;i++)for(let j=0;j<i;j++){const a=objects[i],b=objects[j];if(Math.hypot(a.position[0]-b.position[0],a.position[1]-b.position[1])<a.radius+b.radius)errors.push({path:`/${a.key}/${a.index}/position`,message:`overlaps ${b.id}; move one object so their footprints do not touch`})}return errors}
