@@ -3563,11 +3563,122 @@ idle animation plays when movement stops
 
 ---
 
-# MARCO D — AI WORLD AUTHORING
+# MARCO D — GAMEPLAY DEPTH: FEEDBACK, CONSUMABLES, AND A LIVE WORLD
+
+The deterministic simulation, event-sourced state, ports, replay support, and
+HUD read model are complete through Marco C. This milestone adds content and
+consequence without compromising those boundaries. It is deliberately ordered
+to land immediate feedback first, then close the loop:
+
+```text
+chest → loot → inventory → drink → heal
+```
+
+Out of scope: weight/encumbrance, currency, shops, equip/unequip, rarity,
+crafting, and spell slots.
+
+## Fase D1 — Wire existing feedback into the running game
+
+1. Instantiate `CombatLog` and `TooltipLayer` in `scenes/ui/hud_root.tscn`.
+   `HudRoot` subscribes to `EncounterSession.events_resolved` and appends
+   `HudViewModel.narrate()` output after the events have been applied. It still
+   emits only intent and never creates commands, per ADR-005.
+2. Extend `view/event_player.gd` to create `FloatingCombatText` for
+   `damage_taken` (and `healing_received` in D2) and present the currently
+   silent `actor_downed`, condition, and command-rejection events. Playback
+   remains strictly post-apply under ADR-003.
+3. Attach `WorldHealthBar` to each `CharacterView` in
+   `CompiledMapController`, updating from `session.state_changed`.
+4. Add `MusicDirector` to the test arena too, or document the intended
+   asymmetry with the compiled-map scene.
+
+**Value:** readable combat log, damage numbers, and enemy health bars from
+already-authored components.
+
+## Fase D2 — Consumables and healing
+
+Model a consumable as an ability, not a new command. `Resolver.resolve()`
+already dispatches registered ability ids and the generic action hotbar already
+renders available ability dictionaries.
+
+1. Add `heal_die`, `heal_dice_count = 1`, `heal_modifier`, and
+   `consumes_item_id` to `AbilityEffect`; add `use_ability_id` to
+   `ItemDefinition` (empty means not consumable).
+2. Add `Dice.roll_dice(rng_state, count, sides)`. Its RNG advance order must
+   match repeated `roll_die` calls exactly.
+3. Add resolver effects `heal` and `consume_item`. They emit
+   `healing_received { actor_id, amount, hp_before, hp_after }` and
+   `item_consumed { actor_id, item_id }`; `apply()` clamps healing to max HP
+   and removes exactly one matching inventory item.
+4. Extend shared `AbilityCostRules.rejection_for_cost()` to receive
+   definitions and reject a required missing item with
+   `ITEM_NOT_IN_INVENTORY` in `RejectionReason`. Both Resolver and
+   `ActionAvailability` use this one rule path.
+5. Add `ActionAvailability.effective_ability_ids(actor, defs)`: actor
+   abilities plus each carried item's `use_ability_id`. Use it in the HUD view
+   model and encounter session so an unavailable potion is shown consistently.
+6. Treat inventory as mutable state: update its `ActorState` documentation and
+   include it in `BattleState.stable_snapshot()` so replay hashes catch
+   inventory divergence.
+7. Add an AI consumable candidate and score healing more highly as HP falls.
+   Candidates continue to be validated by the real Resolver before scoring.
+8. Add `quaff_healing_potion` (action, no target, heal 2d4+2 then consume) and
+   `healing_potion` resources; give knight and raider one, register an icon,
+   add both resources to fixed manifests, update ordering tests, and bump the
+   content version.
+9. Narrate healing and consumption, add full event-coverage tests, and bump
+   save schema version according to the existing incompatible-save policy.
+
+## Fase D3 — Chests contain loot
+
+1. Add `contents: Array[StringName]` to `InteractableState`, including clone,
+   serialization, deserialization, and stable snapshots.
+2. When an opened container has contents, `_resolve_interact()` emits
+   `items_looted { actor_id, interactable_id, item_ids }`. Applying it appends
+   items to actor inventory and clears the container. Keep transitions
+   data-driven rather than branching on an instance id.
+3. Give the hand-built test-arena chest a healing potion.
+
+## Fase D4 — Shipping-scene interactables
+
+1. Have `MapCompiler` compile the MapSpec `interactables` array into
+   `InteractableState`s, deriving initial state by kind and resolving visuals
+   only through `AssetCatalog`.
+2. Have `CompiledMapController` seed those states, set `interactable_id`
+   metadata and ScreenPicker collision layer 3, and route interact input using
+   the existing test-arena pattern.
+3. Add the schema-supported `barrel` transition to resolver data.
+
+## Fase D5 — Ranged attack and complete AI kits
+
+1. Add data-only ranged attack, shortbow, and archer resources using the
+   existing range and ranged-vs-prone logic.
+2. Generalize enemy command generation to iterate the actor's ability ids and
+   use `AbilityTargeting.attack_range()` instead of a hard-coded basic-attack
+   range. This makes dash and disengage valid AI options too.
+
+### Marco D architectural constraints
+
+- Authoritative state remains `BattleState`; only `Command → Resolver → Event
+  → apply()` mutates it. `resolve()` never mutates its input (ADR-001).
+- Definitions stay in fixed `.tres` manifests keyed by `StringName`; resolver
+  logic does not branch on concrete content ids (ADR-004).
+- Views only play accepted, already-applied events (ADR-003). The HUD remains
+  a `HudViewModel` projection that emits intent through `EncounterSession`
+  (ADR-005).
+- Register new test suites in `godot/tests/test_runner.gd` and commit `.uid`
+  files alongside any new scripts.
+
+Deferred after this milestone: condition durations/per-turn ticks, damage
+typing/resistance, and saving throws.
 
 ---
 
-# Fase D1 — Natural language → MapSpec
+# MARCO E — AI WORLD AUTHORING
+
+---
+
+# Fase E1 — Natural language → MapSpec
 
 Input:
 
@@ -3594,7 +3705,7 @@ No prose parsing.
 
 ---
 
-# Fase D2 — Validation repair
+# Fase E2 — Validation repair
 
 ```text
 MapSpec
@@ -3620,7 +3731,7 @@ Then return errors.
 
 ---
 
-# Fase D3 — Conversational MapPatch
+# Fase E3 — Conversational MapPatch
 
 Operations:
 
@@ -3638,7 +3749,7 @@ MapPatch is preferred over full regeneration.
 
 ---
 
-# Fase D4 — Versioning
+# Fase E4 — Versioning
 
 Map identity:
 

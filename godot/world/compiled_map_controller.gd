@@ -185,7 +185,10 @@ func _process(delta: float) -> void:
 func _check_hostile_detection() -> void:
 	for actor_id in hostile_views:
 		var hostile := hostile_views[actor_id]
-		if not is_instance_valid(hostile):
+		if not is_instance_valid(hostile) or not battle_state.actors.has(actor_id):
+			continue
+		var hostile_state: ActorState = battle_state.actors[actor_id]
+		if not hostile_state.is_alive():
 			continue
 		if character.global_position.distance_to(hostile.global_position) <= detection_range and los_provider.has_line_of_sight(hostile.global_position, character.global_position):
 			var start := Command.create(&"start_combat", actor_id)

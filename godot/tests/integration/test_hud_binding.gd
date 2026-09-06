@@ -63,6 +63,7 @@ func _test_session_synchronization(session: EncounterSession, hud: HudRoot, stat
 	_expect(not (state.actors[1] as ActorState).action_available, "dash result was not applied before HUD synchronization", failures)
 	var dash_button := hud.hotbar.get_child(1) as AbilityButton
 	_expect(dash_button.disabled, "HUD did not synchronize action availability after session state_changed", failures)
+	_expect(hud.combat_log.get_parsed_text().contains("Knight uses an action."), "HUD did not narrate resolved events in the combat log", failures)
 
 
 func _send_action(hud: HudRoot, action: StringName) -> void:

@@ -7,6 +7,8 @@
 [ext_resource type="PackedScene" path="res://view/ui/condition_strip.tscn" id="6_conditions"]
 [ext_resource type="Texture2D" path="res://assets/kenney_ui/panel_brown_dark.png" id="8_panel"]
 [ext_resource type="Theme" path="res://data/ui/hud_theme.tres" id="9_theme"]
+[ext_resource type="PackedScene" path="res://view/ui/combat_log.tscn" id="10_combat_log"]
+[ext_resource type="PackedScene" path="res://view/ui/tooltip_layer.tscn" id="11_tooltip_layer"]
 
 [sub_resource type="StyleBoxTexture" id="StyleBox_hud_panel"]
 texture = ExtResource("8_panel")
@@ -20,6 +22,12 @@ texture_margin_bottom = 8.0
 [node name="HudRoot" type="CanvasLayer"]
 script = ExtResource("1_root")
 layer = 10
+
+[node name="CombatLog" parent="." instance=ExtResource("10_combat_log")]
+offset_left = 16.0
+offset_top = 180.0
+
+[node name="TooltipLayer" parent="." instance=ExtResource("11_tooltip_layer")]
 
 [node name="Margin" type="Control" parent="."]
 anchors_preset = 15

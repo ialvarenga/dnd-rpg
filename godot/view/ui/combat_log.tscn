@@ -2,7 +2,8 @@
 [ext_resource type="Script" path="res://view/ui/combat_log.gd" id="1"]
 [node name="CombatLog" type="RichTextLabel"]
 script = ExtResource("1")
-custom_minimum_size = Vector2(400, 120)
+custom_minimum_size = Vector2(300, 120)
 bbcode_enabled = false
 scroll_following = true
 mouse_filter = 2
+theme_override_font_sizes/normal_font_size = 11
