@@ -3,4 +3,3 @@ godot/.godot/
 .venv/
 __pycache__/
 *.tmp
-godot/assets/
