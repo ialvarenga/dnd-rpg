@@ -128,6 +128,7 @@ func _test_command_event_view_pipeline(controller: TestArenaController, player: 
 
 func _test_animation_movement_transition(_controller: TestArenaController, player: CharacterView, event_player: EventPlayer, failures: Array[String]) -> void:
 	_expect(player.animator != null, "player prefab has no CharacterAnimator", failures)
+	_expect(player.combat_sfx != null, "player prefab has no positional combat sound player", failures)
 	var start := player.global_position
 	var target := start + Vector3(1.5, 0.0, 0.0)
 	event_player.play_events([Event.create(&"movement_segment", {"actor_id": player.actor_id, "path": PackedVector3Array([start, target]), "to": target})])
@@ -139,6 +140,7 @@ func _test_animation_movement_transition(_controller: TestArenaController, playe
 		_expect(player.animator.current_state == &"idle", "movement completion did not return animator to idle", failures)
 		event_player.play_events([Event.create(&"attack_rolled", {"actor_id": player.actor_id})])
 		_expect(player.animator.current_state == &"attack" and player.animator.current_clip == &"Melee_1H_Attack_Slice_Horizontal", "attack_rolled did not play the knight's melee attack clip", failures)
+		_expect(player.combat_sfx.stream != null and player.combat_sfx.stream.resource_path.begins_with("res://assets/sfx/combat/Sword_Swing_Long_"), "attack_rolled did not play a sword attack sound", failures)
 		# General remains optional, so unavailable non-movement clips must still
 		# be harmless during event narration.
 		event_player.play_events([Event.create(&"damage_taken", {"actor_id": player.actor_id, "amount": 1}), Event.create(&"interaction_completed", {"actor_id": player.actor_id}), Event.create(&"actor_died", {"actor_id": player.actor_id})])
@@ -148,10 +150,15 @@ func _test_animation_movement_transition(_controller: TestArenaController, playe
 		_expect(player.animator.current_state == &"attack", "attack_rolled did not narrate attack", failures)
 		event_player.play_events([Event.create(&"damage_taken", {"actor_id": player.actor_id, "amount": 1})])
 		_expect(player.animator.current_state == &"hit", "damage_taken did not narrate hit", failures)
+		_expect(player.combat_sfx.stream != null and player.combat_sfx.stream.resource_path.begins_with("res://assets/sfx/characters/hurt_"), "damage_taken did not play a hurt sound", failures)
 		event_player.play_events([Event.create(&"interaction_completed", {"actor_id": player.actor_id})])
 		_expect(player.animator.current_state == &"interact", "interaction_completed did not narrate interact", failures)
-		event_player.play_events([Event.create(&"actor_died", {"actor_id": player.actor_id})])
-		_expect(player.animator.current_state == &"death", "actor_died did not narrate death", failures)
+		event_player.play_events([
+			Event.create(&"damage_taken", {"actor_id": player.actor_id, "amount": 1}),
+			Event.create(&"actor_died", {"actor_id": player.actor_id}),
+		])
+		await get_tree().physics_frame
+		_expect(player.animator.current_state == &"death", "damage followed by actor_died did not narrate death", failures)
 
 
 func _configure_event_animation_clips(animator: CharacterAnimator) -> void:

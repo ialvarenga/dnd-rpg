@@ -17,6 +17,15 @@ signal movement_completed(actor_id: int)
 @export var held_weapon_model_path: String = ""
 
 const WEAPON_HAND_BONE := &"handslot.r"
+const ATTACK_SOUNDS: Array[AudioStream] = [
+	preload("res://assets/sfx/combat/Sword_Swing_Long_01.ogg"),
+	preload("res://assets/sfx/combat/Sword_Swing_Long_03.ogg"),
+	preload("res://assets/sfx/combat/Sword_Swing_Long_05.ogg"),
+]
+const HURT_SOUNDS: Array[AudioStream] = [
+	preload("res://assets/sfx/characters/hurt_01.mp3"),
+	preload("res://assets/sfx/characters/hurt_05.mp3"),
+]
 
 var destination := Vector3.ZERO
 var destination_state: StringName = &"idle"
@@ -26,7 +35,9 @@ var _target_highlight: MeshInstance3D
 var _target_highlight_material: StandardMaterial3D
 var _model_root: Node
 var _weapon_attached := false
+var _is_dead := false
 @onready var animator: CharacterAnimator = get_node_or_null("CharacterAnimator") as CharacterAnimator
+@onready var combat_sfx: AudioStreamPlayer3D = get_node_or_null("CombatSfx") as AudioStreamPlayer3D
 
 
 func _ready() -> void:
@@ -77,11 +88,13 @@ func synchronize_to_authoritative_position(position: Vector3) -> void:
 func _physics_process(delta: float) -> void:
 	if not _locomotion.is_active():
 		velocity = Vector3.ZERO
-		# Edge-triggered: re-narrating idle on every stationary tick would stomp
-		# any other presented state (attack, hit, death, ...) a frame after it starts.
+		# A combat event can arrive just as an actor finishes visual movement.
+		# In that case, only locomotion/idle may transition back to idle; otherwise
+		# the cleanup would immediately hide attack, hit, or death presentation.
 		if _locomotion_was_active:
 			_locomotion_was_active = false
-			_notify_locomotion_stopped()
+			if animator == null or animator.current_state in [&"locomotion", &"idle"]:
+				_notify_locomotion_stopped()
 		return
 	_locomotion_was_active = true
 	var step: Dictionary = _locomotion.step(global_position, delta)
@@ -92,7 +105,11 @@ func _physics_process(delta: float) -> void:
 	if velocity.length_squared() > 0.0001:
 		var desired_yaw := atan2(-velocity.x, -velocity.z)
 		rotation.y = lerp_angle(rotation.y, desired_yaw, 1.0 - exp(-turn_speed * delta))
-		_notify_locomotion_started()
+		# Same guard as the stopped branch above: a death/attack/hit narrated
+		# while this actor's walk is still interpolating must not be stomped
+		# back to locomotion on the very next tick.
+		if animator == null or animator.current_state in [&"locomotion", &"idle"]:
+			_notify_locomotion_started()
 	move_and_slide()
 
 
@@ -158,6 +175,7 @@ func _find_model_root() -> Node:
 func present_attack() -> void:
 	if animator != null:
 		animator.present_attack()
+	_play_combat_sound(ATTACK_SOUNDS)
 
 
 func present_combat_ready() -> void:
@@ -167,6 +185,10 @@ func present_combat_ready() -> void:
 
 
 func present_combat_ended() -> void:
+	# A dead actor stays exactly as it fell -- combat wrapping up must not
+	# raise a corpse back to its idle/weapon-ready presentation.
+	if _is_dead:
+		return
 	_detach_held_weapon()
 	if animator != null:
 		animator.present_combat_ended()
@@ -180,6 +202,7 @@ func present_dodge() -> void:
 func present_hit() -> void:
 	if animator != null:
 		animator.present_hit()
+	_play_combat_sound(HURT_SOUNDS)
 
 
 func present_interaction() -> void:
@@ -188,6 +211,7 @@ func present_interaction() -> void:
 
 
 func present_death() -> void:
+	_is_dead = true
 	if animator != null:
 		animator.present_death()
 
@@ -218,10 +242,26 @@ func set_target_highlight(active: bool, in_range: bool = true) -> void:
 
 
 func _notify_locomotion_started() -> void:
-	if animator != null:
+	if animator != null and not _is_dead:
 		animator.locomotion_started()
 
 
+## Guarded against _is_dead too: every locomotion call site (movement
+## rejection, synchronize_to_authoritative_position, _finish_movement, plus
+## the physics-process branches) shares this one path, so guarding it here
+## once keeps a dead actor's death presentation from being overwritten no
+## matter which of those still runs after the fatal blow lands.
 func _notify_locomotion_stopped() -> void:
-	if animator != null:
+	if animator != null and not _is_dead:
 		animator.locomotion_stopped()
+
+
+## Each actor owns its playback node, so the attack comes from the attacker
+## and the hurt sound comes from the target. The event presenter calls these
+## methods only after combat has been resolved, keeping this strictly view-side.
+func _play_combat_sound(sounds: Array[AudioStream]) -> void:
+	if combat_sfx == null or sounds.is_empty():
+		return
+	combat_sfx.stream = sounds.pick_random()
+	combat_sfx.pitch_scale = randf_range(0.96, 1.04)
+	combat_sfx.play()

@@ -10,6 +10,23 @@ files/concepts used, local modifications, and required attribution here and in
 
 ## Assets
 
+### Forge & Fantasy Weapon SFX Pack (C6)
+
+- Author/source: Case Portman Audio, https://caseportman.itch.io/forge-fantasy-weapon-sfx
+- License: Forge & Fantasy Royalty-Free Sound Effects License. The pack permits
+  use, modification, and inclusion in commercial game projects, but prohibits
+  standalone sound-effect redistribution.
+- Files used: `Sword_Swing_Long_01.ogg`, `Sword_Swing_Long_03.ogg`, and
+  `Sword_Swing_Long_05.ogg`, copied unmodified into
+  `godot/assets/sfx/combat/` for the basic-attack presentation.
+
+### Hurt Sound Effects (C6)
+
+- Author/source: EZduzziteh, https://opengameart.org/content/hurt-sound-effects
+- License: CC0 1.0 (Creative Commons Zero / public domain).
+- Files used: `hurt_01.mp3` and `hurt_05.mp3`, copied unmodified into
+  `godot/assets/sfx/characters/` for damage-taken presentation.
+
 ### KayKit Forest Nature Pack 1.0 (A10, B1)
 
 - Author: Kay Lousberg, www.kaylousberg.com
