@@ -23,7 +23,7 @@ static func _test_default_library_has_ordered_knight_content(failures: Array[Str
 	_expect(defs.has_actor(&"knight"), "default library is missing the knight ActorDefinition", failures)
 	_expect(defs.has_item(&"longsword"), "default library is missing the longsword ItemDefinition", failures)
 	_expect(defs.has_item(&"leather_armor"), "default library is missing the leather_armor ItemDefinition", failures)
-	_expect(defs.ordered_actor_ids() == [&"knight"], "ordered_actor_ids did not match the fixed actor manifest order", failures)
+	_expect(defs.ordered_actor_ids() == [&"knight", &"raider"], "ordered_actor_ids did not match the fixed actor manifest order", failures)
 	_expect(defs.ordered_item_ids() == [&"longsword", &"leather_armor"], "ordered_item_ids did not match the fixed item manifest order", failures)
 
 

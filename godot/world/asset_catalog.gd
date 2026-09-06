@@ -15,6 +15,9 @@ const DEFINITION_PATHS: Array[String] = [
 	"res://data/assets/tree_oak_02.tres", "res://data/assets/rock_large_01.tres",
 	"res://data/assets/bush_01.tres", "res://data/assets/grass_01.tres",
 	"res://data/assets/character_knight_01.tres",
+	"res://data/assets/character_rogue_01.tres", "res://data/assets/character_ranger_01.tres",
+	"res://data/assets/character_barbarian_01.tres", "res://data/assets/character_mage_01.tres",
+	"res://data/assets/character_druid_01.tres", "res://data/assets/character_engineer_01.tres",
 ]
 
 static var _definitions_by_id: Dictionary[StringName, AssetDefinition] = {}

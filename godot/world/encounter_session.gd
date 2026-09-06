@@ -62,6 +62,13 @@ func end_turn(actor_id: int) -> ResolutionResult:
 	return _submit(Command.create(&"end_turn", actor_id), Vector3.INF)
 
 
+## Encounter triggers and computer-controlled actors submit through the same
+## authoritative pipeline as player input. Keeping this public avoids a
+## second, view-owned combat state machine.
+func submit_command(command: Command, view_position: Vector3 = Vector3.INF) -> ResolutionResult:
+	return _submit(command, view_position)
+
+
 ## Advisory HUD data only (Fase C2): reports whether Resolver.resolve() would
 ## currently accept each of the actor's abilities, and why not when it
 ## wouldn't. Resolver remains the sole authority for command acceptance.

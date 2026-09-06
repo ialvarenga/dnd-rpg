@@ -68,11 +68,14 @@ authority.
   from the pack itself.
 - See `assets.csv` for the full per-asset audit trail.
 
-### KayKit Adventurers 2.0 (A10, B1)
+### KayKit Adventurers 2.0 (A10, B1, combat encounters)
 
 - Author: Kay Lousberg, www.kaylousberg.com
 - License: CC0 1.0 (Creative Commons Zero / public domain).
-- Files used: `Knight.glb` (self-contained: mesh, skeleton, and texture all
-  embedded), copied unmodified into `godot/assets/kaykit_adventurers/`. The
-  compatible movement clips are documented separately above.
+- Files used: `Knight.glb`, plus `Rogue.glb`, `Ranger.glb`, `Barbarian.glb`,
+  and `Mage.glb` from the FREE archive; `Druid.glb` and `Engineer.glb` from
+  the EXTRA archive. They were copied unmodified into
+  `godot/assets/kaykit_adventurers/`; duplicate models shipped in both
+  archives were not copied twice. The compatible movement clips are documented
+  separately above.
 - See `assets.csv` for the full per-asset audit trail.

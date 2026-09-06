@@ -14,6 +14,10 @@ static func run() -> Dictionary:
 	_expect(data.action_availability.size() == 1, "actor projection should preserve available action order", failures)
 	var order := HudViewModel.turn_order(state, DefinitionLibrary.get_default())
 	_expect(order.size() == 2 and order[0].actor_id == 1, "turn order should follow authoritative initiative order", failures)
+	state.actors[2].hp = 0
+	state.actors[2].conditions = [&"dead"]
+	order = HudViewModel.turn_order(state, DefinitionLibrary.get_default())
+	_expect(order.size() == 1 and order[0].actor_id == 1, "turn order should remove dead actors", failures)
 	for event_type in _event_narration_expectations():
 		var line := HudViewModel.narrate(Event.create(event_type, {"actor_id": 1, "target_id": 2, "amount": 2, "roll": 12, "hit": true, "condition": &"poisoned", "reason": &"not_current_actor"}), state, DefinitionLibrary.get_default())
 		_expect(line == _event_narration_expectations()[event_type], "narration did not match the supported %s event" % event_type, failures)

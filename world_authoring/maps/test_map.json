@@ -51,7 +51,32 @@
     }
   ],
   "structures": [],
-  "actors": [],
+  "actors": [
+    {
+      "id": "rogue_scout",
+      "archetype": "character_rogue_01",
+      "side": "enemies",
+      "position": [12, 9]
+    },
+    {
+      "id": "ranger_scout",
+      "archetype": "character_ranger_01",
+      "side": "enemies",
+      "position": [18, 12]
+    },
+    {
+      "id": "barbarian_guard",
+      "archetype": "character_barbarian_01",
+      "side": "enemies",
+      "position": [22, 8]
+    },
+    {
+      "id": "mage_guard",
+      "archetype": "character_mage_01",
+      "side": "enemies",
+      "position": [25, 15]
+    }
+  ],
   "rivers": [
     {
       "id": "river_1",

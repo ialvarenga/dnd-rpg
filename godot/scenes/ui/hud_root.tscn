@@ -43,6 +43,11 @@ mouse_filter = 2
 theme_override_constants/separation = 6
 
 [node name="Conditions" parent="Margin/TopBar" instance=ExtResource("6_conditions")]
+[node name="InitiativeLabel" type="Label" parent="Margin/TopBar"]
+text = "ATTACK ORDER"
+theme_override_colors/font_color = Color(0.82, 0.68, 0.32, 1)
+theme_override_font_sizes/font_size = 11
+
 [node name="TurnOrder" parent="Margin/TopBar" instance=ExtResource("5_turns")]
 
 [node name="Layout" type="HBoxContainer" parent="Margin"]

@@ -14,9 +14,8 @@ extends RefCounted
 
 ## Bumped whenever the shape or meaning of shipped content changes, so saves
 ## (A8) can carry/validate a content_version alongside rules/schema versioning.
-## Fase C2 bump: adds the item/actor catalogs and actor equipment/inventory/
-## ability-id content (Knight, Longsword, Leather Armor).
-const CONTENT_VERSION: int = 2
+## Fase C3 bump: adds the raider actor definition used by map encounters.
+const CONTENT_VERSION: int = 3
 
 const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/basic_attack.tres",
@@ -38,6 +37,7 @@ const ITEM_MANIFEST: Array[String] = [
 
 const ACTOR_MANIFEST: Array[String] = [
 	"res://data/actors/knight.tres",
+	"res://data/actors/raider.tres",
 ]
 
 var content_version: int = CONTENT_VERSION

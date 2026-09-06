@@ -119,6 +119,7 @@
       "properties": {
         "id": { "$ref": "#/$defs/stableId" },
         "archetype": { "$ref": "#/$defs/stableId" },
+        "side": { "type": "string", "enum": ["heroes", "enemies"], "default": "enemies", "description": "Combat team. Enemy actors can detect the player and start an encounter." },
         "position": { "$ref": "#/$defs/vector2" },
         "rotation_deg": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 }
       }

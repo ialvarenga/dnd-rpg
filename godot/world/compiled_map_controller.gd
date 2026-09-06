@@ -20,6 +20,11 @@ var objective: Vector3
 var _path_line: MeshInstance3D
 var _line_mesh := ImmediateMesh.new()
 var hud: HudRoot
+var hostile_views: Dictionary[int, CharacterView] = {}
+var detection_range := 8.0
+var _enemy_action_cooldown := 0.0
+
+const EnemyAIScript = preload("res://ai/enemy_ai.gd")
 
 const PLAYER_CHARACTER_SCENE = preload("res://scenes/actors/player_character.tscn")
 const TACTICAL_CAMERA_SCENE = preload("res://scenes/camera/tactical_camera_rig.tscn")
@@ -46,6 +51,7 @@ func _ready() -> void:
 		return
 	add_child(compilation.root)
 	_setup_player()
+	_setup_hostiles(spec)
 	_setup_camera()
 	_setup_light()
 	_setup_path_preview()
@@ -66,6 +72,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			_show_path_preview(preview_target)
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		var hostile := _hostile_at_screen_position(event.position)
+		if hostile != null and battle_state.phase == &"combat" and battle_state.current_actor_id() == 1:
+			var attack_result: ResolutionResult = session.submit_ability(1, &"basic_attack", hostile.actor_id, Vector3.INF)
+			event_player.play_events(attack_result.events)
+			get_viewport().set_input_as_handled()
+			return
 		var target: Variant = ScreenPickerScript.terrain_point(camera, get_world_3d().direct_space_state, event.position)
 		if target is Vector3:
 			_show_path_preview(target)
@@ -90,7 +102,10 @@ func _setup_player() -> void:
 	event_player = EventPlayer.new()
 	add_child(event_player)
 	event_player.register_character_view(character)
+	event_player.movement_completed.connect(_synchronize_completed_movement)
 	battle_state.phase = &"exploration"
+	battle_state.rng_seed = 1
+	battle_state.rng_state = 1
 	var knight := DefinitionLibrary.get_default().get_actor(&"knight")
 	var actor := ActorState.from_definition(knight, 1, &"heroes", character.global_position)
 	battle_state.actors[1] = actor
@@ -100,6 +115,113 @@ func _setup_player() -> void:
 		var marker := OBJECTIVE_MARKER_SCENE.instantiate() as MeshInstance3D
 		marker.position = objective
 		add_child(marker)
+
+
+## Actors are visual map data until this composition root turns hostile ones
+## into views plus authoritative ActorState entries. This keeps MapCompiler
+## presentation-only and makes each encounter deterministic/replayable.
+func _setup_hostiles(spec: Dictionary) -> void:
+	var actor_id := 2
+	for raw_actor in spec.get("actors", []):
+		if String(raw_actor.get("side", "enemies")) != "enemies":
+			continue
+		var position_data: Array = raw_actor.get("position", [])
+		if position_data.size() != 2:
+			continue
+		var asset_id := StringName(raw_actor.get("archetype", ""))
+		var definition := AssetCatalog.get_definition(asset_id)
+		if definition == null or definition.asset_type != &"character":
+			continue
+		var hostile := PLAYER_CHARACTER_SCENE.instantiate() as CharacterView
+		hostile.name = "Hostile_%s" % raw_actor.get("id", actor_id)
+		hostile.actor_id = actor_id
+		hostile.position = Vector3(float(position_data[0]), compilation.terrain.height_at(float(position_data[0]), float(position_data[1])) + 1.0, float(position_data[1]))
+		hostile.set_meta("hostile_actor_id", actor_id)
+		add_child(hostile)
+		AssetCatalog.dress(hostile, asset_id)
+		var compiled_visual := compilation.root.get_node_or_null(String(raw_actor.get("id", ""))) as Node3D
+		if compiled_visual != null:
+			compiled_visual.visible = false
+		event_player.register_character_view(hostile)
+		hostile.movement_completed.connect(_synchronize_completed_movement)
+		hostile_views[actor_id] = hostile
+		var raider := DefinitionLibrary.get_default().get_actor(&"raider")
+		battle_state.actors[actor_id] = ActorState.from_definition(raider, actor_id, &"enemies", hostile.global_position)
+		actor_id += 1
+
+
+func _process(delta: float) -> void:
+	if session == null or character == null:
+		return
+	if battle_state.phase == &"exploration":
+		_check_hostile_detection()
+		return
+	if _end_combat_if_resolved():
+		return
+	_enemy_action_cooldown = maxf(0.0, _enemy_action_cooldown - delta)
+	if _enemy_action_cooldown <= 0.0:
+		_take_enemy_turn()
+
+
+func _check_hostile_detection() -> void:
+	for actor_id in hostile_views:
+		var hostile := hostile_views[actor_id]
+		if not is_instance_valid(hostile):
+			continue
+		if character.global_position.distance_to(hostile.global_position) <= detection_range and los_provider.has_line_of_sight(hostile.global_position, character.global_position):
+			var start := Command.create(&"start_combat", actor_id)
+			var result: ResolutionResult = session.submit_command(start)
+			event_player.play_events(result.events)
+			_enemy_action_cooldown = 0.4
+			return
+
+
+func _take_enemy_turn() -> void:
+	var actor_id := battle_state.current_actor_id()
+	if not hostile_views.has(actor_id):
+		return
+	var command: Command = EnemyAIScript.new().choose_command(battle_state, actor_id, nav_provider, los_provider)
+	if command == null:
+		return
+	var result: ResolutionResult = session.submit_command(command)
+	event_player.play_events(result.events)
+	_enemy_action_cooldown = 0.45
+
+
+func _end_combat_if_resolved() -> bool:
+	var heroes_alive := false
+	var enemies_alive := false
+	for actor_id in battle_state.actors:
+		var actor: ActorState = battle_state.actors[actor_id]
+		if actor.side == &"heroes":
+			heroes_alive = heroes_alive or actor.is_alive()
+		elif actor.side == &"enemies":
+			enemies_alive = enemies_alive or actor.is_alive()
+	if heroes_alive and enemies_alive:
+		return false
+	var current_actor_id := battle_state.current_actor_id()
+	if current_actor_id == -1:
+		return false
+	var result: ResolutionResult = session.submit_command(Command.create(&"end_combat", current_actor_id))
+	event_player.play_events(result.events)
+	return true
+
+
+func _hostile_at_screen_position(screen_position: Vector2) -> CharacterView:
+	var query := PhysicsRayQueryParameters3D.create(camera.project_ray_origin(screen_position), camera.project_ray_origin(screen_position) + camera.project_ray_normal(screen_position) * 250.0, 2)
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	var collider := hit.get("collider") as Node
+	if collider is CharacterView and (collider as CharacterView).actor_id != 1:
+		return collider as CharacterView
+	return null
+
+
+func _synchronize_completed_movement(actor_id: int) -> void:
+	if not battle_state.actors.has(actor_id):
+		return
+	var view := event_player.get_character_view(actor_id)
+	if view != null:
+		view.synchronize_to_authoritative_position((battle_state.actors[actor_id] as ActorState).position)
 
 
 func _dress_player(player: CharacterView, player_data: Dictionary) -> void:

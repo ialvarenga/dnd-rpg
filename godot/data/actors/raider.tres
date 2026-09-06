@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ActorDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/actor_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"raider"
+display_name = "Raider"
+max_hp = 12
+armor_class = 12
+strength = 12
+dexterity = 14
+constitution = 12
+intelligence = 9
+wisdom = 10
+charisma = 10
+proficiency_bonus = 2
+movement_speed = 8.0
+attack_bonus = 3
+damage_die = 6
+damage_modifier = 1
+ability_ids = Array[StringName]([&"basic_attack", &"dash", &"disengage"])
+equipment_slots = {}
+starting_inventory = Array[StringName]([])

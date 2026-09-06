@@ -1,9 +1,11 @@
 class_name WorldHealthBar
 extends Node3D
 
-@export var fraction := 1.0: set(value):
-	fraction = clampf(value, 0.0, 1.0)
-	if is_inside_tree(): _redraw()
+@export var fraction := 1.0:
+	set(value):
+		fraction = clampf(value, 0.0, 1.0)
+		if is_inside_tree():
+			_redraw()
 
 func _ready() -> void:
 	_redraw()

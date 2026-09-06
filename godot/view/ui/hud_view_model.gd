@@ -31,9 +31,11 @@ static func turn_order(state: BattleState, defs: DefinitionLibrary) -> Array[Dic
 		return order
 	for index in state.initiative_order.size():
 		var actor_id := state.initiative_order[index]
+		if not state.actors.has(actor_id) or not state.actors[actor_id].is_alive():
+			continue
 		var data := for_actor(state, actor_id, defs)
 		if not data.is_empty():
-			order.append({"actor_id": actor_id, "name": data.name, "hp_fraction": data.hp_fraction, "is_current": index == state.current_turn_index, "index": index})
+			order.append({"actor_id": actor_id, "name": data.name, "hp_fraction": data.hp_fraction, "hp": data.hp, "max_hp": data.max_hp, "is_current": index == state.current_turn_index, "index": index})
 	return order
 
 
