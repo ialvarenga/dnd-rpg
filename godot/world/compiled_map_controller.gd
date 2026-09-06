@@ -23,8 +23,12 @@ var hud: HudRoot
 var hostile_views: Dictionary[int, CharacterView] = {}
 var detection_range := 8.0
 var _enemy_action_cooldown := 0.0
+var _targeting_ability_id: StringName = &""
+var _highlighted_target_id := -1
+var music
 
 const EnemyAIScript = preload("res://ai/enemy_ai.gd")
+const AbilityTargetingRules = preload("res://sim/ability_targeting.gd")
 
 const PLAYER_CHARACTER_SCENE = preload("res://scenes/actors/player_character.tscn")
 const TACTICAL_CAMERA_SCENE = preload("res://scenes/camera/tactical_camera_rig.tscn")
@@ -33,6 +37,7 @@ const TACTICAL_SUN_SCENE = preload("res://scenes/world/tactical_sun.tscn")
 const EncounterSessionScript = preload("res://world/encounter_session.gd")
 const MapSpecSourceScript = preload("res://world/map_spec_source.gd")
 const ScreenPickerScript = preload("res://world/screen_picker.gd")
+const MusicDirectorScript = preload("res://view/music_director.gd")
 
 
 func _ready() -> void:
@@ -59,6 +64,7 @@ func _ready() -> void:
 	los_provider = GodotLosProvider.new(get_world_3d(), 8)
 	session = EncounterSessionScript.new()
 	session.configure(battle_state, nav_provider, los_provider)
+	_setup_music(compilation.music)
 	_setup_hud()
 	NavigationServer3D.map_force_update(compilation.navigation.navigation_region.get_navigation_map())
 
@@ -67,12 +73,20 @@ func _unhandled_input(event: InputEvent) -> void:
 	if camera == null or nav_provider == null:
 		return
 	if event is InputEventMouseMotion:
+		if _targeting_ability_id != &"":
+			_update_target_highlight(_hostile_at_screen_position(event.position))
+			return
 		var preview_target: Variant = ScreenPickerScript.terrain_point(camera, get_world_3d().direct_space_state, event.position)
 		if preview_target is Vector3:
 			_show_path_preview(preview_target)
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		var hostile := _hostile_at_screen_position(event.position)
+		if _targeting_ability_id != &"":
+			if hostile != null:
+				_submit_targeted_ability(hostile.actor_id)
+			get_viewport().set_input_as_handled()
+			return
 		if hostile != null and battle_state.phase == &"combat" and battle_state.current_actor_id() == 1:
 			var attack_result: ResolutionResult = session.submit_ability(1, &"basic_attack", hostile.actor_id, Vector3.INF)
 			event_player.play_events(attack_result.events)
@@ -153,6 +167,8 @@ func _setup_hostiles(spec: Dictionary) -> void:
 func _process(delta: float) -> void:
 	if session == null or character == null:
 		return
+	if music != null:
+		music.set_phase(battle_state.phase)
 	if battle_state.phase == &"exploration":
 		_check_hostile_detection()
 		return
@@ -285,21 +301,75 @@ func _setup_hud() -> void:
 	hud.cancel_requested.connect(_on_hud_cancel_requested)
 
 
+func _setup_music(settings: Dictionary) -> void:
+	music = get_node_or_null("MusicDirector")
+	if music == null:
+		music = MusicDirectorScript.new()
+		music.name = "MusicDirector"
+		var player := AudioStreamPlayer.new()
+		player.name = "AudioStreamPlayer"
+		music.add_child(player)
+		add_child(music)
+	music.configure(settings)
+
+
 func _on_hud_ability_requested(ability_id: StringName) -> void:
+	var definitions := DefinitionLibrary.get_default()
+	var ability := definitions.get_ability(ability_id)
+	if ability != null and ability.targeting == &"actor" and AbilityTargetingRules.attack_range(definitions, ability_id) >= 0.0:
+		_clear_targeting()
+		_targeting_ability_id = ability_id
+		hud.set_selected_ability(ability_id)
+		_line_mesh.clear_surfaces()
+		return
+	_clear_targeting()
 	var result: ResolutionResult = session.submit_ability(character.actor_id, ability_id, -1, Vector3.INF)
 	event_player.play_events(result.events)
 
 
 func _on_hud_end_turn_requested() -> void:
+	_clear_targeting()
 	var result: ResolutionResult = session.end_turn(character.actor_id)
 	event_player.play_events(result.events)
 
 
 func _on_hud_cancel_requested() -> void:
-	# The generated-map HUD has no targeting mode yet. Cancel only clears the
-	# presentation path preview and deliberately does not submit a simulation
-	# command.
+	_clear_targeting()
 	_line_mesh.clear_surfaces()
+
+
+func _update_target_highlight(hostile: CharacterView) -> void:
+	var next_target_id := hostile.actor_id if hostile != null else -1
+	if _highlighted_target_id == next_target_id:
+		return
+	if hostile_views.has(_highlighted_target_id):
+		hostile_views[_highlighted_target_id].set_target_highlight(false)
+	_highlighted_target_id = next_target_id
+	if hostile != null:
+		var source: ActorState = battle_state.actors.get(character.actor_id)
+		var target: ActorState = battle_state.actors.get(hostile.actor_id)
+		hostile.set_target_highlight(true, AbilityTargetingRules.is_target_in_attack_range(source, target, DefinitionLibrary.get_default(), _targeting_ability_id))
+
+
+func _submit_targeted_ability(target_id: int) -> void:
+	if not battle_state.actors.has(character.actor_id) or not battle_state.actors.has(target_id):
+		return
+	var source: ActorState = battle_state.actors[character.actor_id]
+	var target: ActorState = battle_state.actors[target_id]
+	if not AbilityTargetingRules.is_target_in_attack_range(source, target, DefinitionLibrary.get_default(), _targeting_ability_id):
+		return
+	var result: ResolutionResult = session.submit_ability(character.actor_id, _targeting_ability_id, target_id, Vector3.INF)
+	event_player.play_events(result.events)
+	_clear_targeting()
+
+
+func _clear_targeting() -> void:
+	if hostile_views.has(_highlighted_target_id):
+		hostile_views[_highlighted_target_id].set_target_highlight(false)
+	_highlighted_target_id = -1
+	_targeting_ability_id = &""
+	if hud != null:
+		hud.set_selected_ability(&"")
 
 
 func _show_compile_errors() -> void:

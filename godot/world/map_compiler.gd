@@ -14,6 +14,7 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 	_validate_required_data(spec, result.errors)
 	if not result.errors.is_empty():
 		return result
+	result.music = spec.get("music", {}).duplicate()
 	var map: Dictionary = spec["map"]
 	var bounds_data: Dictionary = map["bounds"]
 	var bounds := Vector2(float(bounds_data["width_m"]), float(bounds_data["height_m"]))

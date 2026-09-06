@@ -38,7 +38,7 @@ func load_spec() -> Dictionary:
 	last_error = ""
 	_cached_spec = parsed
 	_has_cached_spec = true
-	print("[MapSpecSource] parsed top-level keys: %s" % _cached_spec.keys())
+	print("[MapSpecSource] parsed top-level keys: %s" % [_cached_spec.keys()])
 	return _cached_spec
 
 

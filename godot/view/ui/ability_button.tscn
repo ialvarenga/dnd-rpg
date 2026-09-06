@@ -3,6 +3,7 @@
 [node name="AbilityButton" type="Button"]
 script = ExtResource("1")
 mouse_filter = 0
+toggle_mode = true
 custom_minimum_size = Vector2(64, 64)
 theme_override_constants/icon_max_width = 24
 [node name="Hotkey" type="Label" parent="."]

@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://c5ggcykoj7t6a"]
+
+[ext_resource type="AudioStream" uid="uid://nbnp0n44rr3n" path="res://assets/music/ambient-light-1.wav" id="1_nbeep"]
+
+[node name="AudioStreamPlayer" type="AudioStreamPlayer" unique_id=1562327780]
+stream = ExtResource("1_nbeep")
+autoplay = true

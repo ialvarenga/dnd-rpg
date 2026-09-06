@@ -15,5 +15,9 @@ func configure(data: Dictionary, slot: int, icon_set: IconSet) -> void:
 	var display_name := String(ability_id).replace("_", " ").capitalize()
 	tooltip_text = String(data.get("reason", "")) if disabled else display_name
 
+
+func set_selected(selected: bool) -> void:
+	button_pressed = selected
+
 func _ready() -> void:
 	pressed.connect(func(): ability_pressed.emit(ability_id))

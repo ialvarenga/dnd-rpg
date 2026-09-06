@@ -9,6 +9,7 @@
   "properties": {
     "version": { "const": "1.0", "description": "MapSpec contract version. This schema is the canonical definition of version 1.0." },
     "map": { "$ref": "#/$defs/mapMetadata" },
+    "music": { "$ref": "#/$defs/music" },
     "terrain": { "$ref": "#/$defs/terrain" },
     "regions": { "type": "array", "items": { "$ref": "#/$defs/region" }, "uniqueItems": true },
     "vegetation": { "type": "array", "items": { "$ref": "#/$defs/vegetationPlacement" }, "uniqueItems": true },
@@ -59,6 +60,15 @@
         "bounds": { "$ref": "#/$defs/bounds" },
         "asset_catalog_version": { "$ref": "#/$defs/version" },
         "generator_version": { "$ref": "#/$defs/version" }
+      }
+    },
+    "music": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ambient", "battle"],
+      "properties": {
+        "ambient": { "enum": ["ambient_light_1", "ambient_night_3"] },
+        "battle": { "enum": ["battle_action_1", "battle_action_2"] }
       }
     },
     "terrain": {

@@ -1,6 +1,6 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://cnrvy0axjy8c2"]
 
-[ext_resource type="Script" path="res://world/compiled_map_controller.gd" id="1"]
+[ext_resource type="Script" uid="uid://dlaa680ob2nqv" path="res://world/compiled_map_controller.gd" id="1"]
 
-[node name="CompiledForestMap" type="Node3D"]
+[node name="CompiledForestMap" type="Node3D" unique_id=819131115]
 script = ExtResource("1")

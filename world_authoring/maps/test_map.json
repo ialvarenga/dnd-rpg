@@ -9,6 +9,10 @@
       "height_m": 64
     }
   },
+  "music": {
+    "ambient": "ambient_light_1",
+    "battle": "battle_action_1"
+  },
   "terrain": {
     "profile": "flat",
     "surface": "grass"

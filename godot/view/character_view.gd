@@ -14,6 +14,8 @@ signal movement_completed(actor_id: int)
 var destination := Vector3.ZERO
 var destination_state: StringName = &"idle"
 var _locomotion := PrototypeLocomotion.new()
+var _target_highlight: MeshInstance3D
+var _target_highlight_material: StandardMaterial3D
 @onready var animator: CharacterAnimator = get_node_or_null("CharacterAnimator") as CharacterAnimator
 
 
@@ -122,6 +124,31 @@ func present_interaction() -> void:
 func present_death() -> void:
 	if animator != null:
 		animator.present_death()
+
+
+func set_target_highlight(active: bool, in_range: bool = true) -> void:
+	if _target_highlight == null:
+		_target_highlight = MeshInstance3D.new()
+		_target_highlight.name = "TargetHighlight"
+		var mesh := CylinderMesh.new()
+		mesh.top_radius = 0.72
+		mesh.bottom_radius = 0.72
+		mesh.height = 0.035
+		mesh.radial_segments = 32
+		_target_highlight.mesh = mesh
+		_target_highlight.position = Vector3(0.0, -0.88, 0.0)
+		_target_highlight.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_target_highlight_material = StandardMaterial3D.new()
+		_target_highlight_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_target_highlight_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_target_highlight_material.emission_enabled = true
+		_target_highlight.material_override = _target_highlight_material
+		add_child(_target_highlight)
+	_target_highlight.visible = active
+	if active:
+		var color := Color("76e887") if in_range else Color("ef625d")
+		_target_highlight_material.albedo_color = Color(color.r, color.g, color.b, 0.58)
+		_target_highlight_material.emission = color
 
 
 func _notify_locomotion_started() -> void:

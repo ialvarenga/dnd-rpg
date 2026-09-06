@@ -1,6 +1,8 @@
 class_name TestDefinitions
 extends RefCounted
 
+const AbilityTargetingRules = preload("res://sim/ability_targeting.gd")
+
 ## A7: proves abilities/conditions are actually resolved from data (not
 ## hardcoded ids), that unknown definition ids are rejected deterministically,
 ## and that BattleState carries a content_version.
@@ -16,6 +18,7 @@ static func run() -> Dictionary:
 	_test_definition_library_ignores_definitions_with_missing_id(failures)
 	_test_content_version_round_trip(failures)
 	_test_perform_attack_effect_checks_and_spends_full_ability_cost(failures)
+	_test_attack_targeting_range_uses_ability_data(failures)
 	return {"name": "unit/test_definitions", "failures": failures}
 
 
@@ -152,6 +155,26 @@ static func _test_perform_attack_effect_checks_and_spends_full_ability_cost(fail
 	TestHelpers.apply_result(state, result)
 	_expect(not hero.bonus_action_available, "bonus_action_spent event did not actually consume the actor's bonus action", failures)
 	_expect(is_equal_approx(hero.movement_remaining, hero.movement_speed - 3.0), "movement_spent event did not actually consume the actor's movement", failures)
+
+
+static func _test_attack_targeting_range_uses_ability_data(failures: Array[String]) -> void:
+	var definitions := DefinitionLibrary.new()
+	var short_attack := _make_ability(&"short_attack", true, [_make_attack_effect()])
+	var long_effect := _make_attack_effect()
+	long_effect.range_meters = 4.0
+	var long_attack := _make_ability(&"long_attack", true, [long_effect])
+	definitions.add_ability(short_attack)
+	definitions.add_ability(long_attack)
+	var state := TestHelpers.make_battle()
+	var source: ActorState = state.actors[1]
+	var target: ActorState = state.actors[2]
+	target.position = source.position + Vector3(3.0, 0.0, 0.0)
+	_expect(not AbilityTargetingRules.is_target_in_attack_range(source, target, definitions, &"short_attack"), "targeting preview accepted a target beyond the short attack's data-authored range", failures)
+	_expect(AbilityTargetingRules.is_target_in_attack_range(source, target, definitions, &"long_attack"), "targeting preview ignored the long attack's data-authored range", failures)
+	var long_attack_command := Command.create(&"long_attack", source.id)
+	long_attack_command.target_id = target.id
+	var result := Resolver.resolve(state, long_attack_command, FakeNavProvider.new(), FakeLosProvider.new(), definitions)
+	_expect(not result.events.is_empty() and result.events[0].type == &"attack_rolled", "resolver did not support a data-defined attack type", failures)
 
 
 static func _make_effect(type: StringName, multiplier: float) -> AbilityEffect:

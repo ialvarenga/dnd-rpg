@@ -34,6 +34,10 @@ func _test_initial_binding(hud: HudRoot, failures: Array[String]) -> void:
 	for button in hud.hotbar.get_children():
 		_expect((button as Control).mouse_filter == Control.MOUSE_FILTER_STOP, "hotbar button must consume pointer input", failures)
 		_expect((button as Button).get_theme_constant(&"icon_max_width") == 24, "hotbar icon size was not constrained", failures)
+	hud.set_selected_ability(&"basic_attack")
+	_expect((hud.hotbar.get_child(0) as AbilityButton).button_pressed and not (hud.hotbar.get_child(1) as AbilityButton).button_pressed, "HUD did not keep only the selected action visually pressed", failures)
+	hud.set_selected_ability(&"")
+	_expect(not (hud.hotbar.get_child(0) as AbilityButton).button_pressed, "HUD did not clear selected action styling", failures)
 
 
 func _test_input_intents(hud: HudRoot, failures: Array[String]) -> void:

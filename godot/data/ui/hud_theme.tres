@@ -1,12 +1,12 @@
-[gd_resource type="Theme" load_steps=17 format=3]
+[gd_resource type="Theme" format=3 uid="uid://du3mp8k4lgc0h"]
 
-[sub_resource type="StyleBoxFlat" id="SB_slot_normal"]
-bg_color = Color(0.1, 0.08, 0.06, 0.92)
+[sub_resource type="StyleBoxFlat" id="SB_slot_disabled"]
+bg_color = Color(0.08, 0.07, 0.06, 0.55)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
-border_color = Color(0.78, 0.63, 0.24, 1)
+border_color = Color(0.45, 0.38, 0.22, 0.6)
 corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
@@ -24,6 +24,18 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
+[sub_resource type="StyleBoxFlat" id="SB_slot_normal"]
+bg_color = Color(0.1, 0.08, 0.06, 0.92)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.78, 0.63, 0.24, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
 [sub_resource type="StyleBoxFlat" id="SB_slot_pressed"]
 bg_color = Color(0.06, 0.05, 0.04, 1)
 border_width_left = 3
@@ -36,25 +48,13 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
-[sub_resource type="StyleBoxFlat" id="SB_slot_disabled"]
+[sub_resource type="StyleBoxFlat" id="SB_circle_disabled"]
 bg_color = Color(0.08, 0.07, 0.06, 0.55)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.45, 0.38, 0.22, 0.6)
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
-
-[sub_resource type="StyleBoxFlat" id="SB_circle_normal"]
-bg_color = Color(0.1, 0.08, 0.06, 0.92)
 border_width_left = 3
 border_width_top = 3
 border_width_right = 3
 border_width_bottom = 3
-border_color = Color(0.78, 0.63, 0.24, 1)
+border_color = Color(0.45, 0.38, 0.22, 0.6)
 corner_radius_top_left = 200
 corner_radius_top_right = 200
 corner_radius_bottom_right = 200
@@ -72,6 +72,18 @@ corner_radius_top_right = 200
 corner_radius_bottom_right = 200
 corner_radius_bottom_left = 200
 
+[sub_resource type="StyleBoxFlat" id="SB_circle_normal"]
+bg_color = Color(0.1, 0.08, 0.06, 0.92)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.78, 0.63, 0.24, 1)
+corner_radius_top_left = 200
+corner_radius_top_right = 200
+corner_radius_bottom_right = 200
+corner_radius_bottom_left = 200
+
 [sub_resource type="StyleBoxFlat" id="SB_circle_pressed"]
 bg_color = Color(0.06, 0.05, 0.04, 1)
 border_width_left = 4
@@ -79,18 +91,6 @@ border_width_top = 4
 border_width_right = 4
 border_width_bottom = 4
 border_color = Color(0.92, 0.78, 0.35, 1)
-corner_radius_top_left = 200
-corner_radius_top_right = 200
-corner_radius_bottom_right = 200
-corner_radius_bottom_left = 200
-
-[sub_resource type="StyleBoxFlat" id="SB_circle_disabled"]
-bg_color = Color(0.08, 0.07, 0.06, 0.55)
-border_width_left = 3
-border_width_top = 3
-border_width_right = 3
-border_width_bottom = 3
-border_color = Color(0.45, 0.38, 0.22, 0.6)
 corner_radius_top_left = 200
 corner_radius_top_right = 200
 corner_radius_bottom_right = 200
@@ -107,6 +107,20 @@ corner_radius_top_left = 200
 corner_radius_top_right = 200
 corner_radius_bottom_right = 200
 corner_radius_bottom_left = 200
+
+[sub_resource type="StyleBoxFlat" id="SB_bar_bg"]
+bg_color = Color(0.08, 0.07, 0.06, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="SB_bar_fill_hp"]
+bg_color = Color(0.72, 0.16, 0.14, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [sub_resource type="StyleBoxFlat" id="SB_tab_normal"]
 bg_color = Color(0.07, 0.06, 0.05, 0.85)
@@ -141,13 +155,6 @@ corner_radius_top_right = 10
 corner_radius_bottom_right = 10
 corner_radius_bottom_left = 10
 
-[sub_resource type="StyleBoxFlat" id="SB_bar_bg"]
-bg_color = Color(0.08, 0.07, 0.06, 0.9)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
 [sub_resource type="StyleBoxFlat" id="SB_bar_fill"]
 bg_color = Color(0.36, 0.62, 0.3, 1)
 corner_radius_top_left = 4
@@ -155,48 +162,42 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
-[sub_resource type="StyleBoxFlat" id="SB_bar_fill_hp"]
-bg_color = Color(0.72, 0.16, 0.14, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
 [resource]
-Button/styles/normal = SubResource("SB_slot_normal")
-Button/styles/hover = SubResource("SB_slot_hover")
-Button/styles/pressed = SubResource("SB_slot_pressed")
-Button/styles/disabled = SubResource("SB_slot_disabled")
-Button/styles/focus = SubResource("SB_slot_hover")
 Button/colors/font_color = Color(0.93, 0.88, 0.76, 1)
+Button/colors/font_disabled_color = Color(0.55, 0.5, 0.42, 0.55)
 Button/colors/font_hover_color = Color(0.92, 0.78, 0.35, 1)
 Button/colors/font_pressed_color = Color(0.92, 0.78, 0.35, 1)
-Button/colors/font_disabled_color = Color(0.55, 0.5, 0.42, 0.55)
 Button/colors/icon_disabled_color = Color(1, 1, 1, 0.3)
+Button/colors/icon_pressed_color = Color(0.42, 0.42, 0.42, 1)
+Button/styles/disabled = SubResource("SB_slot_disabled")
+Button/styles/focus = SubResource("SB_slot_hover")
+Button/styles/hover = SubResource("SB_slot_hover")
+Button/styles/normal = SubResource("SB_slot_normal")
+Button/styles/pressed = SubResource("SB_slot_pressed")
 CircleButton/base_type = &"Button"
-CircleButton/styles/normal = SubResource("SB_circle_normal")
-CircleButton/styles/hover = SubResource("SB_circle_hover")
-CircleButton/styles/pressed = SubResource("SB_circle_pressed")
+CircleButton/colors/font_color = Color(0.92, 0.78, 0.35, 1)
 CircleButton/styles/disabled = SubResource("SB_circle_disabled")
 CircleButton/styles/focus = SubResource("SB_circle_hover")
-CircleButton/colors/font_color = Color(0.92, 0.78, 0.35, 1)
-HudTab/base_type = &"Button"
-HudTab/styles/normal = SubResource("SB_tab_normal")
-HudTab/styles/hover = SubResource("SB_tab_hover")
-HudTab/styles/pressed = SubResource("SB_tab_active")
-HudTab/styles/disabled = SubResource("SB_tab_normal")
-HudTab/styles/focus = SubResource("SB_tab_hover")
-HudTab/colors/font_color = Color(0.93, 0.88, 0.76, 1)
-HudTab/colors/font_pressed_color = Color(1, 1, 1, 1)
-HudTab/colors/font_disabled_color = Color(0.55, 0.5, 0.42, 0.55)
+CircleButton/styles/hover = SubResource("SB_circle_hover")
+CircleButton/styles/normal = SubResource("SB_circle_normal")
+CircleButton/styles/pressed = SubResource("SB_circle_pressed")
 CirclePanel/base_type = &"Panel"
 CirclePanel/styles/panel = SubResource("SB_circle_frame")
-Panel/styles/panel = SubResource("SB_panel_frame")
-ProgressBar/styles/background = SubResource("SB_bar_bg")
-ProgressBar/styles/fill = SubResource("SB_bar_fill")
 HpBar/base_type = &"ProgressBar"
 HpBar/styles/background = SubResource("SB_bar_bg")
 HpBar/styles/fill = SubResource("SB_bar_fill_hp")
+HudTab/base_type = &"Button"
+HudTab/colors/font_color = Color(0.93, 0.88, 0.76, 1)
+HudTab/colors/font_disabled_color = Color(0.55, 0.5, 0.42, 0.55)
+HudTab/colors/font_pressed_color = Color(1, 1, 1, 1)
+HudTab/styles/disabled = SubResource("SB_tab_normal")
+HudTab/styles/focus = SubResource("SB_tab_hover")
+HudTab/styles/hover = SubResource("SB_tab_hover")
+HudTab/styles/normal = SubResource("SB_tab_normal")
+HudTab/styles/pressed = SubResource("SB_tab_active")
 Label/colors/font_color = Color(0.93, 0.88, 0.76, 1)
 Label/colors/font_outline_color = Color(0, 0, 0, 1)
 Label/constants/outline_size = 3
+Panel/styles/panel = SubResource("SB_panel_frame")
+ProgressBar/styles/background = SubResource("SB_bar_bg")
+ProgressBar/styles/fill = SubResource("SB_bar_fill")

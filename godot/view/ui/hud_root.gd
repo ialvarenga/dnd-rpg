@@ -44,6 +44,10 @@ func sync() -> void:
 	turns.set_turn_order(HudViewModel.turn_order(session.battle_state, definitions))
 	conditions.set_conditions(data.conditions)
 
+
+func set_selected_ability(ability_id: StringName) -> void:
+	hotbar.set_selected_ability(ability_id)
+
 func _unhandled_input(event: InputEvent) -> void:
 	for slot in range(6):
 		if event.is_action_pressed(StringName("hotbar_%d" % (slot + 1))):

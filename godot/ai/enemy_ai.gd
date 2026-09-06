@@ -7,7 +7,14 @@ extends RefCounted
 
 const ResolverRules = preload("res://sim/resolver.gd")
 const EquipmentRules = preload("res://sim/equipment.gd")
-const ATTACK_RANGE_METERS := 1.5
+## Keep combatants far enough apart that their silhouettes and attack motion
+## remain readable. This matches basic_attack.tres's presentation-friendly
+## attack range; a future animation can bridge the visible gap.
+const ATTACK_RANGE_METERS := 2.4
+## CharacterBody3D capsules have a 0.45 m radius. Leave a visible gap between
+## allies so their models never occupy the same staging position.
+const FORMATION_SEPARATION_METERS := 1.2
+const FORMATION_ANGLES := [0.0, 45.0, -45.0, 90.0, -90.0, 135.0, -135.0, 180.0]
 const MAX_TARGET_CANDIDATES := 2
 const SCORE_EPSILON := 0.001
 
@@ -37,7 +44,7 @@ func _evaluate_candidates(snapshot: BattleState, actor_id: int, nav: NavProvider
 	if not actor.is_conscious():
 		return []
 	var targets := _prioritized_targets(snapshot, actor)
-	var candidate_commands := _candidate_commands(actor, targets)
+	var candidate_commands := _candidate_commands(snapshot, actor, targets)
 	var evaluations: Array[Dictionary] = []
 	var bounded_nav := BudgetedNavProvider.new(nav, budget)
 	var bounded_los := BudgetedLosProvider.new(los, budget)
@@ -60,16 +67,16 @@ func _evaluate_candidates(snapshot: BattleState, actor_id: int, nav: NavProvider
 	return evaluations
 
 
-func _candidate_commands(actor: ActorState, targets: Array[ActorState]) -> Array[Command]:
+func _candidate_commands(snapshot: BattleState, actor: ActorState, targets: Array[ActorState]) -> Array[Command]:
 	var commands: Array[Command] = []
 	if actor.action_available:
 		for target in targets:
-			if actor.position.distance_to(target.position) <= ATTACK_RANGE_METERS + SCORE_EPSILON:
+			if actor.position.distance_to(target.position) <= ATTACK_RANGE_METERS + SCORE_EPSILON and _has_formation_space(snapshot, actor):
 				var attack := Command.create(&"basic_attack", actor.id)
 				attack.target_id = target.id
 				commands.append(attack)
 	for target in targets:
-		var destination: Variant = _useful_approach_destination(actor, target)
+		var destination: Variant = _useful_approach_destination(snapshot, actor, target)
 		if destination != null:
 			var move := Command.create(&"move", actor.id)
 			move.target_pos = destination
@@ -96,18 +103,61 @@ func _prioritized_targets(snapshot: BattleState, actor: ActorState) -> Array[Act
 	return limited
 
 
-func _useful_approach_destination(actor: ActorState, target: ActorState) -> Variant:
+func _useful_approach_destination(snapshot: BattleState, actor: ActorState, target: ActorState) -> Variant:
 	if actor.movement_remaining <= SCORE_EPSILON:
 		return null
 	var distance := actor.position.distance_to(target.position)
-	if distance <= ATTACK_RANGE_METERS + SCORE_EPSILON:
+	if distance <= ATTACK_RANGE_METERS + SCORE_EPSILON and _has_formation_space(snapshot, actor):
 		return null
-	var direction := actor.position.direction_to(target.position)
-	var desired_distance := maxf(0.0, distance - ATTACK_RANGE_METERS * 0.9)
-	var step := minf(actor.movement_remaining, desired_distance)
+	var desired_position := _formation_position(snapshot, actor, target)
+	var direction := actor.position.direction_to(desired_position)
+	var step := minf(actor.movement_remaining, actor.position.distance_to(desired_position))
 	if step <= SCORE_EPSILON:
 		return null
 	return actor.position + direction * step
+
+
+func _formation_position(snapshot: BattleState, actor: ActorState, target: ActorState) -> Vector3:
+	var outward := actor.position - target.position
+	outward.y = 0.0
+	if outward.length_squared() <= SCORE_EPSILON:
+		outward = Vector3.FORWARD
+	else:
+		outward = outward.normalized()
+	var best_position := target.position + outward * ATTACK_RANGE_METERS
+	best_position.y = actor.position.y
+	var best_clearance := -INF
+	var best_travel := INF
+	var found_clear_slot := false
+	for angle in FORMATION_ANGLES:
+		var candidate := target.position + outward.rotated(Vector3.UP, deg_to_rad(angle)) * ATTACK_RANGE_METERS
+		candidate.y = actor.position.y
+		var clearance := _nearest_ally_distance(snapshot, actor, candidate)
+		var travel := actor.position.distance_to(candidate)
+		var is_clear := clearance + SCORE_EPSILON >= FORMATION_SEPARATION_METERS
+		if (is_clear and (not found_clear_slot or travel < best_travel)) or (not found_clear_slot and not is_clear and (clearance > best_clearance + SCORE_EPSILON or (is_equal_approx(clearance, best_clearance) and travel < best_travel))):
+			best_position = candidate
+			best_clearance = clearance
+			best_travel = travel
+			found_clear_slot = is_clear
+	return best_position
+
+
+func _has_formation_space(snapshot: BattleState, actor: ActorState) -> bool:
+	return _nearest_ally_distance(snapshot, actor, actor.position) + SCORE_EPSILON >= FORMATION_SEPARATION_METERS
+
+
+func _nearest_ally_distance(snapshot: BattleState, actor: ActorState, position: Vector3) -> float:
+	var nearest := INF
+	for other_id in snapshot.actors:
+		var other: ActorState = snapshot.actors[other_id]
+		if other.id != actor.id and other.side == actor.side and other.is_alive():
+			nearest = minf(nearest, _planar_distance(position, other.position))
+	return nearest
+
+
+func _planar_distance(a: Vector3, b: Vector3) -> float:
+	return Vector2(a.x, a.z).distance_to(Vector2(b.x, b.z))
 
 
 func _score(before: BattleState, after: BattleState, actor: ActorState, command: Command, result: ResolutionResult) -> float:

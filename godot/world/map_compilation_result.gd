@@ -10,6 +10,7 @@ var errors: Array[MapValidationError] = []
 var warnings: Array[MapValidationWarning] = []
 var scorecard: Dictionary = {}
 var navigation: MapNavigationCompiler
+var music: Dictionary = {}
 
 
 func is_valid() -> bool:

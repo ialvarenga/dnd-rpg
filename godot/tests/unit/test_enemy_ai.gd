@@ -8,6 +8,7 @@ static func run() -> Dictionary:
 	_test_query_budget_enforcement(failures)
 	_test_attack_selection(failures)
 	_test_approach_selection(failures)
+	_test_formation_spacing(failures)
 	_test_avoids_obvious_opportunity_attack(failures)
 	_test_rejected_candidates_are_not_selected(failures)
 	_test_incremental_turn_decisions(failures)
@@ -57,6 +58,22 @@ static func _test_approach_selection(failures: Array[String]) -> void:
 	_expect(command != null and command.type == &"move", "AI did not approach an out-of-range target", failures)
 	if command != null and command.type == &"move":
 		_expect(command.target_pos.distance_to((state.actors[1] as ActorState).position) < (state.actors[2] as ActorState).position.distance_to((state.actors[1] as ActorState).position), "AI approach destination did not reduce target distance", failures)
+		_expect(is_equal_approx(command.target_pos.distance_to((state.actors[1] as ActorState).position), EnemyAI.ATTACK_RANGE_METERS), "AI did not preserve the configured combat standoff distance", failures)
+
+
+static func _test_formation_spacing(failures: Array[String]) -> void:
+	var state := _enemy_turn_state(8.0)
+	var ally := ActorState.new()
+	ally.id = 3
+	ally.side = &"enemies"
+	ally.position = Vector3(EnemyAI.ATTACK_RANGE_METERS, 0.0, 0.0)
+	ally.hp = 10
+	ally.max_hp = 10
+	state.actors[ally.id] = ally
+	var command := EnemyAI.new().choose_command(state, 2, FakeNavProvider.new(), FakeLosProvider.new(), AIQueryBudget.new())
+	_expect(command != null and command.type == &"move", "AI did not reposition away from an occupied attack slot", failures)
+	if command != null and command.type == &"move":
+		_expect(command.target_pos.distance_to(ally.position) >= EnemyAI.FORMATION_SEPARATION_METERS, "AI chose an overlapping enemy formation position", failures)
 
 
 static func _test_avoids_obvious_opportunity_attack(failures: Array[String]) -> void:
@@ -84,7 +101,7 @@ static func _test_rejected_candidates_are_not_selected(failures: Array[String]) 
 	var nav := FakeNavProvider.new()
 	var enemy: ActorState = state.actors[2]
 	var hero: ActorState = state.actors[1]
-	var blocked_destination := enemy.position + enemy.position.direction_to(hero.position) * minf(enemy.movement_remaining, enemy.position.distance_to(hero.position) - 1.5 * 0.9)
+	var blocked_destination := enemy.position + enemy.position.direction_to(hero.position) * minf(enemy.movement_remaining, enemy.position.distance_to(hero.position) - EnemyAI.ATTACK_RANGE_METERS)
 	nav.blocked_destinations.append(blocked_destination)
 	var command := EnemyAI.new().choose_command(state, 2, nav, FakeLosProvider.new(), AIQueryBudget.new())
 	_expect(command != null and command.type == &"end_turn", "AI selected a candidate the resolver rejected", failures)

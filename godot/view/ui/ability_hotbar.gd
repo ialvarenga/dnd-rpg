@@ -6,6 +6,7 @@ const BUTTON_SCENE = preload("res://view/ui/ability_button.tscn")
 
 @export var icon_set: IconSet
 var _actions: Array[Dictionary] = []
+var _selected_ability_id: StringName = &""
 
 func set_actions(actions: Array[Dictionary]) -> void:
 	_actions = actions.duplicate(true)
@@ -14,7 +15,16 @@ func set_actions(actions: Array[Dictionary]) -> void:
 		var button: AbilityButton = BUTTON_SCENE.instantiate()
 		add_child(button)
 		button.configure(_actions[index], index, icon_set)
+		button.set_selected(StringName(_actions[index].get("ability_id", "")) == _selected_ability_id)
 		button.ability_pressed.connect(func(id): ability_requested.emit(id))
+
+
+func set_selected_ability(ability_id: StringName) -> void:
+	_selected_ability_id = ability_id
+	for child in get_children():
+		var button := child as AbilityButton
+		if button != null:
+			button.set_selected(button.ability_id == ability_id)
 
 
 ## Called by HudRoot so keyboard bindings remain a presentation concern rather

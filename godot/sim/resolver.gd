@@ -70,6 +70,8 @@ static func resolve(state: BattleState, cmd: Command, nav: NavProvider, los: Los
 		return _resolve_end_turn(state, cmd, result)
 	if AbilityRoutingRules.is_ability_command(cmd.type):
 		return _resolve_ability_command(state, cmd, los, definitions, result, AbilityRoutingRules.ability_id_for_command(cmd.type))
+	if definitions.has_ability(cmd.type):
+		return _resolve_ability_command(state, cmd, los, definitions, result, cmd.type)
 	return _rejected(result, cmd, RejectionReasonRules.UNSUPPORTED_COMMAND)
 
 
