@@ -3631,13 +3631,13 @@ renders available ability dictionaries.
 
 ## Fase D3 — Chests contain loot
 
-1. Add `contents: Array[StringName]` to `InteractableState`, including clone,
+1. [READY] Add `contents: Array[StringName]` to `InteractableState`, including clone,
    serialization, deserialization, and stable snapshots.
-2. When an opened container has contents, `_resolve_interact()` emits
+2. [READY] When an opened container has contents, `_resolve_interact()` emits
    `items_looted { actor_id, interactable_id, item_ids }`. Applying it appends
    items to actor inventory and clears the container. Keep transitions
    data-driven rather than branching on an instance id.
-3. Give the hand-built test-arena chest a healing potion.
+3. [READY] Give the hand-built test-arena chest a healing potion.
 
 ## Fase D4 — Shipping-scene interactables
 

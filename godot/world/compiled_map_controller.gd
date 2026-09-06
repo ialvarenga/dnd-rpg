@@ -25,6 +25,7 @@ var detection_range := 8.0
 var _enemy_action_cooldown := 0.0
 var _targeting_ability_id: StringName = &""
 var _highlighted_target_id := -1
+var _pending_interactable_id := ""
 var music
 
 const EnemyAIScript = preload("res://ai/enemy_ai.gd")
@@ -87,13 +88,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		var interactable_id := ScreenPickerScript.interactable_id(camera, get_world_3d().direct_space_state, event.position)
 		if interactable_id != "":
-			var interact_result: ResolutionResult = session.submit_interact(character.actor_id, interactable_id)
-			event_player.play_events(interact_result.events)
-			for resolved_event in interact_result.events:
-				if resolved_event.type == &"items_looted":
-					var pickup_view := compilation.root.get_node_or_null(NodePath(str(resolved_event.data["interactable_id"])))
-					if pickup_view != null:
-						pickup_view.queue_free()
+			_approach_interactable(interactable_id)
 			get_viewport().set_input_as_handled()
 			return
 		var hostile := _hostile_at_screen_position(event.position)
@@ -102,9 +97,10 @@ func _unhandled_input(event: InputEvent) -> void:
 				_submit_targeted_ability(hostile.actor_id)
 			get_viewport().set_input_as_handled()
 			return
-		if hostile != null and battle_state.phase == &"combat" and battle_state.current_actor_id() == 1:
-			var attack_result: ResolutionResult = session.submit_ability(1, &"basic_attack", hostile.actor_id, Vector3.INF)
-			event_player.play_events(attack_result.events)
+		if hostile != null:
+			# Clicking an NPC is movement, not an implicit attack. Attacks remain
+			# explicit through the selected targeting ability.
+			_move(hostile.global_position)
 			get_viewport().set_input_as_handled()
 			return
 		var target: Variant = ScreenPickerScript.terrain_point(camera, get_world_3d().direct_space_state, event.position)
@@ -312,6 +308,38 @@ func _synchronize_completed_movement(actor_id: int) -> void:
 	var view := event_player.get_character_view(actor_id)
 	if view != null:
 		view.synchronize_to_authoritative_position((battle_state.actors[actor_id] as ActorState).position)
+	if actor_id == character.actor_id and not _pending_interactable_id.is_empty():
+		_complete_pending_interaction()
+
+
+func _approach_interactable(interactable_id: String) -> void:
+	if not battle_state.interactables.has(interactable_id):
+		return
+	var interactable: InteractableState = battle_state.interactables[interactable_id]
+	var actor: ActorState = battle_state.actors[character.actor_id]
+	if actor.position.distance_to(interactable.position) <= interactable.interact_range:
+		_resolve_interaction(interactable_id)
+		return
+	_pending_interactable_id = interactable_id
+	var result := _move(interactable.position)
+	if not result.events.is_empty() and result.events[0].type == &"command_rejected":
+		_pending_interactable_id = ""
+
+
+func _complete_pending_interaction() -> void:
+	var interactable_id := _pending_interactable_id
+	_pending_interactable_id = ""
+	_resolve_interaction(interactable_id)
+
+
+func _resolve_interaction(interactable_id: String) -> void:
+	var result: ResolutionResult = session.submit_interact(character.actor_id, interactable_id)
+	event_player.play_events(result.events)
+	for resolved_event in result.events:
+		if resolved_event.type == &"items_looted":
+			var pickup_view := compilation.root.get_node_or_null(NodePath(str(resolved_event.data["interactable_id"])))
+			if pickup_view != null:
+				pickup_view.queue_free()
 
 
 func _dress_player(player: CharacterView, player_data: Dictionary) -> void:
@@ -470,9 +498,10 @@ func _show_error(message: String) -> void:
 	add_child(layer)
 
 
-func _move(target: Vector3) -> void:
+func _move(target: Vector3) -> ResolutionResult:
 	var result: ResolutionResult = session.submit_move(1, target, character.global_position)
 	event_player.play_events(result.events)
+	return result
 
 
 func _show_path_preview(target: Vector3) -> void:

@@ -200,6 +200,7 @@ func _initialize_exploration_state() -> void:
 	# (1.0) -- interact_range below absorbs the difference either way.
 	chest.position = Vector3(10, 0.1, -10)
 	chest.interact_range = 2.5
+	chest.contents.append(&"healing_potion")
 	battle_state.interactables[chest.id] = chest
 
 

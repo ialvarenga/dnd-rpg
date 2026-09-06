@@ -11,6 +11,7 @@ static func run() -> Dictionary:
 	_test_combat_interact_costs_action_and_blocks_second_use(failures)
 	_test_door_toggles_open_and_closed(failures)
 	_test_chest_is_one_way(failures)
+	_test_chest_loot_is_authoritative_and_idempotent(failures)
 	_test_lever_toggles_on_and_off(failures)
 	_test_out_of_range_is_rejected_without_mutation(failures)
 	_test_unknown_interactable_is_rejected(failures)
@@ -125,6 +126,24 @@ static func _test_chest_is_one_way(failures: Array[String]) -> void:
 	_expect(second.events.size() == 1 and second.events[0].type == &"command_rejected" and second.events[0].data["reason"] == &"invalid_interactable_state", "re-opening an already-open chest should be rejected", failures)
 
 
+static func _test_chest_loot_is_authoritative_and_idempotent(failures: Array[String]) -> void:
+	var state := _make_state(&"exploration")
+	var chest := _add_chest(state)
+	chest.contents.append(&"healing_potion")
+	chest.contents.append(&"healing_potion")
+	var before := JSON.stringify(state.stable_snapshot()).md5_text()
+	var first := Resolver.resolve(state, _interact_command(1, "chest_a"), FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(JSON.stringify(state.stable_snapshot()).md5_text() == before, "loot resolution mutated BattleState before apply", failures)
+	_expect(first.events.size() == 2 and first.events[0].type == &"interaction_completed" and first.events[1].type == &"items_looted", "opening a stocked chest did not emit ordered loot events", failures)
+	if first.events.size() == 2:
+		_expect(first.events[1].data["item_ids"] == [&"healing_potion", &"healing_potion"], "items_looted did not preserve ordered chest contents", failures)
+	TestHelpers.apply_result(state, first)
+	_expect((state.actors[1] as ActorState).inventory == [&"healing_potion", &"healing_potion"], "items_looted did not append every item to inventory", failures)
+	_expect((state.interactables["chest_a"] as InteractableState).contents.is_empty(), "items_looted did not clear chest contents", failures)
+	var second := Resolver.resolve(state, _interact_command(1, "chest_a"), FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(second.events.size() == 1 and second.events[0].type == &"command_rejected", "opened chest could loot its contents twice", failures)
+
+
 static func _test_lever_toggles_on_and_off(failures: Array[String]) -> void:
 	var state := _make_state(&"exploration")
 	_add_lever(state)
@@ -181,6 +200,11 @@ static func _test_serialization_round_trip(failures: Array[String]) -> void:
 		_expect(restored_door.state == &"open", "interactable state did not round-trip", failures)
 		_expect(restored_door.position.is_equal_approx(door.position), "interactable position did not round-trip", failures)
 		_expect(is_equal_approx(restored_door.interact_range, door.interact_range), "interactable interact_range did not round-trip", failures)
+
+	var chest := _add_chest(state)
+	chest.contents.append(&"healing_potion")
+	restored = BattleState.from_dict(state.to_dict())
+	_expect((restored.interactables["chest_a"] as InteractableState).contents == [&"healing_potion"], "interactable contents did not round-trip", failures)
 
 
 static func _test_equal_inputs_produce_equal_resolution(failures: Array[String]) -> void:

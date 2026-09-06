@@ -239,8 +239,9 @@ func _test_rejected_and_invalid_clicks(controller: TestArenaController, player: 
 func _test_chest_interaction(controller: TestArenaController, failures: Array[String]) -> void:
 	controller.handle_terrain_click(Vector3(10.0, 0.1, -10.0))
 	var first := controller.submit_interact("chest_a")
-	_expect(first.events.size() == 1 and first.events[0].type == &"interaction_completed", "first chest interaction did not resolve to interaction_completed", failures)
+	_expect(first.events.size() == 2 and first.events[0].type == &"interaction_completed" and first.events[1].type == &"items_looted", "first chest interaction did not resolve to interaction_completed and items_looted", failures)
 	_expect((controller.battle_state.interactables["chest_a"] as InteractableState).state == &"open", "chest did not open after interaction", failures)
+	_expect((controller.battle_state.actors[controller.character.actor_id] as ActorState).inventory.count(&"healing_potion") == 2, "chest potion was not added to the player's inventory", failures)
 	var second := controller.submit_interact("chest_a")
 	_expect(second.events.size() == 1 and second.events[0].type == &"command_rejected" and second.events[0].data["reason"] == &"invalid_interactable_state", "re-opening an already-open chest was not rejected", failures)
 
