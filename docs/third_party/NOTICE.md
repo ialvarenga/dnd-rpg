@@ -47,10 +47,15 @@ authority.
 
 - Author: Kay Lousberg, www.kaylousberg.com
 - License: CC0 1.0 (Creative Commons Zero / public domain).
-- Files used: `Rig_Medium_MovementBasic.glb`, copied unmodified into
-  `godot/assets/kaykit_character_animations/`. Its `Walking_A` clip plays on
-  the compatible `Rig_Medium` skeleton used by the knight while the character
-  follows a resolved movement path.
+- Files used: `Rig_Medium_MovementBasic.glb`, `Rig_Medium_CombatMelee.glb`,
+  `Rig_Medium_General.glb`, and `Rig_Medium_MovementAdvanced.glb`, copied
+  unmodified into `godot/assets/kaykit_character_animations/`. On the
+  compatible `Rig_Medium` skeleton used by the knight/raider: `Walking_A`
+  plays while a character follows a resolved movement path;
+  `Melee_1H_Attack_Slice_Horizontal` plays after a resolved basic attack;
+  `Idle_A`/`Hit_A`/`Death_A` narrate idle/damage-taken/death; `Dodge_Backward`
+  narrates a missed incoming attack; `Melee_Blocking` is the weapon-ready
+  pose entered when combat starts.
 - This shared animation library is not a placeable catalog asset, so its audit
   record lives here rather than in `assets.csv`.
 
@@ -78,4 +83,12 @@ authority.
   `godot/assets/kaykit_adventurers/`; duplicate models shipped in both
   archives were not copied twice. The compatible movement clips are documented
   separately above.
-- See `assets.csv` for the full per-asset audit trail.
+- Weapon props `sword_1handed.gltf`/`.bin` (+ `knight_texture.png`) and
+  `dagger.gltf`/`.bin` (+ `rogue_texture.png`), from the FREE archive's
+  `Assets/gltf/`, copied unmodified into
+  `godot/assets/kaykit_adventurers_weapons/`. CharacterView attaches these to
+  the `handslot.r` bone of the equipped wielder (knight/longsword,
+  raider/dagger) via a `BoneAttachment3D`; the dagger is visual only and adds
+  no combat modifiers. Not a placeable catalog asset, so its audit record
+  lives here rather than in `assets.csv`.
+- See `assets.csv` for the full per-asset audit trail of the character models.

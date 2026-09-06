@@ -46,6 +46,13 @@ static func aggregate_armor_class(actor: ActorState, defs: DefinitionLibrary) ->
 	return actor.armor_class + (armor.armor_class_bonus if armor != null else 0)
 
 
+## View-facing: the wielded weapon's held model path, or "" if unarmed or the
+## weapon has no visual. Read by CharacterView setup, never by Resolver/AI.
+static func held_weapon_model_path(actor: ActorState, defs: DefinitionLibrary) -> String:
+	var weapon := _equipped_item(actor, SLOT_WEAPON, defs)
+	return weapon.held_model_path if weapon != null else ""
+
+
 static func _equipped_item(actor: ActorState, slot: StringName, defs: DefinitionLibrary) -> ItemDefinition:
 	var item_id: StringName = actor.equipment_slots.get(slot, &"")
 	if item_id == &"":

@@ -14,17 +14,19 @@ static func run() -> Dictionary:
 
 static func _test_stable_verb_vocabulary(failures: Array[String]) -> void:
 	var animation_set := ActorAnimationSet.new()
-	for verb in [&"idle", &"locomotion", &"jump", &"crouch", &"dodge", &"interact", &"attack", &"block", &"hit", &"death"]:
+	for verb in [&"idle", &"locomotion", &"jump", &"crouch", &"dodge", &"interact", &"attack", &"combat_ready", &"block", &"hit", &"death"]:
 		_expect(animation_set.clip_for(verb) != &"", "animation set has no clip mapping for %s" % verb, failures)
 	_expect(animation_set.clip_for(&"unknown") == &"", "animation set mapped an unknown verb", failures)
 
 
 static func _test_selects_stable_verb_clip(failures: Array[String]) -> void:
-	var animator := _animator_with(PackedStringArray(["Idle", "Walk", "Attack"]))
+	var animator := _animator_with(PackedStringArray(["Idle", "Walk", "Attack", "CombatReady"]))
 	animator.locomotion_started()
 	_expect(animator.current_state == &"locomotion" and animator.current_clip == &"Walk", "locomotion did not select its mapped clip", failures)
 	animator.present_attack()
 	_expect(animator.current_state == &"attack" and animator.current_clip == &"Attack", "attack did not select its mapped clip", failures)
+	animator.present_combat_ready()
+	_expect(animator.current_state == &"combat_ready" and animator.current_clip == &"CombatReady", "combat entry did not select its mapped clip", failures)
 
 
 static func _test_missing_verb_falls_back_to_idle(failures: Array[String]) -> void:
@@ -56,6 +58,7 @@ static func _animator_with(clips: PackedStringArray) -> CharacterAnimator:
 	animation_set.idle = &"Idle"
 	animation_set.locomotion = &"Walk"
 	animation_set.attack = &"Attack"
+	animation_set.combat_ready = &"CombatReady"
 	animation_set.hit = &"Hit"
 	animation_set.death = &"Death"
 	var player := AnimationPlayer.new()

@@ -123,6 +123,7 @@ func _setup_player() -> void:
 	var knight := DefinitionLibrary.get_default().get_actor(&"knight")
 	var actor := ActorState.from_definition(knight, 1, &"heroes", character.global_position)
 	battle_state.actors[1] = actor
+	character.held_weapon_model_path = Equipment.held_weapon_model_path(actor, DefinitionLibrary.get_default())
 	if not spec.get("objectives", []).is_empty():
 		var raw: Array = spec.objectives[0].position
 		objective = Vector3(float(raw[0]), compilation.terrain.height_at(float(raw[0]), float(raw[1])) + 0.2, float(raw[1]))
@@ -160,7 +161,9 @@ func _setup_hostiles(spec: Dictionary) -> void:
 		hostile.movement_completed.connect(_synchronize_completed_movement)
 		hostile_views[actor_id] = hostile
 		var raider := DefinitionLibrary.get_default().get_actor(&"raider")
-		battle_state.actors[actor_id] = ActorState.from_definition(raider, actor_id, &"enemies", hostile.global_position)
+		var raider_actor := ActorState.from_definition(raider, actor_id, &"enemies", hostile.global_position)
+		battle_state.actors[actor_id] = raider_actor
+		hostile.held_weapon_model_path = Equipment.held_weapon_model_path(raider_actor, DefinitionLibrary.get_default())
 		actor_id += 1
 
 

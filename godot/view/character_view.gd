@@ -11,11 +11,21 @@ signal movement_completed(actor_id: int)
 @export var turn_speed := 12.0
 @export var target_tolerance := 0.3
 
+## Set by the composition root (from Equipment.held_weapon_model_path) before
+## this node's deferred _initialize_animations runs. Empty means unarmed.
+## The model itself is only attached once combat starts (present_combat_ready).
+@export var held_weapon_model_path: String = ""
+
+const WEAPON_HAND_BONE := &"handslot.r"
+
 var destination := Vector3.ZERO
 var destination_state: StringName = &"idle"
 var _locomotion := PrototypeLocomotion.new()
+var _locomotion_was_active := false
 var _target_highlight: MeshInstance3D
 var _target_highlight_material: StandardMaterial3D
+var _model_root: Node
+var _weapon_attached := false
 @onready var animator: CharacterAnimator = get_node_or_null("CharacterAnimator") as CharacterAnimator
 
 
@@ -60,14 +70,20 @@ func is_moving() -> bool:
 func synchronize_to_authoritative_position(position: Vector3) -> void:
 	global_position = position
 	velocity = Vector3.ZERO
+	_locomotion_was_active = false
 	_notify_locomotion_stopped()
 
 
 func _physics_process(delta: float) -> void:
 	if not _locomotion.is_active():
 		velocity = Vector3.ZERO
-		_notify_locomotion_stopped()
+		# Edge-triggered: re-narrating idle on every stationary tick would stomp
+		# any other presented state (attack, hit, death, ...) a frame after it starts.
+		if _locomotion_was_active:
+			_locomotion_was_active = false
+			_notify_locomotion_stopped()
 		return
+	_locomotion_was_active = true
 	var step: Dictionary = _locomotion.step(global_position, delta)
 	velocity = step["velocity"]
 	if bool(step["finished"]):
@@ -85,6 +101,7 @@ func _finish_movement() -> void:
 	velocity = Vector3.ZERO
 	destination_state = &"reached"
 	global_position = destination
+	_locomotion_was_active = false
 	_notify_locomotion_stopped()
 	movement_completed.emit(actor_id)
 
@@ -93,10 +110,42 @@ func _initialize_animations() -> void:
 	var model_root := _find_model_root()
 	if model_root == null:
 		return
+	_model_root = model_root
 	if animator != null:
 		animator.configure_model(model_root)
 		if _locomotion.is_active():
 			animator.locomotion_started()
+
+
+## Sheathed until combat starts: called from present_combat_ready() rather
+## than dress-time, and idempotent so a later encounter's combat_started
+## doesn't attach a second copy. There is no equip command in this milestone
+## (Equipment), so the held model never needs to change once drawn.
+func _attach_held_weapon() -> void:
+	if _weapon_attached or held_weapon_model_path.is_empty() or _model_root == null:
+		return
+	var weapon_scene := load(held_weapon_model_path) as PackedScene
+	if weapon_scene == null:
+		return
+	var skeleton := _model_root.find_child("Skeleton3D", true, false) as Skeleton3D
+	if skeleton == null:
+		return
+	var attachment := BoneAttachment3D.new()
+	attachment.name = "HeldWeapon"
+	attachment.bone_name = WEAPON_HAND_BONE
+	skeleton.add_child(attachment)
+	attachment.add_child(weapon_scene.instantiate())
+	_weapon_attached = true
+
+
+func _detach_held_weapon() -> void:
+	if not _weapon_attached or _model_root == null:
+		return
+	var skeleton := _model_root.find_child("Skeleton3D", true, false) as Skeleton3D
+	var attachment := skeleton.find_child("HeldWeapon", true, false) if skeleton != null else null
+	if attachment != null:
+		attachment.queue_free()
+	_weapon_attached = false
 
 
 func _find_model_root() -> Node:
@@ -109,6 +158,23 @@ func _find_model_root() -> Node:
 func present_attack() -> void:
 	if animator != null:
 		animator.present_attack()
+
+
+func present_combat_ready() -> void:
+	if animator != null:
+		animator.present_combat_ready()
+	_attach_held_weapon()
+
+
+func present_combat_ended() -> void:
+	_detach_held_weapon()
+	if animator != null:
+		animator.present_combat_ended()
+
+
+func present_dodge() -> void:
+	if animator != null:
+		animator.present_dodge()
 
 
 func present_hit() -> void:

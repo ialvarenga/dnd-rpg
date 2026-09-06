@@ -20,5 +20,7 @@ attack_bonus = 3
 damage_die = 6
 damage_modifier = 1
 ability_ids = Array[StringName]([&"basic_attack", &"dash", &"disengage"])
-equipment_slots = {}
+equipment_slots = {
+&"weapon": &"dagger"
+}
 starting_inventory = Array[StringName]([])

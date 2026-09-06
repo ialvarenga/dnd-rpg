@@ -23,3 +23,7 @@ extends Resource
 ## Armor-only, ignored otherwise. Added on top of the wearer's own
 ## armor_class.
 @export var armor_class_bonus: int = 0
+
+## Weapon-only, presentation-facing. Path to the held model CharacterView
+## attaches to the wielder's hand bone; empty means nothing is shown.
+@export var held_model_path: String = ""

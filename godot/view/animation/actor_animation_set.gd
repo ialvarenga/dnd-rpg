@@ -8,9 +8,18 @@ extends Resource
 @export var locomotion: StringName = &"Walking_A"
 @export var jump: StringName = &"Jump_A"
 @export var crouch: StringName = &"Crouch_A"
-@export var dodge: StringName = &"Dodge_A"
-@export var interact: StringName = &"Interact_A"
-@export var attack: StringName = &"Attack_A"
+# MovementAdvanced has no plain "Dodge_A" -- Backward is the reactive step
+# used to narrate a missed incoming attack.
+@export var dodge: StringName = &"Dodge_Backward"
+@export var interact: StringName = &"Interact"
+# Knight's longsword uses the one-handed horizontal slice from KayKit's
+# CombatMelee library.
+@export var attack: StringName = &"Melee_1H_Attack_Slice_Horizontal"
+# CombatMelee has no one-handed-only idle (only Melee_2H_Idle and
+# Melee_Unarmed_Idle, both wrong-handed for a 1H weapon with no shield).
+# Melee_Blocking -- the raised-guard loop -- is the closest available
+# weapon-ready pose and is reused here rather than left unanimated.
+@export var combat_ready: StringName = &"Melee_Blocking"
 @export var block: StringName = &"Block_A"
 @export var hit: StringName = &"Hit_A"
 @export var death: StringName = &"Death_A"
@@ -38,6 +47,7 @@ func clip_for(verb: StringName) -> StringName:
 		&"dodge": return dodge
 		&"interact": return interact
 		&"attack": return attack
+		&"combat_ready": return combat_ready
 		&"block": return block
 		&"hit": return hit
 		&"death": return death

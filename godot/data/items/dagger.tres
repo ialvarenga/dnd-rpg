@@ -4,10 +4,7 @@
 
 [resource]
 script = ExtResource("1_ijk8m")
-id = &"longsword"
-display_name = "Longsword"
+id = &"dagger"
+display_name = "Dagger"
 slot = &"weapon"
-attack_bonus_modifier = 2
-damage_die = 8
-damage_modifier = 2
-held_model_path = "res://assets/kaykit_adventurers_weapons/sword_1handed.gltf"
+held_model_path = "res://assets/kaykit_adventurers_weapons/dagger.gltf"

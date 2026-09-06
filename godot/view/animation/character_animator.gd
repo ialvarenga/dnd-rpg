@@ -49,6 +49,18 @@ func present_attack() -> void:
 	request_state(&"attack")
 
 
+func present_combat_ready() -> void:
+	request_state(&"combat_ready")
+
+
+func present_combat_ended() -> void:
+	request_state(&"idle")
+
+
+func present_dodge() -> void:
+	request_state(&"dodge")
+
+
 func present_hit() -> void:
 	request_state(&"hit")
 

@@ -56,7 +56,7 @@ anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 16.0
-offset_top = -170.0
+offset_top = -154.0
 offset_right = -16.0
 offset_bottom = -16.0
 grow_horizontal = 2
@@ -77,15 +77,15 @@ theme_override_styles/panel = SubResource("StyleBox_hud_panel")
 
 [node name="PanelMargin" type="MarginContainer" parent="Margin/Layout/HotbarPanel"]
 theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 8
+theme_override_constants/margin_top = 6
 theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 8
+theme_override_constants/margin_bottom = 6
 
 [node name="Rows" type="VBoxContainer" parent="Margin/Layout/HotbarPanel/PanelMargin"]
-theme_override_constants/separation = 6
+theme_override_constants/separation = 4
 
 [node name="Groups" type="HBoxContainer" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows"]
-theme_override_constants/separation = 10
+theme_override_constants/separation = 8
 
 [node name="AbilityHotbar" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups" instance=ExtResource("4_hotbar")]
 
@@ -94,36 +94,36 @@ theme_override_constants/separation = 10
 [node name="SpellSlots" type="GridContainer" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups"]
 mouse_filter = 2
 columns = 3
-theme_override_constants/h_separation = 6
-theme_override_constants/v_separation = 6
+theme_override_constants/h_separation = 4
+theme_override_constants/v_separation = 4
 
 [node name="Slot1" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(56, 56)
 disabled = true
 tooltip_text = "Spells — not yet implemented"
 
 [node name="Slot2" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(56, 56)
 disabled = true
 tooltip_text = "Spells — not yet implemented"
 
 [node name="Slot3" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(56, 56)
 disabled = true
 tooltip_text = "Spells — not yet implemented"
 
 [node name="Slot4" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(56, 56)
 disabled = true
 tooltip_text = "Spells — not yet implemented"
 
 [node name="Slot5" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(56, 56)
 disabled = true
 tooltip_text = "Spells — not yet implemented"
 
 [node name="Slot6" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(56, 56)
 disabled = true
 tooltip_text = "Spells — not yet implemented"
 
@@ -132,26 +132,26 @@ tooltip_text = "Spells — not yet implemented"
 [node name="ItemSlots" type="GridContainer" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups"]
 mouse_filter = 2
 columns = 2
-theme_override_constants/h_separation = 6
-theme_override_constants/v_separation = 6
+theme_override_constants/h_separation = 4
+theme_override_constants/v_separation = 4
 
 [node name="ItemSlot1" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(56, 56)
 disabled = true
 tooltip_text = "Items — not yet implemented"
 
 [node name="ItemSlot2" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(56, 56)
 disabled = true
 tooltip_text = "Items — not yet implemented"
 
 [node name="ItemSlot3" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(56, 56)
 disabled = true
 tooltip_text = "Items — not yet implemented"
 
 [node name="ItemSlot4" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(56, 56)
 disabled = true
 tooltip_text = "Items — not yet implemented"
 
@@ -160,7 +160,7 @@ alignment = 1
 theme_override_constants/separation = 4
 
 [node name="TabComum" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Tabs"]
-custom_minimum_size = Vector2(76, 26)
+custom_minimum_size = Vector2(70, 22)
 theme_type_variation = &"HudTab"
 toggle_mode = true
 button_group = SubResource("TabGroup")
@@ -168,7 +168,7 @@ text = "Comum"
 tooltip_text = "Category filters — coming soon"
 
 [node name="TabMago" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Tabs"]
-custom_minimum_size = Vector2(76, 26)
+custom_minimum_size = Vector2(70, 22)
 theme_type_variation = &"HudTab"
 toggle_mode = true
 button_group = SubResource("TabGroup")
@@ -176,7 +176,7 @@ text = "Mago"
 tooltip_text = "Category filters — coming soon"
 
 [node name="TabItens" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Tabs"]
-custom_minimum_size = Vector2(76, 26)
+custom_minimum_size = Vector2(70, 22)
 theme_type_variation = &"HudTab"
 toggle_mode = true
 button_group = SubResource("TabGroup")
@@ -184,7 +184,7 @@ text = "Itens"
 tooltip_text = "Category filters — coming soon"
 
 [node name="TabPassivas" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Tabs"]
-custom_minimum_size = Vector2(76, 26)
+custom_minimum_size = Vector2(70, 22)
 theme_type_variation = &"HudTab"
 toggle_mode = true
 button_group = SubResource("TabGroup")
@@ -192,7 +192,7 @@ text = "Passivas"
 tooltip_text = "Category filters — coming soon"
 
 [node name="TabPersonalizado" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Tabs"]
-custom_minimum_size = Vector2(96, 26)
+custom_minimum_size = Vector2(88, 22)
 theme_type_variation = &"HudTab"
 toggle_mode = true
 button_pressed = true
@@ -204,9 +204,9 @@ tooltip_text = "Current loadout"
 theme_type_variation = &"CircleButton"
 text = ""
 mouse_filter = 0
-custom_minimum_size = Vector2(72, 72)
+custom_minimum_size = Vector2(64, 64)
 size_flags_vertical = 4
-theme_override_constants/icon_max_width = 24
+theme_override_constants/icon_max_width = 28
 tooltip_text = "End Turn (Space)"
 
 [node name="Settings" type="Button" parent="Margin/Layout"]

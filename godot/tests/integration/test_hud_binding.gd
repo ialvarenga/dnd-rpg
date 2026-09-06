@@ -30,10 +30,10 @@ func _test_initial_binding(hud: HudRoot, failures: Array[String]) -> void:
 	var end_turn: Button = hud.get_node("Margin/Layout/EndTurn")
 	_expect(hud.hotbar.mouse_filter == Control.MOUSE_FILTER_IGNORE, "empty hotbar space should remain pass-through", failures)
 	_expect(end_turn.mouse_filter == Control.MOUSE_FILTER_STOP, "end-turn button must consume pointer input", failures)
-	_expect(end_turn.get_theme_constant(&"icon_max_width") == 24, "end-turn icon size was not constrained", failures)
+	_expect(end_turn.get_theme_constant(&"icon_max_width") == 28, "end-turn icon size was not constrained", failures)
 	for button in hud.hotbar.get_children():
 		_expect((button as Control).mouse_filter == Control.MOUSE_FILTER_STOP, "hotbar button must consume pointer input", failures)
-		_expect((button as Button).get_theme_constant(&"icon_max_width") == 24, "hotbar icon size was not constrained", failures)
+		_expect((button as Button).get_theme_constant(&"icon_max_width") == 28, "hotbar icon size was not constrained", failures)
 	hud.set_selected_ability(&"basic_attack")
 	_expect((hud.hotbar.get_child(0) as AbilityButton).button_pressed and not (hud.hotbar.get_child(1) as AbilityButton).button_pressed, "HUD did not keep only the selected action visually pressed", failures)
 	hud.set_selected_ability(&"")

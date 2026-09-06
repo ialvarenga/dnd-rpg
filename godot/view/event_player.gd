@@ -29,6 +29,12 @@ func _narrate_event(event: Event) -> void:
 	var actor_id := int(event.data.get("actor_id", -1))
 	var view := get_character_view(actor_id)
 	match event.type:
+		&"combat_started":
+			for character_view in _views_by_actor.values():
+				(character_view as CharacterView).present_combat_ready()
+		&"combat_ended":
+			for character_view in _views_by_actor.values():
+				(character_view as CharacterView).present_combat_ended()
 		&"movement_segment":
 			if view == null:
 				return
@@ -42,6 +48,10 @@ func _narrate_event(event: Event) -> void:
 		&"attack_rolled":
 			if view != null:
 				view.present_attack()
+			if not bool(event.data.get("hit", false)):
+				var target_view := get_character_view(int(event.data.get("target_id", -1)))
+				if target_view != null:
+					target_view.present_dodge()
 		&"damage_taken":
 			if view != null:
 				view.present_hit()

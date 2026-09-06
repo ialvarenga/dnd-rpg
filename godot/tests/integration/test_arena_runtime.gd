@@ -45,8 +45,8 @@ func _test_hud_runtime(controller: TestArenaController, hud: HudRoot, player: Ch
 	_expect(hud.hotbar.mouse_filter == Control.MOUSE_FILTER_IGNORE, "empty hotbar space should remain pass-through", failures)
 	for button in hud.hotbar.get_children():
 		_expect((button as Control).mouse_filter == Control.MOUSE_FILTER_STOP, "hotbar buttons must consume clicks before terrain input", failures)
-		_expect((button as Button).get_theme_constant(&"icon_max_width") == 24, "hotbar SVG icons must be constrained to HUD scale", failures)
-	_expect(end_turn.get_theme_constant(&"icon_max_width") == 24, "end-turn SVG icon must be constrained to HUD scale", failures)
+		_expect((button as Button).get_theme_constant(&"icon_max_width") == 28, "hotbar SVG icons must be constrained to HUD scale", failures)
+	_expect(end_turn.get_theme_constant(&"icon_max_width") == 28, "end-turn SVG icon must be constrained to HUD scale", failures)
 
 
 func _test_hud_input_routing(controller: TestArenaController, hud: HudRoot, failures: Array[String]) -> void:
@@ -137,10 +137,12 @@ func _test_animation_movement_transition(_controller: TestArenaController, playe
 	await _wait_for_destination(player, 180)
 	if player.animator != null:
 		_expect(player.animator.current_state == &"idle", "movement completion did not return animator to idle", failures)
-		# The installed baseline only ships MovementBasic.  These narrated events
-		# must still be harmless when the optional combat/general clips are absent.
-		event_player.play_events([Event.create(&"attack_rolled", {"actor_id": player.actor_id}), Event.create(&"damage_taken", {"actor_id": player.actor_id, "amount": 1}), Event.create(&"interaction_completed", {"actor_id": player.actor_id}), Event.create(&"actor_died", {"actor_id": player.actor_id})])
-		_expect(player.animator != null and player.animator.current_state in [&"idle", &"attack", &"hit", &"death"], "absent optional clips crashed event narration", failures)
+		event_player.play_events([Event.create(&"attack_rolled", {"actor_id": player.actor_id})])
+		_expect(player.animator.current_state == &"attack" and player.animator.current_clip == &"Melee_1H_Attack_Slice_Horizontal", "attack_rolled did not play the knight's melee attack clip", failures)
+		# General remains optional, so unavailable non-movement clips must still
+		# be harmless during event narration.
+		event_player.play_events([Event.create(&"damage_taken", {"actor_id": player.actor_id, "amount": 1}), Event.create(&"interaction_completed", {"actor_id": player.actor_id}), Event.create(&"actor_died", {"actor_id": player.actor_id})])
+		_expect(player.animator != null and player.animator.current_state in [&"idle", &"hit", &"death"], "absent optional clips crashed event narration", failures)
 		_configure_event_animation_clips(player.animator)
 		event_player.play_events([Event.create(&"attack_rolled", {"actor_id": player.actor_id})])
 		_expect(player.animator.current_state == &"attack", "attack_rolled did not narrate attack", failures)
@@ -155,7 +157,7 @@ func _test_animation_movement_transition(_controller: TestArenaController, playe
 func _configure_event_animation_clips(animator: CharacterAnimator) -> void:
 	var player := AnimationPlayer.new()
 	var library := AnimationLibrary.new()
-	for clip in PackedStringArray(["Idle_A", "Walking_A", "Attack_A", "Hit_A", "Interact_A", "Death_A"]):
+	for clip in PackedStringArray(["Idle_A", "Walking_A", "Melee_1H_Attack_Slice_Horizontal", "Hit_A", "Interact", "Death_A"]):
 		library.add_animation(clip, Animation.new())
 	player.add_animation_library(&"test", library)
 	animator.configure_players([player])
