@@ -18,6 +18,9 @@ extends Resource
 @export var collision_size := Vector3.ZERO
 @export var display_offset := Vector3.ZERO
 @export var display_rotation_y := 0.0
+## The KayKit forest atlas exposes eight palette columns. Palette 1 is the
+## mesh's authored material; later palettes are applied by AssetCatalog.
+@export_range(1, 8, 1) var palette_index := 1
 
 
 func is_usable() -> bool:

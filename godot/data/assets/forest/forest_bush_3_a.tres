@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AssetDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://world/asset_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"forest_bush_3_a"
+scene_path = "res://assets/kaykit_forest/bushes/Bush_3_A_Color1.gltf"
+asset_type = &"vegetation"
+tags = PackedStringArray("temperate", "forest", "bush")
+footprint_radius = 0.52
+placement_max_slope_deg = 35.0
+blocks_navigation = false
+collision_shape = "cylinder"
+display_offset = Vector3(0, 0.025402218103408813, 0)
+palette_index = 3

@@ -15,17 +15,19 @@ static func run() -> Dictionary:
 	session.configure(state, nav, los)
 	_expect(session.battle_state == state and session.nav == nav and session.los == los, "configure did not retain the supplied simulation ports", failures)
 
-	var state_change_count := 0
-	var resolved_events: Array[Event] = []
+	# GDScript lambdas capture locals by value, so counters and reassigned
+	# captures have to live inside a container the lambda mutates in place.
+	var state_change_count := [0]
+	var resolved_events: Array[Array] = [[]]
 	var rejections: Array[Dictionary] = []
-	session.state_changed.connect(func(): state_change_count += 1)
-	session.events_resolved.connect(func(events: Array[Event]): resolved_events = events.duplicate())
+	session.state_changed.connect(func(): state_change_count[0] += 1)
+	session.events_resolved.connect(func(events: Array[Event]): resolved_events[0] = events.duplicate())
 	session.command_rejected.connect(func(command_type: StringName, reason: StringName): rejections.append({"command_type": command_type, "reason": reason}))
 
 	var view_position := Vector3(-2.0, 0.0, 0.0)
 	var accepted := session.submit_move(1, Vector3(2.0, 0.0, 0.0), view_position)
 	_expect(not accepted.events.is_empty() and accepted.events[0].type == &"movement_segment", "accepted session submission did not expose Resolver movement events", failures)
-	_expect(resolved_events == accepted.events, "accepted session submission did not emit its resolved events", failures)
+	_expect(resolved_events[0] == accepted.events, "accepted session submission did not emit its resolved events", failures)
 	_expect((state.actors[1] as ActorState).position == Vector3(2.0, 0.0, 0.0), "accepted session submission did not apply Resolver events", failures)
 	var movement: Event = accepted.events[0]
 	var presentation_path: PackedVector3Array = movement.data.get("presentation_path", PackedVector3Array())
@@ -34,7 +36,7 @@ static func run() -> Dictionary:
 	var rejected := session.end_turn(2)
 	_expect(rejected.events.size() == 1 and rejected.events[0].type == &"command_rejected", "rejected session submission did not expose the Resolver rejection event", failures)
 	_expect(rejections == [{"command_type": &"end_turn", "reason": &"not_current_actor"}], "session did not emit the authoritative rejection reason", failures)
-	_expect(state_change_count == 2, "session did not emit state_changed once per submitted command", failures)
+	_expect(state_change_count[0] == 2, "session did not emit state_changed once per submitted command", failures)
 	return {"name": "integration/test_encounter_session", "failures": failures}
 
 

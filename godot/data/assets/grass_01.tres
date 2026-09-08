@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1")
 id = &"grass_01"
-scene_path = "res://assets/kaykit_forest/Grass_1_A_Color1.gltf"
+scene_path = "res://assets/kaykit_forest/grass/Grass_1_A_Color1.gltf"
 asset_type = &"vegetation"
 tags = PackedStringArray("grass", "temperate")
 footprint_radius = 0.25

@@ -1,0 +1,9 @@
+[gd_resource type="StandardMaterial3D" load_steps=2 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/kaykit_forest/forest_texture.png" id="1"]
+
+[resource]
+albedo_texture = ExtResource("1")
+uv1_offset = Vector3(0.375, 0, 0)
+metallic = 0.0
+roughness = 0.6

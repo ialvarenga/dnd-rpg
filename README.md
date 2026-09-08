@@ -36,6 +36,7 @@ From the repository root:
 godot --editor --path godot
 godot --headless --path godot --script res://tests/test_runner.gd
 godot --headless --path godot --editor --quit
+python3 scripts/generate_forest_catalog.py --check
 ```
 
 The test command runs unit, deterministic replay, arena runtime, compiled-map

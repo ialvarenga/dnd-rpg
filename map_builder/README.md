@@ -16,6 +16,10 @@ copy until a hard reload.
 
 Open `http://localhost:8000/map_builder/`. Use the toolbar to place point entities or draw regions, roads, and rivers; each entry also has precise numeric/JSON coordinate controls.
 
+Asset pickers are searchable and grouped by family. Their catalog is generated:
+run `python3 scripts/generate_forest_catalog.py` after changing imported forest
+glTF assets rather than editing `js/asset-catalog.js` by hand.
+
 **Export JSON** always downloads a copy—it never writes to the repository.
 
 In Chrome/Edge (browsers with the File System Access API), Import/Save work like a native editor instead:

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AssetDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://world/asset_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"forest_rock_1_d"
+scene_path = "res://assets/kaykit_forest/rocks/Rock_1_D_Color1.gltf"
+asset_type = &"vegetation"
+tags = PackedStringArray("temperate", "forest", "rock")
+footprint_radius = 0.62
+placement_max_slope_deg = 40.0
+blocks_navigation = true
+collision_shape = "cylinder"
+display_offset = Vector3(0, 0, 0)
+palette_index = 5

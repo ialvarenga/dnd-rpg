@@ -3,3 +3,6 @@ godot/.godot/
 .venv/
 __pycache__/
 *.tmp
+
+# Uncompressed music masters -- shipped tracks are Ogg Vorbis (docs/ADR/ADR-006).
+godot/assets/music/*.wav

@@ -19,6 +19,140 @@ const DEFINITION_PATHS: Array[String] = [
 	"res://data/assets/character_barbarian_01.tres", "res://data/assets/character_mage_01.tres",
 	"res://data/assets/character_druid_01.tres", "res://data/assets/character_engineer_01.tres",
 	"res://data/assets/healing_potion_pickup_01.tres",
+	# generated:forest:begin
+	"res://data/assets/forest/forest_tree_1_b.tres",
+	"res://data/assets/forest/forest_tree_1_c.tres",
+	"res://data/assets/forest/forest_tree_2_a.tres",
+	"res://data/assets/forest/forest_tree_2_b.tres",
+	"res://data/assets/forest/forest_tree_2_c.tres",
+	"res://data/assets/forest/forest_tree_2_d.tres",
+	"res://data/assets/forest/forest_tree_2_e.tres",
+	"res://data/assets/forest/forest_tree_3_b.tres",
+	"res://data/assets/forest/forest_tree_3_c.tres",
+	"res://data/assets/forest/forest_tree_4_a.tres",
+	"res://data/assets/forest/forest_tree_4_b.tres",
+	"res://data/assets/forest/forest_tree_4_c.tres",
+	"res://data/assets/forest/forest_tree_5_a.tres",
+	"res://data/assets/forest/forest_tree_5_b.tres",
+	"res://data/assets/forest/forest_tree_5_c.tres",
+	"res://data/assets/forest/forest_tree_5_d.tres",
+	"res://data/assets/forest/forest_tree_5_e.tres",
+	"res://data/assets/forest/forest_tree_5_f.tres",
+	"res://data/assets/forest/forest_tree_6_a.tres",
+	"res://data/assets/forest/forest_tree_6_b.tres",
+	"res://data/assets/forest/forest_tree_6_c.tres",
+	"res://data/assets/forest/forest_tree_7_a.tres",
+	"res://data/assets/forest/forest_tree_7_b.tres",
+	"res://data/assets/forest/forest_tree_7_c.tres",
+	"res://data/assets/forest/forest_tree_bare_1_a.tres",
+	"res://data/assets/forest/forest_tree_bare_1_b.tres",
+	"res://data/assets/forest/forest_tree_bare_1_c.tres",
+	"res://data/assets/forest/forest_tree_bare_2_a.tres",
+	"res://data/assets/forest/forest_tree_bare_2_b.tres",
+	"res://data/assets/forest/forest_tree_bare_2_c.tres",
+	"res://data/assets/forest/forest_bush_1_b.tres",
+	"res://data/assets/forest/forest_bush_1_c.tres",
+	"res://data/assets/forest/forest_bush_1_d.tres",
+	"res://data/assets/forest/forest_bush_1_e.tres",
+	"res://data/assets/forest/forest_bush_1_f.tres",
+	"res://data/assets/forest/forest_bush_1_g.tres",
+	"res://data/assets/forest/forest_bush_2_a.tres",
+	"res://data/assets/forest/forest_bush_2_b.tres",
+	"res://data/assets/forest/forest_bush_2_c.tres",
+	"res://data/assets/forest/forest_bush_2_d.tres",
+	"res://data/assets/forest/forest_bush_2_e.tres",
+	"res://data/assets/forest/forest_bush_2_f.tres",
+	"res://data/assets/forest/forest_bush_3_a.tres",
+	"res://data/assets/forest/forest_bush_3_b.tres",
+	"res://data/assets/forest/forest_bush_3_c.tres",
+	"res://data/assets/forest/forest_bush_4_a.tres",
+	"res://data/assets/forest/forest_bush_4_b.tres",
+	"res://data/assets/forest/forest_bush_4_c.tres",
+	"res://data/assets/forest/forest_bush_4_d.tres",
+	"res://data/assets/forest/forest_bush_4_e.tres",
+	"res://data/assets/forest/forest_bush_4_f.tres",
+	"res://data/assets/forest/forest_grass_1_a_singlesided.tres",
+	"res://data/assets/forest/forest_grass_1_b.tres",
+	"res://data/assets/forest/forest_grass_1_b_singlesided.tres",
+	"res://data/assets/forest/forest_grass_1_c.tres",
+	"res://data/assets/forest/forest_grass_1_c_singlesided.tres",
+	"res://data/assets/forest/forest_grass_1_d.tres",
+	"res://data/assets/forest/forest_grass_1_d_singlesided.tres",
+	"res://data/assets/forest/forest_grass_2_a.tres",
+	"res://data/assets/forest/forest_grass_2_a_singlesided.tres",
+	"res://data/assets/forest/forest_grass_2_b.tres",
+	"res://data/assets/forest/forest_grass_2_b_singlesided.tres",
+	"res://data/assets/forest/forest_grass_2_c.tres",
+	"res://data/assets/forest/forest_grass_2_c_singlesided.tres",
+	"res://data/assets/forest/forest_grass_2_d.tres",
+	"res://data/assets/forest/forest_grass_2_d_singlesided.tres",
+	"res://data/assets/forest/forest_rock_1_a.tres",
+	"res://data/assets/forest/forest_rock_1_b.tres",
+	"res://data/assets/forest/forest_rock_1_c.tres",
+	"res://data/assets/forest/forest_rock_1_d.tres",
+	"res://data/assets/forest/forest_rock_1_e.tres",
+	"res://data/assets/forest/forest_rock_1_f.tres",
+	"res://data/assets/forest/forest_rock_1_g.tres",
+	"res://data/assets/forest/forest_rock_1_h.tres",
+	"res://data/assets/forest/forest_rock_1_i.tres",
+	"res://data/assets/forest/forest_rock_1_j.tres",
+	"res://data/assets/forest/forest_rock_1_k.tres",
+	"res://data/assets/forest/forest_rock_1_l.tres",
+	"res://data/assets/forest/forest_rock_1_m.tres",
+	"res://data/assets/forest/forest_rock_1_n.tres",
+	"res://data/assets/forest/forest_rock_1_o.tres",
+	"res://data/assets/forest/forest_rock_1_p.tres",
+	"res://data/assets/forest/forest_rock_1_q.tres",
+	"res://data/assets/forest/forest_rock_2_a.tres",
+	"res://data/assets/forest/forest_rock_2_b.tres",
+	"res://data/assets/forest/forest_rock_2_c.tres",
+	"res://data/assets/forest/forest_rock_2_d.tres",
+	"res://data/assets/forest/forest_rock_2_e.tres",
+	"res://data/assets/forest/forest_rock_2_f.tres",
+	"res://data/assets/forest/forest_rock_2_g.tres",
+	"res://data/assets/forest/forest_rock_2_h.tres",
+	"res://data/assets/forest/forest_rock_3_a.tres",
+	"res://data/assets/forest/forest_rock_3_b.tres",
+	"res://data/assets/forest/forest_rock_3_c.tres",
+	"res://data/assets/forest/forest_rock_3_d.tres",
+	"res://data/assets/forest/forest_rock_3_e.tres",
+	"res://data/assets/forest/forest_rock_3_f.tres",
+	"res://data/assets/forest/forest_rock_3_g.tres",
+	"res://data/assets/forest/forest_rock_3_h.tres",
+	"res://data/assets/forest/forest_rock_3_i.tres",
+	"res://data/assets/forest/forest_rock_3_j.tres",
+	"res://data/assets/forest/forest_rock_3_k.tres",
+	"res://data/assets/forest/forest_rock_3_l.tres",
+	"res://data/assets/forest/forest_rock_3_m.tres",
+	"res://data/assets/forest/forest_rock_3_n.tres",
+	"res://data/assets/forest/forest_rock_3_o.tres",
+	"res://data/assets/forest/forest_rock_3_p.tres",
+	"res://data/assets/forest/forest_rock_3_q.tres",
+	"res://data/assets/forest/forest_rock_4_a.tres",
+	"res://data/assets/forest/forest_rock_4_b.tres",
+	"res://data/assets/forest/forest_rock_4_c.tres",
+	"res://data/assets/forest/forest_rock_4_d.tres",
+	"res://data/assets/forest/forest_rock_4_e.tres",
+	"res://data/assets/forest/forest_rock_4_f.tres",
+	"res://data/assets/forest/forest_rock_4_g.tres",
+	"res://data/assets/forest/forest_rock_4_h.tres",
+	"res://data/assets/forest/forest_rock_5_a.tres",
+	"res://data/assets/forest/forest_rock_5_b.tres",
+	"res://data/assets/forest/forest_rock_5_c.tres",
+	"res://data/assets/forest/forest_rock_5_d.tres",
+	"res://data/assets/forest/forest_rock_5_e.tres",
+	"res://data/assets/forest/forest_rock_5_f.tres",
+	"res://data/assets/forest/forest_rock_5_g.tres",
+	"res://data/assets/forest/forest_rock_5_h.tres",
+	"res://data/assets/forest/forest_rock_6_a.tres",
+	"res://data/assets/forest/forest_rock_6_b.tres",
+	"res://data/assets/forest/forest_rock_6_c.tres",
+	"res://data/assets/forest/forest_rock_6_d.tres",
+	"res://data/assets/forest/forest_rock_6_e.tres",
+	"res://data/assets/forest/forest_rock_6_f.tres",
+	"res://data/assets/forest/forest_rock_6_g.tres",
+	"res://data/assets/forest/forest_rock_6_h.tres",
+	# generated:forest:end
 ]
 
 static var _definitions_by_id: Dictionary[StringName, AssetDefinition] = {}
@@ -49,6 +183,7 @@ static func find_matching(asset_type: StringName = &"", required_tags := PackedS
 			continue
 		if definition.supports_tags(required_tags):
 			matches.append(definition)
+	matches.sort_custom(func(left: AssetDefinition, right: AssetDefinition) -> bool: return left.id < right.id)
 	return matches
 
 
@@ -62,7 +197,19 @@ static func instantiate(id: StringName) -> Node3D:
 	if definition == null or not definition.is_usable():
 		return null
 	var packed_scene := load(definition.scene_path) as PackedScene
-	return packed_scene.instantiate() if packed_scene != null else null
+	if packed_scene == null:
+		return null
+	var instance := packed_scene.instantiate() as Node3D
+	if instance != null and definition.palette_index != 1:
+		_apply_palette(instance, definition.palette_index)
+	return instance
+
+
+static func _apply_palette(node: Node, palette_index: int) -> void:
+	if node is MeshInstance3D:
+		(node as MeshInstance3D).material_override = load("res://assets/kaykit_forest/materials/forest_palette_%d.tres" % palette_index) as Material
+	for child in node.get_children():
+		_apply_palette(child, palette_index)
 
 
 ## Presentation adapter retained for the hand-authored test arena. It resolves

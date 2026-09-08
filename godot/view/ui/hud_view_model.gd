@@ -11,6 +11,10 @@ static func for_actor(state: BattleState, actor_id: int, defs: DefinitionLibrary
 	var name := String(actor.definition_id).capitalize().replace("_", " ")
 	if actor_def != null and not actor_def.display_name.is_empty():
 		name = actor_def.display_name
+	if name.is_empty():
+		# Actors spawned without a definition still need a label for narration
+		# and the turn tracker.
+		name = "Actor %d" % actor_id
 	if actions.is_empty():
 		# Carried items are inventory interactions, not combat-hotbar actions.
 		actions = ActionAvailability.evaluate_all(state, actor_id, actor.ability_ids, defs)

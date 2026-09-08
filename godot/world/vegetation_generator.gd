@@ -4,7 +4,12 @@ extends RefCounted
 ## B6 placement-only generator. Rendering remains catalog scene instantiation
 ## for now; a MultiMesh adapter can consume these deterministic placements later.
 
-const GENERATOR_VERSION := "1.0"
+const GENERATOR_VERSION := "1.1"
+
+const PROFILE_WEIGHTS := {
+	"temperate_dense": {"tree": 0.55, "bush": 0.20, "grass": 0.20, "rock": 0.05},
+	"temperate_sparse": {"tree": 0.30, "bush": 0.25, "grass": 0.35, "rock": 0.10},
+}
 
 
 func generate(region: Dictionary, map_seed: int, terrain: TerrainProvider, reserved: Array[Dictionary] = []) -> Array[Dictionary]:
@@ -31,11 +36,36 @@ func generate(region: Dictionary, map_seed: int, terrain: TerrainProvider, reser
 			var point := Vector2(float(xi) * spacing + rng.randf_range(-spacing * 0.35, spacing * 0.35), float(zi) * spacing + rng.randf_range(-spacing * 0.35, spacing * 0.35))
 			if not _point_in_polygon(point, polygon) or not terrain.is_query_in_bounds(point.x, point.y):
 				continue
-			var definition: AssetDefinition = candidates[rng.randi_range(0, candidates.size() - 1)]
+			var definition := _pick_weighted_candidate(candidates, profile, rng)
 			if not definition.permits_slope(terrain.slope_at(point.x, point.y)) or _conflicts(point, definition.footprint_radius, reserved, placed):
 				continue
 			placed.append({"id": &"generated_%s_%d" % [region.get("id", "region"), placed.size()], "asset": definition.id, "position": Vector3(point.x, terrain.height_at(point.x, point.y), point.y), "rotation_y": rng.randf_range(0.0, TAU), "radius": definition.footprint_radius, "generated": true})
 	return placed
+
+
+func _pick_weighted_candidate(candidates: Array[AssetDefinition], profile: String, rng: RandomNumberGenerator) -> AssetDefinition:
+	var grouped := {}
+	for candidate in candidates:
+		for family in ["tree", "bush", "grass", "rock"]:
+			if candidate.tags.has(family):
+				if not grouped.has(family):
+					grouped[family] = []
+				grouped[family].append(candidate)
+				break
+	var weights: Dictionary = PROFILE_WEIGHTS.get(profile, PROFILE_WEIGHTS["temperate_sparse"])
+	var total := 0.0
+	for family in weights:
+		if grouped.has(family):
+			total += float(weights[family])
+	var roll := rng.randf() * total
+	for family in ["tree", "bush", "grass", "rock"]:
+		if not grouped.has(family):
+			continue
+		roll -= float(weights.get(family, 0.0))
+		if roll <= 0.0:
+			var choices: Array = grouped[family]
+			return choices[rng.randi_range(0, choices.size() - 1)] as AssetDefinition
+	return candidates[0]
 
 
 static func derive_seed(map_seed: int, region_id: String, generator_version: String = GENERATOR_VERSION) -> int:

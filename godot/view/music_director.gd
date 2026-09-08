@@ -5,12 +5,12 @@ extends Node
 ## encounter session; this node simply follows that state with the chosen cue.
 
 const AMBIENT_TRACKS := {
-	&"ambient_light_1": preload("res://assets/music/ambient-light-1.wav"),
-	&"ambient_night_3": preload("res://assets/music/ambient-night-3.wav"),
+	&"ambient_light_1": preload("res://assets/music/ambient-light-1.ogg"),
+	&"ambient_night_3": preload("res://assets/music/ambient-night-3.ogg"),
 }
 const BATTLE_TRACKS := {
-	&"battle_action_1": preload("res://assets/music/battle-action-1.wav"),
-	&"battle_action_2": preload("res://assets/music/battle-action-2.wav"),
+	&"battle_action_1": preload("res://assets/music/battle-action-1.ogg"),
+	&"battle_action_2": preload("res://assets/music/battle-action-2.ogg"),
 }
 
 var ambient_track_id: StringName = &"ambient_light_1"

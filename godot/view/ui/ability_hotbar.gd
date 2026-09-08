@@ -10,7 +10,12 @@ var _selected_ability_id: StringName = &""
 
 func set_actions(actions: Array[Dictionary]) -> void:
 	_actions = actions.duplicate(true)
-	for child in get_children(): child.queue_free()
+	# queue_free() alone keeps the outgoing buttons in the tree until the end of
+	# the frame, so a caller reading the hotbar right after a rebuild would see
+	# stale slots. Detach first, then free.
+	for child in get_children():
+		remove_child(child)
+		child.queue_free()
 	for index in mini(_actions.size(), 6):
 		var button: AbilityButton = BUTTON_SCENE.instantiate()
 		add_child(button)

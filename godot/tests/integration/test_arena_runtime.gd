@@ -117,10 +117,15 @@ func _test_preview_and_clamped_combat_movement(controller: TestArenaController, 
 	_expect(JSON.stringify(controller.battle_state.stable_snapshot()).md5_text() == state_before_preview, "preview applied BattleState", failures)
 	_expect(player.global_position.distance_to(position_before_preview) < 0.001 and not player.is_moving(), "preview moved CharacterView", failures)
 
+	# Earlier phases of this suite already moved the actor, so the clamped
+	# endpoint is derived from where it actually stands rather than a literal.
+	var clamp_origin: Vector3 = (controller.battle_state.actors[player.actor_id] as ActorState).position
+	var clamp_budget: float = actor.movement_remaining
 	controller.handle_terrain_click(target)
 	_expect(controller.last_resolution.events.size() == 2 and controller.last_resolution.events[0].data["clamped"], "confirmed combat movement was not clamped", failures)
 	var authoritative_position: Vector3 = (controller.battle_state.actors[player.actor_id] as ActorState).position
-	_expect(authoritative_position.distance_to(Vector3(-10.0, player.global_position.y, 0.0)) < 0.001, "confirmed clamp did not apply the authoritative endpoint", failures)
+	var expected_endpoint := clamp_origin + (target - clamp_origin).normalized() * clamp_budget
+	_expect(authoritative_position.distance_to(expected_endpoint) < 0.001, "confirmed clamp did not apply the authoritative endpoint; expected %s got %s" % [expected_endpoint, authoritative_position], failures)
 	var playback_path := event_player.get_resolved_path(player.actor_id)
 	_expect(not playback_path.is_empty() and playback_path[playback_path.size() - 1].distance_to(authoritative_position) < 0.001, "clamped event did not reach EventPlayer with its authoritative endpoint", failures)
 	await _wait_for_destination(player, 240)
@@ -254,49 +259,46 @@ func _test_camera_pan_direction(rig: TacticalCameraRig, failures: Array[String])
 	var forward := Vector3(-sin(rig.target_yaw), 0.0, -cos(rig.target_yaw))
 	var right := Vector3(-forward.z, 0.0, forward.x)
 
-	var before_left := rig.target_focus
-	Input.action_press(&"camera_pan_left")
-	rig._process(0.1)
-	Input.action_release(&"camera_pan_left")
-	var left_delta := rig.target_focus - before_left
+	var left_delta := _pan_delta(rig, &"camera_pan_left")
 	_expect(
 		left_delta.length() > 0.01 and left_delta.normalized().dot(right) < -0.9,
 		"camera_pan_left should move target_focus left of the rig's forward vector; moved %s" % left_delta,
 		failures,
 	)
 
-	var before_right := rig.target_focus
-	Input.action_press(&"camera_pan_right")
-	rig._process(0.1)
-	Input.action_release(&"camera_pan_right")
-	var right_delta := rig.target_focus - before_right
+	var right_delta := _pan_delta(rig, &"camera_pan_right")
 	_expect(
 		right_delta.length() > 0.01 and right_delta.normalized().dot(right) > 0.9,
 		"camera_pan_right should move target_focus right of the rig's forward vector; moved %s" % right_delta,
 		failures,
 	)
 
-	var before_forward := rig.target_focus
-	Input.action_press(&"camera_pan_forward")
-	rig._process(0.1)
-	Input.action_release(&"camera_pan_forward")
-	var forward_delta := rig.target_focus - before_forward
+	var forward_delta := _pan_delta(rig, &"camera_pan_forward")
 	_expect(
 		forward_delta.length() > 0.01 and forward_delta.normalized().dot(forward) > 0.9,
 		"camera_pan_forward should move target_focus toward the rig's forward vector; moved %s" % forward_delta,
 		failures,
 	)
 
-	var before_back := rig.target_focus
-	Input.action_press(&"camera_pan_back")
-	rig._process(0.1)
-	Input.action_release(&"camera_pan_back")
-	var back_delta := rig.target_focus - before_back
+	var back_delta := _pan_delta(rig, &"camera_pan_back")
 	_expect(
 		back_delta.length() > 0.01 and back_delta.normalized().dot(forward) < -0.9,
 		"camera_pan_back should move target_focus away from the rig's forward vector; moved %s" % back_delta,
 		failures,
 	)
+
+
+## The rig re-anchors target_focus to its follow target at the top of every
+## _process, so the baseline has to be sampled after a neutral frame -- reading
+## it straight after the previous direction's frame would fold that pan into
+## this delta.
+func _pan_delta(rig: TacticalCameraRig, action: StringName) -> Vector3:
+	rig._process(0.1)
+	var before := rig.target_focus
+	Input.action_press(action)
+	rig._process(0.1)
+	Input.action_release(action)
+	return rig.target_focus - before
 
 
 func _wait_for_destination(player: CharacterView, max_frames: int) -> void:

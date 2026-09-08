@@ -32,11 +32,22 @@ files/concepts used, local modifications, and required attribution here and in
 - Author: Kay Lousberg, www.kaylousberg.com
 - License: CC0 1.0 (Creative Commons Zero / public domain) -- attribution not
   required, credited here anyway per the pack's own request.
-- Files used: `Tree_1_A_Color1.gltf`/`.bin`, `Tree_3_A_Color1.gltf`/`.bin`,
-  `Rock_3_R_Color1.gltf`/`.bin`, `Bush_1_A_Color1.gltf`/`.bin`,
-  `Grass_1_A_Color1.gltf`/`.bin`, and `forest_texture.png`, copied unmodified
-  into `godot/assets/kaykit_forest/`.
-- See `assets.csv` for the full per-asset audit trail.
+- All 198 Color1 models and `forest_texture.png` are copied into
+  `godot/assets/kaykit_forest/`, with two project modifications noted below. Of
+  these, 137 trees, bushes, grass, and rocks are catalogued and individually
+  audited in `assets.csv`; the 61 Hill/Cliff models are imported but
+  deliberately not yet authorable terrain.
+- Modification 1: each model's glTF image URI is rewritten from
+  `forest_texture.png` to `../forest_texture.png` by
+  `scripts/import_forest_pack.py`, so every family folder shares the one atlas.
+  Geometry, UVs, and material parameters are untouched.
+- Modification 2: `forest_texture.png` columns 2-8 are repainted by
+  `scripts/generate_forest_palettes.py`. The pack ships those columns blank and
+  labelled "space reserved for ... extra tier colors -- or you can add your own
+  colors if you'd like"; this project fills them with recoloured copies of the
+  pack's own column 1, which is left untouched.
+- `materials/forest_palette_*.tres` are project-authored UV offsets over the
+  pack atlas, not copied pack files.
 
 ### Kenney UI Pack - Adventure 1.0 (C5)
 

@@ -41,7 +41,13 @@ static func _test_tagged_type_query_is_deterministic(failures: Array[String]) ->
 	var tree_ids: Array[StringName] = []
 	for tree in trees:
 		tree_ids.append(tree.id)
-	_expect(tree_ids == [&"tree_oak_01", &"tree_oak_02"], "tree query returned unexpected definitions: %s" % str(tree_ids), failures)
+	_expect(not tree_ids.is_empty(), "tree query returned no definitions", failures)
+	_expect(tree_ids.has(&"tree_oak_01") and tree_ids.has(&"tree_oak_02"), "tree query omitted legacy definitions: %s" % str(tree_ids), failures)
+	var sorted_ids := tree_ids.duplicate()
+	sorted_ids.sort()
+	_expect(tree_ids == sorted_ids, "tree query was not stable and sorted: %s" % str(tree_ids), failures)
+	for tree in trees:
+		_expect(tree.asset_type == &"vegetation" and tree.tags.has("tree"), "tree query returned a non-tree: %s" % tree.id, failures)
 
 
 static func _test_placement_respects_asset_slope_policy(failures: Array[String]) -> void:
@@ -76,6 +82,10 @@ static func _test_catalog_and_audit_csv_ids_match(failures: Array[String]) -> vo
 	for id in catalog_ids:
 		_expect(csv_ids.has(id), "docs/third_party/assets.csv is missing a row for '%s'" % id, failures)
 	for id in csv_ids:
+		# The audit also records non-placeable audio bundles; only catalogued
+		# world assets participate in this bidirectional catalog contract.
+		if id.begins_with("sfx_"):
+			continue
 		_expect(catalog_ids.has(id), "docs/third_party/assets.csv has a row for '%s' with no matching catalog definition" % id, failures)
 
 
