@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="AssetDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://world/asset_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"forest_hill_12x12x8"
+scene_path = "res://assets/kaykit_forest/hills/Hill_12x12x8_Color1.gltf"
+asset_type = &"terrain_feature"
+tags = PackedStringArray("temperate", "forest", "hill")
+footprint_radius = 8.84
+placement_max_slope_deg = 90.0
+blocks_navigation = true
+collision_shape = "box"
+collision_size = Vector3(12.0, 8.0, 12.0)
+display_offset = Vector3(0, 0.03, 0)
+palette_index = 2

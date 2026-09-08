@@ -41,6 +41,10 @@ const ScreenPickerScript = preload("res://world/screen_picker.gd")
 const MusicDirectorScript = preload("res://view/music_director.gd")
 const WORLD_HEALTH_BAR_SCENE = preload("res://view/ui/world_health_bar.tscn")
 
+## MapSpec interactable kinds this map runtime owns. Every other kind is
+## authored as scenery: compiled and collision-checked, never registered.
+const REGISTERED_INTERACTABLE_KINDS: Array[StringName] = [&"chest", &"barrel"]
+
 
 func _ready() -> void:
 	print("[CompiledMapController] loading MapSpec '%s'" % map_spec_path)
@@ -59,6 +63,7 @@ func _ready() -> void:
 	add_child(compilation.root)
 	_setup_player()
 	_setup_pickups(spec)
+	_setup_interactables(spec)
 	_setup_hostiles(spec)
 	_setup_camera()
 	_setup_light()
@@ -161,6 +166,51 @@ func _setup_pickups(spec: Dictionary) -> void:
 		var pickup_view := compilation.root.get_node_or_null(NodePath(pickup_id))
 		if pickup_view != null:
 			pickup_view.set_meta("interactable_id", pickup.id)
+
+
+## Authored containers become runtime interactables here, mirroring
+## _setup_pickups: MapCompiler stays presentation-only and BattleState owns
+## every interactable's authoritative state.
+func _setup_interactables(spec: Dictionary) -> void:
+	for raw_interactable in spec.get("interactables", []):
+		var interactable_id := str(raw_interactable.get("id", ""))
+		var kind := StringName(str(raw_interactable.get("kind", "")))
+		var position_data: Array = raw_interactable.get("position", [])
+		if interactable_id.is_empty() or position_data.size() != 2 or not REGISTERED_INTERACTABLE_KINDS.has(kind):
+			continue
+		var interactable := InteractableState.new()
+		interactable.id = interactable_id
+		interactable.type = kind
+		interactable.state = &"closed"
+		interactable.position = Vector3(float(position_data[0]), compilation.terrain.height_at(float(position_data[0]), float(position_data[1])), float(position_data[1]))
+		interactable.interact_range = 2.0
+		for item_id in raw_interactable.get("contents", []):
+			interactable.contents.append(StringName(str(item_id)))
+		battle_state.interactables[interactable.id] = interactable
+		_attach_pick_collider(compilation.root.get_node_or_null(NodePath(interactable_id)) as Node3D, interactable_id, StringName(str(raw_interactable.get("asset", ""))))
+
+
+## Compiled props are bare catalog art -- AssetCatalog.instantiate() returns the
+## glTF scene itself, with no collider -- so screen picking needs a body of its
+## own. ScreenPicker reads the meta off whichever collider its ray hits, so the
+## id lives on the body rather than on the art node above it.
+func _attach_pick_collider(view: Node3D, interactable_id: String, asset_id: StringName) -> void:
+	if view == null:
+		return
+	var definition := AssetCatalog.get_definition(asset_id)
+	var body := StaticBody3D.new()
+	body.name = "InteractPicker"
+	body.collision_layer = 4
+	body.collision_mask = 0
+	body.set_meta("interactable_id", interactable_id)
+	var cylinder := CylinderShape3D.new()
+	cylinder.radius = maxf(0.5, definition.footprint_radius if definition != null else 0.5)
+	cylinder.height = 2.0
+	var collision := CollisionShape3D.new()
+	collision.shape = cylinder
+	collision.position = Vector3.UP * (cylinder.height * 0.5)
+	body.add_child(collision)
+	view.add_child(body)
 
 
 ## Actors are visual map data until this composition root turns hostile ones
@@ -336,10 +386,17 @@ func _resolve_interaction(interactable_id: String) -> void:
 	var result: ResolutionResult = session.submit_interact(character.actor_id, interactable_id)
 	event_player.play_events(result.events)
 	for resolved_event in result.events:
-		if resolved_event.type == &"items_looted":
-			var pickup_view := compilation.root.get_node_or_null(NodePath(str(resolved_event.data["interactable_id"])))
-			if pickup_view != null:
-				pickup_view.queue_free()
+		if resolved_event.type != &"items_looted":
+			continue
+		# Only pickups are consumed by looting; an emptied chest or barrel stays
+		# in the world with its state flipped to "open".
+		var looted_id := str(resolved_event.data["interactable_id"])
+		var looted := battle_state.interactables.get(looted_id) as InteractableState
+		if looted == null or looted.type != &"pickup":
+			continue
+		var pickup_view := compilation.root.get_node_or_null(NodePath(looted_id))
+		if pickup_view != null:
+			pickup_view.queue_free()
 
 
 func _dress_player(player: CharacterView, player_data: Dictionary) -> void:

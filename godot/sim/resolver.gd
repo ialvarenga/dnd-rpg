@@ -37,12 +37,13 @@ const EFFECT_CONSUME_ITEM := &"consume_item"
 const INTERACT_RANGE_EPSILON := 0.0001
 
 ## Interactable type -> {current state: next state}. Small and fixed for V1
-## (door/chest/lever, per implementation_plan.md Fase A9); Resolver reads
+## (door/chest/lever/barrel, per implementation_plan.md Fase A9); Resolver reads
 ## InteractableState.type generically instead of branching on instance id, the
 ## same way ability effects avoid branching on ability id.
 const INTERACTABLE_TRANSITIONS := {
 	&"door": {&"closed": &"open", &"open": &"closed"},
 	&"chest": {&"closed": &"open"},
+	&"barrel": {&"closed": &"open"},
 	&"lever": {&"off": &"on", &"on": &"off"},
 	&"pickup": {&"ready": &"collected"},
 }

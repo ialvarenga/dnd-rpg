@@ -4,7 +4,7 @@
     {
       "name": "map-builder",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8123", "--directory", "map_builder"],
+      "runtimeArgs": ["scripts/serve_map_builder.py", "8123"],
       "port": 8123
     }
   ]

@@ -21,6 +21,9 @@ static func run() -> Dictionary:
 	_test_wall_blockers_match_navigation(failures)
 	_test_authored_wall_path_is_tiled(failures)
 	_test_quality_scorecard_is_advisory_and_repeatable(failures)
+	_test_hills_are_compiled_and_present_in_navmesh(failures)
+	_test_hill_excludes_generated_vegetation(failures)
+	_test_hill_rejects_overlapping_placement(failures)
 	return {"name": "unit/test_map_compiler", "failures": failures}
 
 
@@ -37,12 +40,22 @@ static func _test_terrain_profiles_and_queries(failures: Array[String]) -> void:
 	_expect(is_nan(a.height_at(-1, 0)), "terrain bounds failure did not return NAN", failures)
 
 
+## The authored map this suite loads is the one the game ships as its main
+## scene, so resolving it is not enough: compile it too. Every spatial rule
+## (bounds, slope, overlap, river crossings, spawn clearance, objective and
+## encounter reachability) is only ever enforced here.
 static func _test_external_map_spec_path(failures: Array[String]) -> void:
 	var source := MapSpecSourceScript.new("../world_authoring/maps/test_map.json")
 	var spec: Dictionary = source.load_spec()
 	var map: Dictionary = spec.get("map", {})
 	var bounds: Dictionary = map.get("bounds", {})
-	_expect(not spec.is_empty() and bounds.get("width_m", 0) == 64, "external authoring MapSpec did not resolve: %s" % source.last_error, failures)
+	_expect(not spec.is_empty() and bounds.get("width_m", 0) == 176, "external authoring MapSpec did not resolve: %s" % source.last_error, failures)
+	if spec.is_empty():
+		return
+	var compilation: MapCompilationResult = CompilerScript.new().compile(spec)
+	_expect(compilation.is_valid(), "authored test map failed to compile: %s" % str(compilation.error_dicts()), failures)
+	if compilation.root != null:
+		compilation.root.free()
 
 
 static func _test_terrain_seed_variation_and_edge_normals(failures: Array[String]) -> void:
@@ -198,6 +211,64 @@ static func _test_quality_scorecard_is_advisory_and_repeatable(failures: Array[S
 		first.root.free()
 	if second.root != null:
 		second.root.free()
+
+
+## ADR-007: a hill reshapes the heightfield before anything else compiles, so
+## the stamp must already be visible in the baked navmesh's source geometry,
+## and the reachability grid must exclude the hill's footprint (via its
+## slope profile and navigation-blocker box acting together).
+static func _test_hills_are_compiled_and_present_in_navmesh(failures: Array[String]) -> void:
+	var compiler := CompilerScript.new()
+	var spec := {"map": {"id": "hill_map", "seed": 1, "bounds": {"width_m": 32, "height_m": 32}}, "terrain": {"profile": "flat"}, "hills": [{"id": "mound", "asset": "forest_hill_4x4x4", "position": [16, 16]}], "spawn_points": [{"id": "start", "position": [2, 2]}]}
+	var result := compiler.compile(spec)
+	_expect(result.is_valid(), "hill fixture did not compile: %s" % (result.errors[0].message if not result.errors.is_empty() else ""), failures)
+	if not result.is_valid():
+		return
+	_expect(result.placements.size() == 1 and result.placements[0].id == &"mound", "hill did not compile into a placement", failures)
+	_expect(is_equal_approx(result.placements[0].position.y, 0.0), "hill placement did not anchor at the pre-stamp base elevation", failures)
+	var stamped_present := false
+	for triangle in result.terrain.export_navigation_geometry():
+		for vertex in triangle:
+			if is_equal_approx(vertex.x, 16.0) and is_equal_approx(vertex.z, 16.0) and is_equal_approx(vertex.y, 4.0):
+				stamped_present = true
+	_expect(stamped_present, "stamped hill elevation is not present in the baked navmesh source geometry", failures)
+	_expect(not result.navigation.is_reachable(Vector2(2, 2), Vector2(16, 16)), "hill did not exclude its footprint from the reachability grid", failures)
+	_expect(result.navigation.is_reachable(Vector2(2, 2), Vector2(30, 30)), "hill over-blocked space beyond its footprint", failures)
+	if result.root != null:
+		result.root.free()
+
+
+static func _test_hill_excludes_generated_vegetation(failures: Array[String]) -> void:
+	var compiler := CompilerScript.new()
+	var spec := {
+		"map": {"id": "hill_vegetation_map", "seed": 3, "bounds": {"width_m": 32, "height_m": 32}},
+		"terrain": {"profile": "flat"},
+		"hills": [{"id": "mound", "asset": "forest_hill_4x4x4", "position": [16, 16]}],
+		"regions": [{"id": "grove", "polygon": [[0, 0], [32, 0], [32, 32], [0, 32]], "vegetation": {"profile": "temperate_dense", "density": 1.0}}],
+		"spawn_points": [{"id": "start", "position": [2, 2]}],
+	}
+	var result := compiler.compile(spec)
+	_expect(result.is_valid(), "hill + vegetation fixture did not compile", failures)
+	if not result.is_valid():
+		return
+	var hill_radius := AssetCatalog.get_definition(&"forest_hill_4x4x4").footprint_radius
+	var checked_any := false
+	for placement in result.placements:
+		if placement.id == &"mound":
+			continue
+		checked_any = true
+		var flat := Vector2(placement.position.x, placement.position.z)
+		_expect(flat.distance_to(Vector2(16, 16)) >= hill_radius + placement.radius, "generated vegetation spawned inside the hill's footprint", failures)
+	_expect(checked_any, "dense vegetation profile generated nothing to check against the hill", failures)
+	if result.root != null:
+		result.root.free()
+
+
+static func _test_hill_rejects_overlapping_placement(failures: Array[String]) -> void:
+	var compiler := CompilerScript.new()
+	var spec := {"map": {"id": "hill_overlap_map", "seed": 1, "bounds": {"width_m": 32, "height_m": 32}}, "terrain": {"profile": "flat"}, "hills": [{"id": "mound", "asset": "forest_hill_4x4x4", "position": [16, 16]}], "vegetation": [{"id": "too_close", "asset": "tree_oak_01", "position": [17, 16]}]}
+	var result := compiler.compile(spec)
+	_expect(not result.is_valid() and not result.errors.is_empty() and result.errors[0].code == &"OVERLAP", "vegetation placed inside a hill's footprint was not rejected", failures)
 
 
 static func _expect(condition: bool, message: String, failures: Array[String]) -> void:

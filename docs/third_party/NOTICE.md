@@ -34,9 +34,12 @@ files/concepts used, local modifications, and required attribution here and in
   required, credited here anyway per the pack's own request.
 - All 198 Color1 models and `forest_texture.png` are copied into
   `godot/assets/kaykit_forest/`, with two project modifications noted below. Of
-  these, 137 trees, bushes, grass, and rocks are catalogued and individually
-  audited in `assets.csv`; the 61 Hill/Cliff models are imported but
-  deliberately not yet authorable terrain.
+  these, 158 (137 trees, bushes, grass, and rocks, plus the 21 freestanding
+  `Hill_WxDxH` blocks) are catalogued and individually audited in
+  `assets.csv`. The 21 hill blocks are authored as heightfield stamps rather
+  than props — see [ADR-007](../ADR/ADR-007-hill-terrain-stamping.md). The
+  remaining 40 `Hill_Cliff_*`/`Hill_Top_*` modular tile models are imported
+  but not yet authorable; they need grid-snapping placement UI.
 - Modification 1: each model's glTF image URI is rewritten from
   `forest_texture.png` to `../forest_texture.png` by
   `scripts/import_forest_pack.py`, so every family folder shares the one atlas.

@@ -14,11 +14,13 @@
     "regions": { "type": "array", "items": { "$ref": "#/$defs/region" }, "uniqueItems": true },
     "vegetation": { "type": "array", "items": { "$ref": "#/$defs/vegetationPlacement" }, "uniqueItems": true },
     "structures": { "type": "array", "items": { "$ref": "#/$defs/structure" }, "uniqueItems": true },
+    "hills": { "type": "array", "items": { "$ref": "#/$defs/assetPlacement" }, "uniqueItems": true, "description": "Terrain-reshaping heightfield stamps, compiled before every other terrain-dependent entity. See ADR-007." },
     "walls": { "type": "array", "items": { "$ref": "#/$defs/wall" }, "uniqueItems": true },
     "actors": { "type": "array", "items": { "$ref": "#/$defs/actor" }, "uniqueItems": true },
     "player": { "$ref": "#/$defs/player" },
     "spawn_points": { "type": "array", "items": { "$ref": "#/$defs/spawnPoint" }, "uniqueItems": true },
     "interactables": { "type": "array", "items": { "$ref": "#/$defs/interactable" }, "uniqueItems": true },
+    "pickups": { "type": "array", "items": { "$ref": "#/$defs/pickup" }, "uniqueItems": true },
     "rivers": { "type": "array", "items": { "$ref": "#/$defs/path" }, "uniqueItems": true },
     "roads": { "type": "array", "items": { "$ref": "#/$defs/path" }, "uniqueItems": true },
     "bridges": { "type": "array", "items": { "$ref": "#/$defs/bridge" }, "uniqueItems": true },
@@ -153,8 +155,21 @@
       "required": ["id", "kind", "asset", "position"],
       "properties": {
         "id": { "$ref": "#/$defs/stableId" },
-        "kind": { "enum": ["chest", "door", "lever", "barrel"] },
+        "kind": { "enum": ["chest", "door", "lever", "barrel", "prop"], "description": "Runtime behaviour. 'prop' is non-interactive dressing: it is placed and collision-checked, but never registered as a runtime interactable." },
         "asset": { "$ref": "#/$defs/stableId" },
+        "position": { "$ref": "#/$defs/vector2" },
+        "rotation_deg": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 },
+        "contents": { "type": "array", "items": { "$ref": "#/$defs/stableId" }, "description": "Item IDs granted once when a container is first opened." }
+      }
+    },
+    "pickup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "asset", "item_id", "position"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "asset": { "$ref": "#/$defs/stableId" },
+        "item_id": { "$ref": "#/$defs/stableId", "description": "Item ID granted when the pickup is collected." },
         "position": { "$ref": "#/$defs/vector2" },
         "rotation_deg": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 }
       }

@@ -48,6 +48,12 @@ These were verified against the actual files, not assumed.
    generates terrain procedurally (`ProceduralTerrainProvider` + baked navmesh),
    so hill meshes placed as props would clip and float. **Decision: import and
    Godot-import the files, but do not add catalog definitions yet.**
+   **Update:** the 21 freestanding `Hill_WxDxH` blocks are now catalogued —
+   placement reshapes the heightfield itself instead of sitting on top of it,
+   so mesh, collision, navmesh, and vegetation placement all see them for
+   free. See [ADR-007](../ADR/ADR-007-hill-terrain-stamping.md). The 40-piece
+   `Hill_Cliff_*`/`Hill_Top_*` modular tile kit still needs grid-snapping
+   authoring UI and remains uncatalogued.
 7. **The catalog is duplicated three ways today**, and a test enforces two of
    them:
    - `godot/data/assets/*.tres` + the hardcoded

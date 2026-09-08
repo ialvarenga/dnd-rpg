@@ -7,6 +7,9 @@ extends "res://world/terrain_provider.gd"
 
 const GRID_CELL_SIZE_M := 1.0
 const NAVIGATION_STEP_M := 2.0
+## Matches the KayKit Hill_WxDxH models' measured sloped skirt (~0.25 m
+## beyond their nominal box on every side). See ADR-007.
+const HILL_SKIRT_M := 0.25
 const PROFILE_PATHS := {
 	&"flat": "res://data/terrain/flat.tres",
 	&"rolling_hills": "res://data/terrain/rolling_hills.tres",
@@ -113,6 +116,38 @@ func add_riverbed_path(points: PackedVector2Array, half_width: float) -> float:
 	for point in points:
 		water_sum += _sample_grid(point.x, point.y) + depth * 0.18
 	return water_sum / float(points.size())
+
+
+## Reshapes the heightfield into a flat-topped rounded box, so every terrain
+## consumer (mesh, collision, navmesh, height/slope queries) sees the hill
+## without any of them needing to know hills exist. `size` is the hill's
+## nominal (width, height, depth); the flat top blends down to
+## `base_elevation` over HILL_SKIRT_M, matching the model's own sloped skirt.
+## Combines with `max()` so repeated or overlapping stamps are commutative
+## and never carve terrain down. See ADR-007.
+func stamp_hill(center: Vector2, rotation_rad: float, size: Vector3, base_elevation: float) -> void:
+	var half := Vector2(size.x, size.z) * 0.5
+	var top := base_elevation + size.y
+	var rotation := -rotation_rad
+	var cos_r := cos(rotation)
+	var sin_r := sin(rotation)
+	var reach := half.length() + HILL_SKIRT_M
+	for z_index in range(_grid_height):
+		for x_index in range(_grid_width):
+			var world := Vector2(float(x_index) * GRID_CELL_SIZE_M, float(z_index) * GRID_CELL_SIZE_M)
+			var offset := world - center
+			if offset.length() > reach:
+				continue
+			var local := Vector2(offset.x * cos_r - offset.y * sin_r, offset.x * sin_r + offset.y * cos_r)
+			var q := Vector2(absf(local.x) - half.x, absf(local.y) - half.y)
+			var outside := Vector2(maxf(q.x, 0.0), maxf(q.y, 0.0)).length()
+			var inside := minf(maxf(q.x, q.y), 0.0)
+			var sdf := outside + inside
+			if sdf >= HILL_SKIRT_M:
+				continue
+			var blend := 1.0 - smoothstep(0.0, HILL_SKIRT_M, sdf)
+			var target := lerpf(base_elevation, top, blend)
+			_set_grid(x_index, z_index, maxf(_grid_at(x_index, z_index), target))
 
 
 func _configure_noise() -> void:

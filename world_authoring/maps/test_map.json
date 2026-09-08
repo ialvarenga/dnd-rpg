@@ -2,16 +2,16 @@
   "version": "1.0",
   "map": {
     "id": "test_map",
-    "preset": "encounter",
-    "seed": 0,
+    "preset": "medium",
+    "seed": 20260908,
     "bounds": {
-      "width_m": 64,
-      "height_m": 64
+      "width_m": 176.0,
+      "height_m": 112.0
     }
   },
   "music": {
     "ambient": "ambient_light_1",
-    "battle": "battle_action_1"
+    "battle": "battle_action_2"
   },
   "terrain": {
     "profile": "flat",
@@ -19,93 +19,825 @@
   },
   "regions": [
     {
-      "id": "forest",
+      "id": "west_woods_north",
       "polygon": [
         [
-          0,
-          30
+          4,
+          66
         ],
         [
-          12,
-          27
+          40,
+          64
         ],
         [
-          15,
-          0
+          40,
+          106
         ],
         [
-          0,
-          0
+          4,
+          106
+        ]
+      ],
+      "vegetation": {
+        "profile": "temperate_sparse",
+        "density": 0.42
+      }
+    },
+    {
+      "id": "west_woods_south",
+      "polygon": [
+        [
+          4,
+          4
+        ],
+        [
+          42,
+          4
+        ],
+        [
+          42,
+          40
+        ],
+        [
+          4,
+          42
+        ]
+      ],
+      "vegetation": {
+        "profile": "temperate_sparse",
+        "density": 0.4
+      }
+    },
+    {
+      "id": "narrows_upper_slopes",
+      "polygon": [
+        [
+          42,
+          88
+        ],
+        [
+          86,
+          88
+        ],
+        [
+          86,
+          108
+        ],
+        [
+          42,
+          108
+        ]
+      ],
+      "vegetation": {
+        "profile": "temperate_sparse",
+        "density": 0.45
+      }
+    },
+    {
+      "id": "narrows_south_scrub",
+      "polygon": [
+        [
+          42,
+          4
+        ],
+        [
+          88,
+          4
+        ],
+        [
+          88,
+          26
+        ],
+        [
+          42,
+          26
+        ]
+      ],
+      "vegetation": {
+        "profile": "temperate_sparse",
+        "density": 0.45
+      }
+    },
+    {
+      "id": "ford_east_bank",
+      "polygon": [
+        [
+          104,
+          80
+        ],
+        [
+          116,
+          80
+        ],
+        [
+          116,
+          108
+        ],
+        [
+          104,
+          108
+        ]
+      ],
+      "vegetation": {
+        "profile": "temperate_sparse",
+        "density": 0.4
+      }
+    },
+    {
+      "id": "deepwood",
+      "polygon": [
+        [
+          116,
+          62
+        ],
+        [
+          152,
+          76
+        ],
+        [
+          152,
+          104
+        ],
+        [
+          116,
+          104
         ]
       ],
       "vegetation": {
         "profile": "temperate_dense",
-        "density": 0.69
+        "density": 0.66
+      }
+    },
+    {
+      "id": "deepwood_south",
+      "polygon": [
+        [
+          116,
+          10
+        ],
+        [
+          150,
+          10
+        ],
+        [
+          150,
+          34
+        ],
+        [
+          116,
+          34
+        ]
+      ],
+      "vegetation": {
+        "profile": "temperate_dense",
+        "density": 0.6
+      }
+    },
+    {
+      "id": "emberwatch_fringe",
+      "polygon": [
+        [
+          146,
+          94
+        ],
+        [
+          176,
+          94
+        ],
+        [
+          176,
+          110
+        ],
+        [
+          146,
+          110
+        ]
+      ],
+      "vegetation": {
+        "profile": "temperate_sparse",
+        "density": 0.35
+      }
+    },
+    {
+      "id": "emberwatch_south_heath",
+      "polygon": [
+        [
+          152,
+          10
+        ],
+        [
+          176,
+          10
+        ],
+        [
+          176,
+          44
+        ],
+        [
+          152,
+          44
+        ]
+      ],
+      "vegetation": {
+        "profile": "temperate_sparse",
+        "density": 0.4
       }
     }
   ],
-  "vegetation": [
+  "hills": [
     {
-      "id": "tree_1",
-      "asset": "tree_oak_01",
+      "id": "westmark_knoll",
+      "asset": "forest_hill_4x4x2",
       "position": [
-        32,
+        24,
+        74
+      ],
+      "rotation_deg": 20
+    },
+    {
+      "id": "westmark_stone",
+      "asset": "forest_hill_2x2x2",
+      "position": [
+        30,
+        34
+      ],
+      "rotation_deg": 65
+    },
+    {
+      "id": "westmark_shelf",
+      "asset": "forest_hill_4x2x2",
+      "position": [
+        14,
+        28
+      ],
+      "rotation_deg": 110
+    },
+    {
+      "id": "narrows_north_1",
+      "asset": "forest_hill_12x6x8",
+      "position": [
+        46,
+        66
+      ],
+      "rotation_deg": 100
+    },
+    {
+      "id": "narrows_north_2",
+      "asset": "forest_hill_12x6x8",
+      "position": [
+        61,
+        66
+      ],
+      "rotation_deg": 80
+    },
+    {
+      "id": "narrows_north_3",
+      "asset": "forest_hill_12x6x8",
+      "position": [
+        76,
+        66
+      ],
+      "rotation_deg": 95
+    },
+    {
+      "id": "narrows_south_1",
+      "asset": "forest_hill_8x8x8",
+      "position": [
+        48,
         32
-      ]
-    }
-  ],
-  "structures": [],
-  "actors": [
+      ],
+      "rotation_deg": 15
+    },
     {
-      "id": "rogue_scout",
-      "archetype": "character_barbarian_01",
-      "side": "enemies",
+      "id": "narrows_south_2",
+      "asset": "forest_hill_12x6x8",
       "position": [
-        12,
-        43
-      ]
+        64,
+        30
+      ],
+      "rotation_deg": 170
+    },
+    {
+      "id": "narrows_south_3",
+      "asset": "forest_hill_8x8x4",
+      "position": [
+        79,
+        31
+      ],
+      "rotation_deg": 40
+    },
+    {
+      "id": "alcove_west",
+      "asset": "forest_hill_4x4x4",
+      "position": [
+        52,
+        77
+      ],
+      "rotation_deg": 30
+    },
+    {
+      "id": "alcove_east",
+      "asset": "forest_hill_4x4x4",
+      "position": [
+        70,
+        77
+      ],
+      "rotation_deg": 300
+    },
+    {
+      "id": "ford_north_bluff",
+      "asset": "forest_hill_8x4x4",
+      "position": [
+        88,
+        62
+      ],
+      "rotation_deg": 75
+    },
+    {
+      "id": "ford_south_bluff",
+      "asset": "forest_hill_8x4x4",
+      "position": [
+        90,
+        30
+      ],
+      "rotation_deg": 105
+    },
+    {
+      "id": "ford_east_stone",
+      "asset": "forest_hill_4x4x4",
+      "position": [
+        110,
+        36
+      ],
+      "rotation_deg": 210
+    },
+    {
+      "id": "deepwood_crag",
+      "asset": "forest_hill_12x6x4",
+      "position": [
+        130,
+        76
+      ],
+      "rotation_deg": 25
+    },
+    {
+      "id": "deepwood_boulder",
+      "asset": "forest_hill_8x8x4",
+      "position": [
+        128,
+        34
+      ],
+      "rotation_deg": 130
+    },
+    {
+      "id": "emberwatch_rise",
+      "asset": "forest_hill_12x12x8",
+      "position": [
+        160,
+        96
+      ],
+      "rotation_deg": 10
+    },
+    {
+      "id": "emberwatch_scarp",
+      "asset": "forest_hill_12x12x8",
+      "position": [
+        160,
+        40
+      ],
+      "rotation_deg": 340
     }
   ],
   "rivers": [
     {
-      "id": "river_1",
+      "id": "silverrun",
       "control_points": [
         [
-          0,
-          51
+          92,
+          0
         ],
         [
-          64,
-          51
+          96,
+          22
+        ],
+        [
+          101,
+          48
+        ],
+        [
+          98,
+          76
+        ],
+        [
+          94,
+          112
         ]
       ],
-      "width_m": 9
+      "width_m": 3.0
     }
   ],
-  "bridges": [],
+  "roads": [
+    {
+      "id": "emberwatch_road",
+      "control_points": [
+        [
+          6,
+          54
+        ],
+        [
+          20,
+          56
+        ],
+        [
+          34,
+          53
+        ],
+        [
+          48,
+          50
+        ],
+        [
+          62,
+          47
+        ],
+        [
+          76,
+          45
+        ],
+        [
+          90,
+          45
+        ],
+        [
+          112,
+          49
+        ],
+        [
+          124,
+          52
+        ],
+        [
+          138,
+          58
+        ],
+        [
+          152,
+          63
+        ],
+        [
+          166,
+          66
+        ]
+      ],
+      "width_m": 6.0
+    }
+  ],
+  "bridges": [
+    {
+      "id": "ford_bridge",
+      "asset": "bridge_wood_01",
+      "position": [
+        100.8,
+        46.96
+      ],
+      "river_id": "silverrun",
+      "road_id": "emberwatch_road"
+    }
+  ],
+  "walls": [
+    {
+      "id": "camp_wall_north_a",
+      "asset": "wall_dungeon_01",
+      "control_points": [
+        [
+          150,
+          78
+        ],
+        [
+          162,
+          78
+        ]
+      ]
+    },
+    {
+      "id": "camp_wall_north_b",
+      "asset": "wall_dungeon_01",
+      "control_points": [
+        [
+          166,
+          78
+        ],
+        [
+          174,
+          78
+        ]
+      ]
+    },
+    {
+      "id": "camp_wall_south_a",
+      "asset": "wall_dungeon_01",
+      "control_points": [
+        [
+          150,
+          54
+        ],
+        [
+          158,
+          54
+        ]
+      ]
+    },
+    {
+      "id": "camp_wall_south_b",
+      "asset": "wall_dungeon_01",
+      "control_points": [
+        [
+          164,
+          54
+        ],
+        [
+          172,
+          54
+        ]
+      ]
+    },
+    {
+      "id": "camp_wall_east",
+      "asset": "wall_dungeon_01",
+      "control_points": [
+        [
+          174,
+          58
+        ],
+        [
+          174,
+          74
+        ]
+      ]
+    }
+  ],
+  "structures": [
+    {
+      "id": "camp_gate_ruin",
+      "asset": "wall_doorway_dungeon_01",
+      "position": [
+        148,
+        66
+      ],
+      "rotation_deg": 90
+    },
+    {
+      "id": "camp_rubble_north",
+      "asset": "barrier_dungeon_01",
+      "position": [
+        156,
+        72
+      ],
+      "rotation_deg": 10
+    },
+    {
+      "id": "camp_rubble_east",
+      "asset": "barrier_dungeon_01",
+      "position": [
+        168,
+        60
+      ],
+      "rotation_deg": 245
+    },
+    {
+      "id": "camp_rubble_inner",
+      "asset": "barrier_dungeon_01",
+      "position": [
+        163,
+        74
+      ],
+      "rotation_deg": 130
+    }
+  ],
+  "vegetation": [
+    {
+      "id": "wayfarer_oak",
+      "asset": "tree_oak_01",
+      "position": [
+        12,
+        62
+      ],
+      "rotation_deg": 25
+    },
+    {
+      "id": "narrows_boulder_a",
+      "asset": "forest_rock_2_f",
+      "position": [
+        55,
+        57
+      ],
+      "rotation_deg": 140
+    },
+    {
+      "id": "narrows_boulder_b",
+      "asset": "forest_rock_3_q",
+      "position": [
+        70,
+        54
+      ],
+      "rotation_deg": 300
+    },
+    {
+      "id": "ford_watch_tree",
+      "asset": "forest_tree_1_c",
+      "position": [
+        106,
+        58
+      ],
+      "rotation_deg": 190
+    },
+    {
+      "id": "deepwood_elder",
+      "asset": "forest_tree_3_c",
+      "position": [
+        140,
+        72
+      ],
+      "rotation_deg": 55
+    },
+    {
+      "id": "emberwatch_marker",
+      "asset": "rock_large_01",
+      "position": [
+        144,
+        60
+      ],
+      "rotation_deg": 80
+    }
+  ],
+  "actors": [
+    {
+      "id": "camp_sentry",
+      "archetype": "character_rogue_01",
+      "side": "enemies",
+      "position": [
+        155,
+        67
+      ],
+      "rotation_deg": 270
+    },
+    {
+      "id": "camp_raider",
+      "archetype": "character_ranger_01",
+      "side": "enemies",
+      "position": [
+        167,
+        74
+      ],
+      "rotation_deg": 250
+    },
+    {
+      "id": "camp_chieftain",
+      "archetype": "character_barbarian_01",
+      "side": "enemies",
+      "position": [
+        170,
+        88
+      ],
+      "rotation_deg": 225
+    }
+  ],
   "player": {
     "character_asset": "character_knight_01"
   },
-  "walls": [],
+  "spawn_points": [
+    {
+      "id": "road_head",
+      "position": [
+        10,
+        58
+      ]
+    }
+  ],
   "interactables": [
     {
-      "id": "interactable_1",
-      "asset": "chest_wood_01",
+      "id": "alcove_chest",
       "kind": "chest",
+      "asset": "chest_wood_01",
       "position": [
-        32,
-        60
+        61,
+        78
+      ],
+      "rotation_deg": 200,
+      "contents": [
+        "healing_potion",
+        "healing_potion"
       ]
+    },
+    {
+      "id": "camp_barrel",
+      "kind": "barrel",
+      "asset": "barrel_large_01",
+      "position": [
+        159,
+        70
+      ],
+      "rotation_deg": 0,
+      "contents": [
+        "healing_potion"
+      ]
+    },
+    {
+      "id": "camp_torch_north",
+      "kind": "prop",
+      "asset": "torch_lit_01",
+      "position": [
+        156,
+        74
+      ]
+    },
+    {
+      "id": "camp_torch_south",
+      "kind": "prop",
+      "asset": "torch_lit_01",
+      "position": [
+        156,
+        58
+      ]
+    },
+    {
+      "id": "camp_supply_crates",
+      "kind": "prop",
+      "asset": "crates_stacked_01",
+      "position": [
+        161,
+        61
+      ],
+      "rotation_deg": 20
     }
   ],
   "pickups": [
     {
-      "id": "healing_potion_1",
+      "id": "wayfarer_cache",
       "asset": "healing_potion_pickup_01",
       "item_id": "healing_potion",
       "position": [
-        60,
-        40
+        26,
+        62
+      ]
+    },
+    {
+      "id": "narrows_cache",
+      "asset": "healing_potion_pickup_01",
+      "item_id": "healing_potion",
+      "position": [
+        58,
+        38
+      ]
+    },
+    {
+      "id": "ford_cache",
+      "asset": "healing_potion_pickup_01",
+      "item_id": "healing_potion",
+      "position": [
+        95,
+        60
+      ]
+    },
+    {
+      "id": "deepwood_cache",
+      "asset": "healing_potion_pickup_01",
+      "item_id": "healing_potion",
+      "position": [
+        136,
+        68
+      ]
+    },
+    {
+      "id": "approach_cache",
+      "asset": "healing_potion_pickup_01",
+      "item_id": "healing_potion",
+      "position": [
+        146,
+        74
+      ]
+    }
+  ],
+  "objectives": [
+    {
+      "id": "emberwatch_camp",
+      "position": [
+        162,
+        68
+      ]
+    }
+  ],
+  "encounters": [
+    {
+      "id": "emberwatch_ambush",
+      "position": [
+        160,
+        70
+      ],
+      "actor_ids": [
+        "camp_sentry",
+        "camp_raider",
+        "camp_chieftain"
       ]
     }
   ]

@@ -24,13 +24,16 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 		_add(result.errors, &"INVALID_TERRAIN", "terrain profile, seed, or bounds are invalid", &"terrain")
 		return result
 	result.terrain = terrain
+	var hill_reserved: Array[Dictionary] = _compile_hills(spec.get("hills", []), terrain, bounds, result)
 	var reserved: Array[Dictionary] = _compile_paths(spec, terrain, bounds, result)
+	reserved.append_array(hill_reserved)
 	_compile_bridges(spec.get("bridges", []), terrain, bounds, result)
 	var occupied: Array[Dictionary] = reserved.duplicate(true)
 	_compile_walls(spec.get("walls", []), terrain, bounds, occupied, result)
 	_compile_placements(spec.get("structures", []), &"structure", terrain, bounds, occupied, result)
 	_compile_placements(spec.get("vegetation", []), &"vegetation", terrain, bounds, occupied, result)
 	_compile_placements(spec.get("pickups", []), &"pickup", terrain, bounds, occupied, result)
+	_compile_placements(spec.get("interactables", []), &"prop", terrain, bounds, occupied, result)
 	_compile_actor_visuals(spec.get("actors", []), terrain, bounds, result)
 	if not result.errors.is_empty():
 		return result
@@ -66,7 +69,9 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 		node.rotation.y = placement.rotation_y + (definition.display_rotation_y if definition != null else 0.0)
 		node.scale = placement.get("visual_scale", Vector3.ONE)
 		result.root.add_child(node)
-		if definition != null:
+		# Hills reshape the terrain collision mesh itself (ADR-007), so a
+		# separate runtime blocker would only duplicate collision.
+		if definition != null and definition.asset_type != &"terrain_feature":
 			result.root.add_child(MapRuntimeBlocker.create(placement.id, placement.position, definition, placement.rotation_y, placement.get("collision_size", Vector3.ZERO)))
 	if not result.errors.is_empty():
 		result.root.queue_free()
@@ -83,6 +88,39 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 	result.warnings = quality.warnings
 	result.scorecard = quality.scorecard
 	return result
+
+
+## Hills reshape the heightfield rather than sit on it (ADR-007), so they are
+## compiled before anything else that reads terrain -- paths, walls, other
+## placements, and vegetation all see the stamped result for free. Unlike
+## _compile_placements, there is no slope gate: a hill's whole purpose is to
+## override the terrain it is placed on, not be rejected by it.
+func _compile_hills(raw_hills: Array, terrain: TerrainProvider, bounds: Vector2, result: MapCompilationResult) -> Array[Dictionary]:
+	var reserved: Array[Dictionary] = []
+	for raw in raw_hills:
+		var id := StringName(raw.get("id", ""))
+		var asset := StringName(raw.get("asset", ""))
+		var definition := AssetCatalog.get_definition(asset)
+		if definition == null or not definition.is_usable() or definition.asset_type != &"terrain_feature":
+			_add(result.errors, &"UNKNOWN_ASSET", "'%s' references unknown catalog hill asset '%s'" % [id, asset], id, {"asset": asset})
+			continue
+		var point := _point(raw.get("position", []))
+		if not _fits_bounds(point, definition.footprint_radius, bounds):
+			_add(result.errors, &"OUT_OF_BOUNDS", "'%s' footprint is outside map bounds" % id, id)
+			continue
+		for other in reserved:
+			if point.distance_to(other.point) < definition.footprint_radius + float(other.radius):
+				_add(result.errors, &"OVERLAP", "'%s' overlaps reserved area '%s'" % [id, other.get("id", "area")], id)
+				break
+		if not result.errors.is_empty() and result.errors.back().entity_id == id:
+			continue
+		var rotation_y := deg_to_rad(float(raw.get("rotation_deg", 0.0)))
+		var base_elevation := terrain.height_at(point.x, point.y)
+		if terrain.has_method("stamp_hill"):
+			terrain.call("stamp_hill", point, rotation_y, definition.collision_size, base_elevation)
+		reserved.append({"point": point, "radius": definition.footprint_radius, "id": id})
+		result.placements.append({"id": id, "asset": asset, "position": Vector3(point.x, base_elevation, point.y), "rotation_y": rotation_y, "radius": definition.footprint_radius})
+	return reserved
 
 
 func _compile_placements(raw_placements: Array, expected_type: StringName, terrain: TerrainProvider, bounds: Vector2, occupied: Array[Dictionary], result: MapCompilationResult) -> void:
@@ -236,12 +274,12 @@ func _validate_required_data(spec: Dictionary, errors: Array[MapValidationError]
 	if not spec.has("map") or not spec.map is Dictionary or not spec.map.has("seed") or not spec.map.has("bounds"):
 		_add(errors, &"MISSING_REQUIRED_DATA", "validated MapSpec requires map.seed and map.bounds", &"map")
 		return
-	for group in ["structures", "walls", "vegetation", "actors", "spawn_points", "regions", "rivers", "roads", "bridges", "objectives", "encounters", "doors"]:
+	for group in ["structures", "walls", "vegetation", "hills", "pickups", "interactables", "actors", "spawn_points", "regions", "rivers", "roads", "bridges", "objectives", "encounters", "doors"]:
 		if spec.has(group) and not spec[group] is Array:
 			_add(errors, &"MISSING_REQUIRED_DATA", "'%s' must be an array" % group, StringName(group))
 	var id_regex := RegEx.new()
 	id_regex.compile(ID_PATTERN)
-	for group in ["structures", "walls", "vegetation", "actors", "spawn_points", "regions", "rivers", "roads", "bridges", "objectives", "encounters", "doors"]:
+	for group in ["structures", "walls", "vegetation", "hills", "pickups", "interactables", "actors", "spawn_points", "regions", "rivers", "roads", "bridges", "objectives", "encounters", "doors"]:
 		for entity in spec.get(group, []):
 			var id := String(entity.get("id", ""))
 			if id_regex.search(id) == null or id_regex.search(id).get_string() != id:

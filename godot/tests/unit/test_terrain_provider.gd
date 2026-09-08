@@ -6,6 +6,7 @@ extends RefCounted
 
 const TerrainProviderScript = preload("res://world/terrain_provider.gd")
 const FlatTerrainProviderScript = preload("res://tests/fakes/flat_terrain_provider.gd")
+const ProceduralTerrainProviderScript = preload("res://world/procedural_terrain_provider.gd")
 
 
 static func run() -> Dictionary:
@@ -14,6 +15,7 @@ static func run() -> Dictionary:
 	_test_flat_provider_queries_are_deterministic(failures)
 	_test_navigation_export_is_explicitly_deferred(failures)
 	_test_invalid_input_and_queries_fail_clearly(failures)
+	_test_stamp_hill_raises_height_and_preserves_far_terrain(failures)
 	return {"name": "unit/test_terrain_provider", "failures": failures}
 
 
@@ -54,6 +56,23 @@ static func _test_invalid_input_and_queries_fail_clearly(failures: Array[String]
 	_expect(is_nan(provider.slope_at(8.1, 0.0)), "out-of-bounds slope query did not return NAN", failures)
 	var normal := provider.normal_at(0.0, 8.1)
 	_expect(is_nan(normal.x) and is_nan(normal.y) and is_nan(normal.z), "out-of-bounds normal query did not return NAN vector", failures)
+
+
+## B-hill contract: stamp_hill (ADR-007) reshapes the heightfield -- the
+## authoritative source every other terrain query, the baked mesh, and the
+## navmesh all read -- rather than sitting a prop on top of it.
+static func _test_stamp_hill_raises_height_and_preserves_far_terrain(failures: Array[String]) -> void:
+	var terrain := ProceduralTerrainProviderScript.new()
+	terrain.generate(&"flat", 1, Vector2(32.0, 32.0))
+	var center := Vector2(16.0, 16.0)
+	var base_elevation := terrain.height_at(center.x, center.y)
+	var far_point := Vector2(4.0, 4.0)
+	var far_before := terrain.height_at(far_point.x, far_point.y)
+	terrain.stamp_hill(center, 0.0, Vector3(4.0, 4.0, 4.0), base_elevation)
+	_expect(is_equal_approx(terrain.height_at(center.x, center.y), base_elevation + 4.0), "stamp_hill did not raise the flat top to base_elevation + height", failures)
+	_expect(is_equal_approx(terrain.height_at(far_point.x, far_point.y), far_before), "stamp_hill changed terrain far outside its footprint", failures)
+	var skirt_sample := terrain.height_at(center.x + 2.1, center.y)
+	_expect(skirt_sample > base_elevation and skirt_sample < base_elevation + 4.0, "stamp_hill skirt did not blend between base and top", failures)
 
 
 static func _expect(condition: bool, message: String, failures: Array[String]) -> void:

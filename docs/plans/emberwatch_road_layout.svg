@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1056.0" height="730.0" viewBox="0 0 1056.0 730.0" font-family="ui-sans-serif,system-ui,sans-serif">
+<rect width="1056.0" height="672.0" fill="#4e7340"/>
+<polygon points="24,276.0 240,288.0 240,36.0 24,36.0" fill="#63914a" opacity="0.75"/>
+<polygon points="24,648.0 252,648.0 252,432.0 24,420.0" fill="#63914a" opacity="0.75"/>
+<polygon points="252,144.0 516,144.0 516,24.0 252,24.0" fill="#63914a" opacity="0.75"/>
+<polygon points="252,648.0 528,648.0 528,516.0 252,516.0" fill="#63914a" opacity="0.75"/>
+<polygon points="624,192.0 696,192.0 696,24.0 624,24.0" fill="#63914a" opacity="0.75"/>
+<polygon points="696,300.0 912,216.0 912,48.0 696,48.0" fill="#20602f" opacity="0.75"/>
+<polygon points="696,612.0 900,612.0 900,468.0 696,468.0" fill="#20602f" opacity="0.75"/>
+<polygon points="876,108.0 1056,108.0 1056,12.0 876,12.0" fill="#63914a" opacity="0.75"/>
+<polygon points="912,612.0 1056,612.0 1056,408.0 912,408.0" fill="#63914a" opacity="0.75"/>
+<polyline points="36,348.0 120,336.0 204,354.0 288,372.0 372,390.0 456,402.0 540,402.0 672,378.0 744,360.0 828,324.0 912,294.0 996,276.0" fill="none" stroke="#a08a5f" stroke-width="36.0" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="552,672.0 576,540.0 606,384.0 588,216.0 564,0.0" fill="none" stroke="#2f7f95" stroke-width="18.0" stroke-linejoin="round" stroke-linecap="round"/>
+<rect x="132.0" y="216.0" width="24.0" height="24.0" fill="#8f8a7d" stroke="#3c3833" stroke-width="1.5" transform="rotate(-20 144 228.0)"/>
+<rect x="174.0" y="462.0" width="12.0" height="12.0" fill="#8f8a7d" stroke="#3c3833" stroke-width="1.5" transform="rotate(-65 180 468.0)"/>
+<rect x="72.0" y="498.0" width="24.0" height="12.0" fill="#8f8a7d" stroke="#3c3833" stroke-width="1.5" transform="rotate(-110 84 504.0)"/>
+<rect x="240.0" y="258.0" width="72.0" height="36.0" fill="#5d5850" stroke="#3c3833" stroke-width="1.5" transform="rotate(-100 276 276.0)"/>
+<rect x="330.0" y="258.0" width="72.0" height="36.0" fill="#5d5850" stroke="#3c3833" stroke-width="1.5" transform="rotate(-80 366 276.0)"/>
+<rect x="420.0" y="258.0" width="72.0" height="36.0" fill="#5d5850" stroke="#3c3833" stroke-width="1.5" transform="rotate(-95 456 276.0)"/>
+<rect x="264.0" y="456.0" width="48.0" height="48.0" fill="#5d5850" stroke="#3c3833" stroke-width="1.5" transform="rotate(-15 288 480.0)"/>
+<rect x="348.0" y="474.0" width="72.0" height="36.0" fill="#5d5850" stroke="#3c3833" stroke-width="1.5" transform="rotate(-170 384 492.0)"/>
+<rect x="450.0" y="462.0" width="48.0" height="48.0" fill="#7a7469" stroke="#3c3833" stroke-width="1.5" transform="rotate(-40 474 486.0)"/>
+<rect x="300.0" y="198.0" width="24.0" height="24.0" fill="#7a7469" stroke="#3c3833" stroke-width="1.5" transform="rotate(-30 312 210.0)"/>
+<rect x="408.0" y="198.0" width="24.0" height="24.0" fill="#7a7469" stroke="#3c3833" stroke-width="1.5" transform="rotate(-300 420 210.0)"/>
+<rect x="504.0" y="288.0" width="48.0" height="24.0" fill="#7a7469" stroke="#3c3833" stroke-width="1.5" transform="rotate(-75 528 300.0)"/>
+<rect x="516.0" y="480.0" width="48.0" height="24.0" fill="#7a7469" stroke="#3c3833" stroke-width="1.5" transform="rotate(-105 540 492.0)"/>
+<rect x="648.0" y="444.0" width="24.0" height="24.0" fill="#7a7469" stroke="#3c3833" stroke-width="1.5" transform="rotate(-210 660 456.0)"/>
+<rect x="744.0" y="198.0" width="72.0" height="36.0" fill="#7a7469" stroke="#3c3833" stroke-width="1.5" transform="rotate(-25 780 216.0)"/>
+<rect x="744.0" y="444.0" width="48.0" height="48.0" fill="#7a7469" stroke="#3c3833" stroke-width="1.5" transform="rotate(-130 768 468.0)"/>
+<rect x="924.0" y="60.0" width="72.0" height="72.0" fill="#5d5850" stroke="#3c3833" stroke-width="1.5" transform="rotate(-10 960 96.0)"/>
+<rect x="924.0" y="396.0" width="72.0" height="72.0" fill="#5d5850" stroke="#3c3833" stroke-width="1.5" transform="rotate(-340 960 432.0)"/>
+<line x1="900" y1="204.0" x2="972" y2="204.0" stroke="#c8c2b4" stroke-width="7" stroke-linecap="square"/>
+<line x1="996" y1="204.0" x2="1044" y2="204.0" stroke="#c8c2b4" stroke-width="7" stroke-linecap="square"/>
+<line x1="900" y1="348.0" x2="948" y2="348.0" stroke="#c8c2b4" stroke-width="7" stroke-linecap="square"/>
+<line x1="984" y1="348.0" x2="1032" y2="348.0" stroke="#c8c2b4" stroke-width="7" stroke-linecap="square"/>
+<line x1="1044" y1="324.0" x2="1044" y2="228.0" stroke="#c8c2b4" stroke-width="7" stroke-linecap="square"/>
+<circle cx="888" cy="276.0" r="6.0" fill="#b7b0a1" stroke="#5d5850"/>
+<circle cx="936" cy="240.0" r="6.0" fill="#b7b0a1" stroke="#5d5850"/>
+<circle cx="1008" cy="312.0" r="6.0" fill="#b7b0a1" stroke="#5d5850"/>
+<circle cx="978" cy="228.0" r="6.0" fill="#b7b0a1" stroke="#5d5850"/>
+<circle cx="72" cy="300.0" r="12.600000000000001" fill="#1b4d24" opacity="0.9"/>
+<circle cx="330" cy="330.0" r="14.700000000000001" fill="#1b4d24" opacity="0.9"/>
+<circle cx="420" cy="348.0" r="15.899999999999999" fill="#1b4d24" opacity="0.9"/>
+<circle cx="636" cy="324.0" r="23.700000000000003" fill="#1b4d24" opacity="0.9"/>
+<circle cx="840" cy="240.0" r="19.44" fill="#1b4d24" opacity="0.9"/>
+<circle cx="864" cy="312.0" r="9.0" fill="#1b4d24" opacity="0.9"/>
+<rect x="590.8" y="381.2" width="28" height="18" fill="#8a6236" stroke="#3c2f1c" stroke-width="1.5"/>
+<circle cx="156" cy="300.0" r="7" fill="#ff6b8b" stroke="#12140f" stroke-width="2"/>
+<circle cx="348" cy="444.0" r="7" fill="#ff6b8b" stroke="#12140f" stroke-width="2"/>
+<circle cx="570" cy="312.0" r="7" fill="#ff6b8b" stroke="#12140f" stroke-width="2"/>
+<circle cx="816" cy="264.0" r="7" fill="#ff6b8b" stroke="#12140f" stroke-width="2"/>
+<circle cx="876" cy="228.0" r="7" fill="#ff6b8b" stroke="#12140f" stroke-width="2"/>
+<circle cx="366" cy="204.0" r="8" fill="#ffd24a" stroke="#12140f" stroke-width="2"/>
+<text x="366" y="191.0" fill="#ffffff" font-size="12" font-weight="600" text-anchor="middle" stroke="#12140f" stroke-width="3.5" paint-order="stroke">chest</text>
+<circle cx="954" cy="252.0" r="7" fill="#ffd24a" stroke="#12140f" stroke-width="2"/>
+<circle cx="936" cy="228.0" r="4" fill="#e8dcc0" stroke="#12140f" stroke-width="2"/>
+<circle cx="936" cy="324.0" r="4" fill="#e8dcc0" stroke="#12140f" stroke-width="2"/>
+<circle cx="966" cy="306.0" r="4" fill="#e8dcc0" stroke="#12140f" stroke-width="2"/>
+<circle cx="930" cy="270.0" r="8" fill="#e03a3a" stroke="#12140f" stroke-width="2"/>
+<circle cx="1002" cy="228.0" r="8" fill="#e03a3a" stroke="#12140f" stroke-width="2"/>
+<circle cx="1020" cy="144.0" r="8" fill="#e03a3a" stroke="#12140f" stroke-width="2"/>
+<text x="930" y="257.0" fill="#ffffff" font-size="12" font-weight="600" text-anchor="middle" stroke="#12140f" stroke-width="3.5" paint-order="stroke">sentry</text>
+<text x="1002" y="215.0" fill="#ffffff" font-size="12" font-weight="600" text-anchor="middle" stroke="#12140f" stroke-width="3.5" paint-order="stroke">raider</text>
+<text x="1020" y="131.0" fill="#ffffff" font-size="12" font-weight="600" text-anchor="middle" stroke="#12140f" stroke-width="3.5" paint-order="stroke">chieftain</text>
+<circle cx="60" cy="324.0" r="9" fill="#4ad2ff" stroke="#12140f" stroke-width="2"/>
+<text x="60" y="346.0" fill="#ffffff" font-size="12" font-weight="600" text-anchor="middle" stroke="#12140f" stroke-width="3.5" paint-order="stroke">START</text>
+<circle cx="972" cy="264.0" r="9" fill="#ffffff" stroke="#12140f" stroke-width="2"/>
+<text x="972" y="288.0" fill="#ffffff" font-size="12" font-weight="600" text-anchor="middle" stroke="#12140f" stroke-width="3.5" paint-order="stroke">GOAL</text>
+<text x="120" y="72.0" fill="#f5f2e6" font-size="15" font-weight="700" letter-spacing="1.2" text-anchor="middle" stroke="#12140f" stroke-width="4" paint-order="stroke">1 · WAYFARER'S REST</text>
+<text x="360" y="72.0" fill="#f5f2e6" font-size="15" font-weight="700" letter-spacing="1.2" text-anchor="middle" stroke="#12140f" stroke-width="4" paint-order="stroke">2 · STONEWIND NARROWS</text>
+<text x="600" y="72.0" fill="#f5f2e6" font-size="15" font-weight="700" letter-spacing="1.2" text-anchor="middle" stroke="#12140f" stroke-width="4" paint-order="stroke">3 · RIVEN FORD</text>
+<text x="792" y="372.0" fill="#f5f2e6" font-size="15" font-weight="700" letter-spacing="1.2" text-anchor="middle" stroke="#12140f" stroke-width="4" paint-order="stroke">4 · DEEPWOOD</text>
+<text x="960" y="156.0" fill="#f5f2e6" font-size="15" font-weight="700" letter-spacing="1.2" text-anchor="middle" stroke="#12140f" stroke-width="4" paint-order="stroke">5 · EMBERWATCH</text>
+<rect y="672.0" width="1056.0" height="58" fill="#12140f"/>
+<circle cx="26" cy="701.0" r="7" fill="#4ad2ff" stroke="#12140f" stroke-width="2"/>
+<text x="40" y="706.0" fill="#e8e4d6" font-size="13">spawn</text>
+<circle cx="176" cy="701.0" r="7" fill="#ff6b8b" stroke="#12140f" stroke-width="2"/>
+<text x="190" y="706.0" fill="#e8e4d6" font-size="13">potion</text>
+<circle cx="326" cy="701.0" r="7" fill="#ffd24a" stroke="#12140f" stroke-width="2"/>
+<text x="340" y="706.0" fill="#e8e4d6" font-size="13">container</text>
+<circle cx="476" cy="701.0" r="7" fill="#e03a3a" stroke="#12140f" stroke-width="2"/>
+<text x="490" y="706.0" fill="#e8e4d6" font-size="13">raider</text>
+<circle cx="626" cy="701.0" r="7" fill="#ffffff" stroke="#12140f" stroke-width="2"/>
+<text x="640" y="706.0" fill="#e8e4d6" font-size="13">objective</text>
+<text x="1042.0" y="706.0" fill="#9aa08c" font-size="13" text-anchor="end">Emberwatch Road — 176 × 112 m</text>
+</svg>

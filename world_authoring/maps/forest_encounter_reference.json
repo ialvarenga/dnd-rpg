@@ -52,7 +52,10 @@
     }
   ],
   "structures": [
-    
+
+  ],
+  "hills": [
+    { "id": "overlook_hill", "asset": "forest_hill_4x4x4", "position": [50, 15], "rotation_deg": 20 }
   ],
   "spawn_points": [
     {

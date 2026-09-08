@@ -64,7 +64,7 @@ static func _create_ribbon_mesh(node_name: String, boundaries: PackedVector2Arra
 			length_along += ((boundaries[index] + boundaries[index + 1]) * 0.5).distance_to((boundaries[index - 2] + boundaries[index - 1]) * 0.5)
 		for side in range(2):
 			var point := boundaries[index + side]
-			var height := fixed_height if is_finite(fixed_height) else terrain.height_at(point.x, point.y)
+			var height := fixed_height if is_finite(fixed_height) else _height_at_clamped(terrain, point)
 			vertices.append(Vector3(point.x, height + lift, point.y))
 			normals.append(Vector3.UP)
 			uvs.append(Vector2(length_along * 0.18, float(side)))
@@ -98,7 +98,7 @@ static func _create_shores(boundaries: PackedVector2Array, terrain: TerrainProvi
 	for pair in range(boundaries.size() / 2 - 1):
 		for quad in [[boundaries[pair * 2], expanded[pair * 2], expanded[pair * 2 + 2], boundaries[pair * 2 + 2]], [boundaries[pair * 2 + 1], boundaries[pair * 2 + 3], expanded[pair * 2 + 3], expanded[pair * 2 + 1]]]:
 			for point in [quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]]:
-				vertices.append(Vector3(point.x, terrain.height_at(point.x, point.y) + 0.035, point.y))
+				vertices.append(Vector3(point.x, _height_at_clamped(terrain, point) + 0.035, point.y))
 				normals.append(Vector3.UP)
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -111,6 +111,13 @@ static func _create_shores(boundaries: PackedVector2Array, terrain: TerrainProvi
 	visual.name = "Shore"
 	visual.mesh = mesh
 	return visual
+
+
+## A path that reaches the map edge extrudes its ribbon and shore slightly past
+## it, so the sample -- not the vertex -- is clamped back inside. Height is only
+## read to drape the mesh over the terrain; the ribbon keeps its authored shape.
+static func _height_at_clamped(terrain: TerrainProvider, point: Vector2) -> float:
+	return terrain.height_at(clampf(point.x, 0.0, terrain.bounds.x), clampf(point.y, 0.0, terrain.bounds.y))
 
 
 static func _water_material() -> ShaderMaterial:
