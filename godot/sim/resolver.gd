@@ -11,7 +11,9 @@ extends RefCounted
 ## Fase C2 bump: attack/armor calculations now aggregate equipment, and a
 ## perform_attack-effect ability checks/spends its full ability cost
 ## (bonus_action/reaction/movement_cost), not only costs_action.
-const RULES_VERSION: int = 2
+## Bump 3: actor-targeted abilities may author their range at the ability
+## boundary, shared by resolution, targeting previews, and approach planning.
+const RULES_VERSION: int = 3
 
 const ATTACK_RANGE_METERS := 1.5
 const THREAT_RANGE_METERS := 1.5
@@ -24,6 +26,7 @@ const RejectionReasonRules = preload("res://sim/rules/rejection_reason.gd")
 const AbilityRoutingRules = preload("res://sim/rules/ability_routing.gd")
 const CommandPhaseRulesScript = preload("res://sim/rules/command_phase_rules.gd")
 const AbilityCostRulesScript = preload("res://sim/rules/ability_cost_rules.gd")
+const AbilityTargetingRules = preload("res://sim/ability_targeting.gd")
 const EquipmentRules = preload("res://sim/equipment.gd")
 
 const EFFECT_ADD_BASE_MOVEMENT := &"add_base_movement"
@@ -276,7 +279,8 @@ static func _resolve_attack_effect(state: BattleState, cmd: Command, ability: Ab
 	var cost_rejection := AbilityCostRulesScript.rejection_for_cost(attacker, ability, definitions)
 	if cost_rejection != &"": return _rejected(result, cmd, cost_rejection)
 	if not los.has_line_of_sight(attacker.position, target.position): return _rejected(result, cmd, RejectionReasonRules.NO_LINE_OF_SIGHT)
-	var attack_range := maxf(effect.range_meters, float(cmd.metadata.get("range_meters", effect.range_meters)))
+	var authored_range := AbilityTargetingRules.target_range(definitions, ability.id)
+	var attack_range := maxf(authored_range, float(cmd.metadata.get("range_meters", authored_range)))
 	var is_ranged := bool(cmd.metadata.get("is_ranged", effect.is_ranged))
 	if attacker.position.distance_to(target.position) > attack_range + MOVEMENT_EPSILON:
 		return _rejected(result, cmd, RejectionReasonRules.TARGET_OUT_OF_RANGE)

@@ -14,4 +14,5 @@ id = &"basic_attack"
 display_name = "Basic Attack"
 costs_action = true
 targeting = &"actor"
+target_range_meters = 2.4
 effects = Array[ExtResource("1_vi3gg")]([SubResource("Resource_yew1t")])

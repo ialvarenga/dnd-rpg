@@ -14,7 +14,8 @@ extends Resource
 ## apply_condition / remove_condition: condition id to add or remove.
 @export var condition_id: StringName = &""
 
-## perform_attack: base range/weapon metadata (overridable by Command.metadata).
+## perform_attack: legacy range fallback plus weapon metadata. New definitions
+## should author AbilityDefinition.target_range_meters.
 @export var range_meters: float = 1.5
 @export var is_ranged: bool = false
 @export var attack_kind: StringName = &"basic"

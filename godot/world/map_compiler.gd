@@ -70,8 +70,11 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 		node.scale = placement.get("visual_scale", Vector3.ONE)
 		result.root.add_child(node)
 		# Hills reshape the terrain collision mesh itself (ADR-007), so a
-		# separate runtime blocker would only duplicate collision.
-		if definition != null and definition.asset_type != &"terrain_feature":
+		# separate runtime blocker would only duplicate collision. Authored
+		# characters are visual anchors that the composition root replaces with
+		# CharacterView instances; leaving a static blocker at the same position
+		# would make every line-of-sight ray hit the target's hidden anchor.
+		if definition != null and definition.asset_type not in [&"terrain_feature", &"character"]:
 			result.root.add_child(MapRuntimeBlocker.create(placement.id, placement.position, definition, placement.rotation_y, placement.get("collision_size", Vector3.ZERO)))
 	if not result.errors.is_empty():
 		result.root.queue_free()

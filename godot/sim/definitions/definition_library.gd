@@ -16,7 +16,8 @@ extends RefCounted
 ## (A8) can carry/validate a content_version alongside rules/schema versioning.
 ## Fase C3 bump: adds the raider actor definition used by map encounters.
 ## Bump 5: adds the shared healing-potion consumable ability and item.
-const CONTENT_VERSION: int = 5
+## Bump 6: targeted abilities own reusable target-range metadata.
+const CONTENT_VERSION: int = 6
 
 const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/basic_attack.tres",

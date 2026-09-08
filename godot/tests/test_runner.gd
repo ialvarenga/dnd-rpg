@@ -8,6 +8,7 @@ const TestEventPlayerFeedbackScript = preload("res://tests/integration/test_even
 const TestCompiledMapHealthBarsScript = preload("res://tests/integration/test_compiled_map_health_bars.gd")
 const TestHudBindingScript = preload("res://tests/integration/test_hud_binding.gd")
 const TestConsumablesScript = preload("res://tests/unit/test_consumables.gd")
+const TestTargetedActionPlannerScript = preload("res://tests/unit/test_targeted_action_planner.gd")
 
 func _init() -> void:
 	call_deferred("_run")
@@ -15,7 +16,7 @@ func _init() -> void:
 
 func _run() -> void:
 	var failure_count := 0
-	var suites := [TestSimulation, TestDefinitions, TestActionAvailability, TestHudViewModel, TestEquipment, TestInteractables, TestAssetCatalog, TestTerrainProviderScript, TestMapCompilerScript, TestCharacterAnimatorScript, TestEnemyAI, TestConsumablesScript, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion, TestEncounterSession]
+	var suites := [TestSimulation, TestDefinitions, TestActionAvailability, TestHudViewModel, TestEquipment, TestInteractables, TestAssetCatalog, TestTerrainProviderScript, TestMapCompilerScript, TestCharacterAnimatorScript, TestEnemyAI, TestConsumablesScript, TestTargetedActionPlannerScript, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion, TestEncounterSession]
 	for suite in suites:
 		var report: Dictionary = suite.run()
 		var failures: Array = report["failures"]

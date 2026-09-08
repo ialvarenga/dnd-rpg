@@ -26,6 +26,7 @@ var _enemy_action_cooldown := 0.0
 var _targeting_ability_id: StringName = &""
 var _highlighted_target_id := -1
 var _pending_interactable_id := ""
+var _pending_targeted_action: Dictionary = {}
 var music
 
 const EnemyAIScript = preload("res://ai/enemy_ai.gd")
@@ -360,6 +361,8 @@ func _synchronize_completed_movement(actor_id: int) -> void:
 		view.synchronize_to_authoritative_position((battle_state.actors[actor_id] as ActorState).position)
 	if actor_id == character.actor_id and not _pending_interactable_id.is_empty():
 		_complete_pending_interaction()
+	if actor_id == character.actor_id and not _pending_targeted_action.is_empty():
+		_complete_pending_targeted_action()
 
 
 func _approach_interactable(interactable_id: String) -> void:
@@ -380,6 +383,18 @@ func _complete_pending_interaction() -> void:
 	var interactable_id := _pending_interactable_id
 	_pending_interactable_id = ""
 	_resolve_interaction(interactable_id)
+
+
+func _complete_pending_targeted_action() -> void:
+	var pending := _pending_targeted_action.duplicate()
+	_pending_targeted_action.clear()
+	var result: ResolutionResult = session.submit_ability(
+		character.actor_id,
+		pending.get("ability_id", &""),
+		int(pending.get("target_id", -1)),
+		pending.get("target_pos", Vector3.INF),
+	)
+	event_player.play_events(result.events)
 
 
 func _resolve_interaction(interactable_id: String) -> void:
@@ -476,7 +491,7 @@ func _setup_music(settings: Dictionary) -> void:
 func _on_hud_ability_requested(ability_id: StringName) -> void:
 	var definitions := DefinitionLibrary.get_default()
 	var ability := definitions.get_ability(ability_id)
-	if ability != null and ability.targeting == &"actor" and AbilityTargetingRules.attack_range(definitions, ability_id) >= 0.0:
+	if ability != null and ability.targeting == &"actor" and AbilityTargetingRules.target_range(definitions, ability_id) >= 0.0:
 		_clear_targeting()
 		_targeting_ability_id = ability_id
 		hud.set_selected_ability(ability_id)
@@ -496,12 +511,14 @@ func _on_inventory_item_requested(item_id: StringName) -> void:
 
 
 func _on_hud_end_turn_requested() -> void:
+	_pending_targeted_action.clear()
 	_clear_targeting()
 	var result: ResolutionResult = session.end_turn(character.actor_id)
 	event_player.play_events(result.events)
 
 
 func _on_hud_cancel_requested() -> void:
+	_pending_targeted_action.clear()
 	_clear_targeting()
 	_line_mesh.clear_surfaces()
 
@@ -516,18 +533,32 @@ func _update_target_highlight(hostile: CharacterView) -> void:
 	if hostile != null:
 		var source: ActorState = battle_state.actors.get(character.actor_id)
 		var target: ActorState = battle_state.actors.get(hostile.actor_id)
-		hostile.set_target_highlight(true, AbilityTargetingRules.is_target_in_attack_range(source, target, DefinitionLibrary.get_default(), _targeting_ability_id))
+		hostile.set_target_highlight(true, AbilityTargetingRules.is_target_in_range(source, target, DefinitionLibrary.get_default(), _targeting_ability_id))
 
 
 func _submit_targeted_ability(target_id: int) -> void:
 	if not battle_state.actors.has(character.actor_id) or not battle_state.actors.has(target_id):
 		return
-	var source: ActorState = battle_state.actors[character.actor_id]
-	var target: ActorState = battle_state.actors[target_id]
-	if not AbilityTargetingRules.is_target_in_attack_range(source, target, DefinitionLibrary.get_default(), _targeting_ability_id):
+	var ability_id := _targeting_ability_id
+	var plan = session.plan_targeted_ability(character.actor_id, ability_id, target_id)
+	if not plan.can_execute or not plan.requires_movement:
+		var immediate: ResolutionResult = session.submit_ability(character.actor_id, ability_id, target_id, Vector3.INF)
+		event_player.play_events(immediate.events)
+		_clear_targeting()
 		return
-	var result: ResolutionResult = session.submit_ability(character.actor_id, _targeting_ability_id, target_id, Vector3.INF)
-	event_player.play_events(result.events)
+	_pending_targeted_action = {
+		"ability_id": ability_id,
+		"target_id": target_id,
+		"target_pos": Vector3.INF,
+	}
+	var movement := _move(plan.movement_target)
+	if movement.events.any(func(event: Event): return event.type == &"command_rejected"):
+		_pending_targeted_action.clear()
+	elif not character.is_moving() and not _pending_targeted_action.is_empty():
+		# A presentation path can collapse to the current view position even
+		# though the authoritative move advanced. Complete the queued action
+		# instead of leaving it waiting for a movement signal that will not fire.
+		_synchronize_completed_movement(character.actor_id)
 	_clear_targeting()
 
 

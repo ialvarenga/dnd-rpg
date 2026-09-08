@@ -8,6 +8,7 @@ signal events_resolved(events: Array[Event])
 signal command_rejected(command_type: StringName, reason: StringName)
 
 const MovePreviewScript = preload("res://world/move_preview.gd")
+const TargetedActionPlannerScript = preload("res://sim/targeted_action_planner.gd")
 
 var battle_state: BattleState
 var nav: NavProvider
@@ -56,6 +57,13 @@ func submit_ability(actor_id: int, ability_id: StringName, target_id: int, targe
 	command.target_id = target_id
 	command.target_pos = target_pos
 	return _submit(command, Vector3.INF)
+
+
+## Non-mutating plan for the general actor-targeted "approach, then act"
+## workflow. Controllers decide when presentation movement has completed and
+## submit the actual ability afterward.
+func plan_targeted_ability(actor_id: int, ability_id: StringName, target_id: int):
+	return TargetedActionPlannerScript.plan(battle_state, actor_id, ability_id, target_id, nav, los)
 
 
 func end_turn(actor_id: int) -> ResolutionResult:
