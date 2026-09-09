@@ -85,6 +85,23 @@ func synchronize_to_authoritative_position(position: Vector3) -> void:
 	_notify_locomotion_stopped()
 
 
+func reset_presentation(actor: ActorState, in_combat: bool = false) -> void:
+	_locomotion.stop()
+	_is_dead = false
+	destination = actor.position
+	destination_state = &"idle"
+	global_position = actor.position
+	velocity = Vector3.ZERO
+	_locomotion_was_active = false
+	set_target_highlight(false)
+	if in_combat:
+		present_combat_ready()
+	else:
+		_detach_held_weapon()
+		if animator != null:
+			animator.present_combat_ended()
+
+
 func _physics_process(delta: float) -> void:
 	if not _locomotion.is_active():
 		velocity = Vector3.ZERO
@@ -212,6 +229,11 @@ func present_interaction() -> void:
 
 func present_death() -> void:
 	_is_dead = true
+	_locomotion.stop()
+	velocity = Vector3.ZERO
+	destination_state = &"dead"
+	_locomotion_was_active = false
+	set_target_highlight(false)
 	if animator != null:
 		animator.present_death()
 

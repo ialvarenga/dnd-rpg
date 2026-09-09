@@ -10,6 +10,7 @@ static func run() -> Dictionary:
 	_test_approach_selection(failures)
 	_test_formation_spacing(failures)
 	_test_avoids_obvious_opportunity_attack(failures)
+	_test_dodge_is_not_default_idle_action(failures)
 	_test_rejected_candidates_are_not_selected(failures)
 	_test_incremental_turn_decisions(failures)
 	_test_a5_invariants_survive_ai_evaluation(failures)
@@ -94,6 +95,15 @@ static func _test_avoids_obvious_opportunity_attack(failures: Array[String]) -> 
 	(state.actors[2] as ActorState).action_available = false
 	var command := EnemyAI.new().choose_command(state, 2, FakeNavProvider.new(), FakeLosProvider.new(), AIQueryBudget.new())
 	_expect(command != null and command.type == &"end_turn", "AI chose an obvious lethal opportunity-attack route over ending safely", failures)
+
+
+static func _test_dodge_is_not_default_idle_action(failures: Array[String]) -> void:
+	var state := _enemy_turn_state(8.0)
+	var enemy: ActorState = state.actors[2]
+	enemy.ability_ids = [&"basic_attack", &"dodge"]
+	enemy.movement_remaining = 0.0
+	var command := EnemyAI.new().choose_command(state, enemy.id, FakeNavProvider.new(), FakeLosProvider.new(), AIQueryBudget.new())
+	_expect(command != null and command.type == &"end_turn", "full-health enemy used Dodge without an immediate threat", failures)
 
 
 static func _test_rejected_candidates_are_not_selected(failures: Array[String]) -> void:

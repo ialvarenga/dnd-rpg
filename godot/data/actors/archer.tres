@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ActorDefinition" format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/actor_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"archer"
+display_name = "Archer"
+max_hp = 10
+armor_class = 12
+strength = 10
+dexterity = 14
+constitution = 10
+intelligence = 10
+wisdom = 12
+charisma = 9
+proficiency_bonus = 2
+saving_throw_proficiencies = Array[StringName]([&"dexterity"])
+movement_speed = 9.0
+attack_bonus = 4
+damage_die = 6
+ability_ids = Array[StringName]([&"ranged_attack", &"dash", &"disengage", &"dodge"])
+equipment_slots = {
+&"weapon": &"shortbow"
+}
+starting_inventory = Array[StringName]([&"healing_potion"])

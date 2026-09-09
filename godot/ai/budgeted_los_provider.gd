@@ -15,6 +15,10 @@ func _init(source_provider: LosProvider, query_budget: AIQueryBudget) -> void:
 
 
 func has_line_of_sight(from: Vector3, to: Vector3) -> bool:
+	return cover_between(from, to) != COVER_TOTAL
+
+
+func cover_between(from: Vector3, to: Vector3) -> StringName:
 	if not budget.consume_line_of_sight_query():
-		return false
-	return source.has_line_of_sight(from, to)
+		return COVER_TOTAL
+	return source.cover_between(from, to)

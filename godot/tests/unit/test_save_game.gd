@@ -30,11 +30,11 @@ static func _mid_combat_state() -> BattleState:
 	hero.bonus_action_available = false
 	hero.reaction_available = false
 	hero.disengaged = true
-	hero.conditions.append(&"poisoned")
+	hero.add_condition(&"poisoned", 2, 2, &"turn_start")
 
 	var enemy: ActorState = state.actors[2]
 	enemy.hp = 4
-	enemy.conditions.append(&"prone")
+	enemy.add_condition(&"prone")
 
 	var door := InteractableState.new()
 	door.id = "door_north"
@@ -71,11 +71,13 @@ static func _test_round_trip_preserves_mid_combat_state(failures: Array[String])
 	_expect(not restored_hero.bonus_action_available, "bonus_action_available did not round-trip", failures)
 	_expect(not restored_hero.reaction_available, "reaction_available did not round-trip", failures)
 	_expect(restored_hero.disengaged, "disengaged did not round-trip", failures)
-	_expect(restored_hero.conditions.has(&"poisoned"), "conditions did not round-trip", failures)
+	_expect(restored_hero.has_condition(&"poisoned"), "conditions did not round-trip", failures)
+	var restored_poison := restored_hero.condition_state(&"poisoned")
+	_expect(restored_poison != null and restored_poison.source_actor_id == 2 and restored_poison.remaining_triggers == 2 and restored_poison.expiration_timing == &"turn_start", "condition instance metadata did not round-trip", failures)
 
 	var restored_enemy: ActorState = restored_state.actors[2]
 	_expect(restored_enemy.hp == 4, "second actor HP did not round-trip", failures)
-	_expect(restored_enemy.conditions.has(&"prone"), "second actor conditions did not round-trip", failures)
+	_expect(restored_enemy.has_condition(&"prone"), "second actor conditions did not round-trip", failures)
 
 	_expect(restored_state.interactables.has("door_north"), "interactables did not round-trip through SaveGame", failures)
 	if restored_state.interactables.has("door_north"):

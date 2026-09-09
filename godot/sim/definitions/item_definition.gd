@@ -19,6 +19,10 @@ extends Resource
 @export var attack_bonus_modifier: int = 0
 @export var damage_die: int = 0
 @export var damage_modifier: int = 0
+@export var damage_type: StringName = &"untyped"
+@export var normal_range_meters: float = 0.0
+@export var long_range_meters: float = 0.0
+@export var is_ranged_weapon: bool = false
 
 ## Armor-only, ignored otherwise. Added on top of the wearer's own
 ## armor_class.

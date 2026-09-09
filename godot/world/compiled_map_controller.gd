@@ -23,6 +23,8 @@ var _preview_path := PackedVector3Array()
 var _destination_marker: DestinationClickMarker
 var hud: HudRoot
 var hostile_views: Dictionary[int, CharacterView] = {}
+var encounter_definitions: Dictionary[String, Dictionary] = {}
+var authored_actor_ids: Dictionary[String, int] = {}
 var detection_range := 8.0
 var _enemy_action_cooldown := 0.0
 var _targeting_ability_id: StringName = &""
@@ -33,9 +35,13 @@ var _pending_interactable_id := ""
 var _pending_targeted_action: Dictionary = {}
 var _interactable_highlight_time := 0.0
 var music
+var _encounter_checkpoint: BattleState
+var _encounter_start_command: Command
+var _pending_victory_overlay := false
 
 const EnemyAIScript = preload("res://ai/enemy_ai.gd")
 const AbilityTargetingRules = preload("res://sim/ability_targeting.gd")
+const ObjectiveStateScript = preload("res://sim/objective_state.gd")
 
 const PLAYER_CHARACTER_SCENE = preload("res://scenes/actors/player_character.tscn")
 const TACTICAL_CAMERA_SCENE = preload("res://scenes/camera/tactical_camera_rig.tscn")
@@ -74,9 +80,11 @@ func _ready() -> void:
 		return
 	add_child(compilation.root)
 	_setup_player()
+	_setup_objectives(spec)
 	_setup_pickups(spec)
 	_setup_interactables(spec)
 	_setup_hostiles(spec)
+	_setup_encounters(spec)
 	_setup_camera()
 	_setup_light()
 	_setup_path_preview()
@@ -86,6 +94,7 @@ func _ready() -> void:
 	session = EncounterSessionScript.new()
 	session.configure(battle_state, nav_provider, los_provider)
 	session.state_changed.connect(_update_world_health_bars)
+	session.events_resolved.connect(_on_outcome_events_resolved)
 	_update_world_health_bars()
 	_setup_music(compilation.music)
 	_setup_hud()
@@ -94,6 +103,15 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if camera == null or nav_provider == null:
+		return
+	if battle_state.phase == &"game_over":
+		get_viewport().set_input_as_handled()
+		return
+	if battle_state.phase == &"combat" and character.is_moving():
+		# The simulation commits movement immediately, while the CharacterView
+		# catches up over several frames. Keep combat input behind that visual
+		# barrier so an attack cannot appear to land from the old position.
+		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseMotion:
 		if _targeting_ability_id != &"":
@@ -168,12 +186,25 @@ func _setup_player() -> void:
 	battle_state.actors[1] = actor
 	character.held_weapon_model_path = Equipment.held_weapon_model_path(actor, DefinitionLibrary.get_default())
 	_attach_world_health_bar(character)
-	if not spec.get("objectives", []).is_empty():
-		var raw: Array = spec.objectives[0].position
-		objective = Vector3(float(raw[0]), compilation.terrain.height_at(float(raw[0]), float(raw[1])) + 0.2, float(raw[1]))
-		var marker := OBJECTIVE_MARKER_SCENE.instantiate() as MeshInstance3D
-		marker.position = objective
-		add_child(marker)
+
+
+func _setup_objectives(spec: Dictionary) -> void:
+	for raw_objective in spec.get("objectives", []):
+		var position_data: Array = raw_objective.get("position", [])
+		if position_data.size() != 2:
+			continue
+		var state: ObjectiveStateScript = ObjectiveStateScript.new()
+		state.id = str(raw_objective.get("id", ""))
+		state.position = Vector3(float(position_data[0]), compilation.terrain.height_at(float(position_data[0]), float(position_data[1])), float(position_data[1]))
+		state.radius_m = float(raw_objective.get("radius_m", 2.0))
+		for encounter_id in raw_objective.get("requires_encounter_ids", []):
+			state.requires_encounter_ids.append(str(encounter_id))
+		battle_state.objectives[state.id] = state
+		if objective == Vector3.ZERO:
+			objective = state.position
+			var marker := OBJECTIVE_MARKER_SCENE.instantiate() as MeshInstance3D
+			marker.position = objective + Vector3.UP * 0.2
+			add_child(marker)
 
 
 func _setup_pickups(spec: Dictionary) -> void:
@@ -193,6 +224,7 @@ func _setup_pickups(spec: Dictionary) -> void:
 		var pickup_view := compilation.root.get_node_or_null(NodePath(pickup_id))
 		if pickup_view != null:
 			pickup_view.set_meta("interactable_id", pickup.id)
+			_remember_interaction_layers(pickup_view)
 			var asset_id := StringName(str(raw_pickup.get("asset", "")))
 			_register_interactable_highlight(pickup.id, pickup_view as Node3D, asset_id)
 
@@ -243,6 +275,7 @@ func _attach_pick_collider(view: Node3D, interactable_id: String, asset_id: Stri
 	collision.position = Vector3.UP * (cylinder.height * 0.5)
 	body.add_child(collision)
 	view.add_child(body)
+	_remember_interaction_layers(view)
 
 
 ## Interactables use the same ground-marker language as actor targeting. The
@@ -293,6 +326,8 @@ func _setup_hostiles(spec: Dictionary) -> void:
 		hostile.actor_id = actor_id
 		hostile.position = Vector3(float(position_data[0]), compilation.terrain.height_at(float(position_data[0]), float(position_data[1])) + 1.0, float(position_data[1]))
 		hostile.set_meta("hostile_actor_id", actor_id)
+		var authored_id := str(raw_actor.get("id", actor_id))
+		authored_actor_ids[authored_id] = actor_id
 		add_child(hostile)
 		AssetCatalog.dress(hostile, asset_id)
 		var compiled_visual := compilation.root.get_node_or_null(String(raw_actor.get("id", ""))) as Node3D
@@ -301,12 +336,33 @@ func _setup_hostiles(spec: Dictionary) -> void:
 		event_player.register_character_view(hostile)
 		hostile.movement_completed.connect(_synchronize_completed_movement)
 		hostile_views[actor_id] = hostile
+		# The compiled map currently has melee presentation only. Keep the
+		# ranger-looking art as scenery, but do not activate the unfinished
+		# Archer/ranged rules until a ranged attack animation exists.
 		var raider := DefinitionLibrary.get_default().get_actor(&"raider")
 		var raider_actor := ActorState.from_definition(raider, actor_id, &"enemies", hostile.global_position)
 		battle_state.actors[actor_id] = raider_actor
 		hostile.held_weapon_model_path = Equipment.held_weapon_model_path(raider_actor, DefinitionLibrary.get_default())
 		_attach_world_health_bar(hostile)
 		actor_id += 1
+
+
+func _setup_encounters(spec: Dictionary) -> void:
+	for raw_encounter in spec.get("encounters", []):
+		var encounter_id := str(raw_encounter.get("id", ""))
+		if encounter_id.is_empty():
+			continue
+		var combatant_ids: Array[int] = [character.actor_id]
+		for authored_id in raw_encounter.get("actor_ids", []):
+			var actor_id := int(authored_actor_ids.get(str(authored_id), -1))
+			if actor_id >= 0 and not combatant_ids.has(actor_id):
+				combatant_ids.append(actor_id)
+		combatant_ids.sort()
+		encounter_definitions[encounter_id] = {
+			"id": encounter_id,
+			"combatant_ids": combatant_ids,
+			"trigger_radius_m": float(raw_encounter.get("trigger_radius_m", detection_range)),
+		}
 
 
 ## Health bars are a read-only projection of already-applied session state.
@@ -347,6 +403,9 @@ func _process(delta: float) -> void:
 	_animate_interactable_highlight(delta)
 	if music != null:
 		music.set_phase(battle_state.phase)
+	if battle_state.phase == &"game_over":
+		_clear_path_preview()
+		return
 	if battle_state.phase == &"exploration":
 		_clear_path_preview()
 		_check_hostile_detection()
@@ -354,32 +413,41 @@ func _process(delta: float) -> void:
 	if _destination_marker != null:
 		_destination_marker.hide_marker()
 	PathPreviewRendererScript.draw(_line_mesh, _preview_path, character.global_position)
-	if _end_combat_if_resolved():
-		return
 	_enemy_action_cooldown = maxf(0.0, _enemy_action_cooldown - delta)
 	if _enemy_action_cooldown <= 0.0:
 		_take_enemy_turn()
 
 
 func _check_hostile_detection() -> void:
-	for actor_id in hostile_views:
-		var hostile := hostile_views[actor_id]
-		if not is_instance_valid(hostile) or not battle_state.actors.has(actor_id):
+	var player := battle_state.actors.get(character.actor_id) as ActorState
+	if player == null or not player.is_conscious() or battle_state.game_outcome != &"ongoing":
+		return
+	var encounter_ids: Array = encounter_definitions.keys()
+	encounter_ids.sort()
+	for encounter_id in encounter_ids:
+		if battle_state.cleared_encounter_ids.has(encounter_id):
 			continue
-		var hostile_state: ActorState = battle_state.actors[actor_id]
-		if not hostile_state.is_alive():
-			continue
-		if character.global_position.distance_to(hostile.global_position) <= detection_range and los_provider.has_line_of_sight(hostile.global_position, character.global_position):
-			var start := Command.create(&"start_combat", actor_id)
-			var result: ResolutionResult = session.submit_command(start)
-			event_player.play_events(result.events)
-			_enemy_action_cooldown = 0.4
-			return
+		var encounter: Dictionary = encounter_definitions[encounter_id]
+		for actor_id in encounter.combatant_ids:
+			if actor_id == character.actor_id or not hostile_views.has(actor_id) or not battle_state.actors.has(actor_id):
+				continue
+			var hostile := hostile_views[actor_id] as CharacterView
+			var hostile_state := battle_state.actors[actor_id] as ActorState
+			if hostile == null or not hostile_state.is_conscious():
+				continue
+			if character.global_position.distance_to(hostile.global_position) <= float(encounter.trigger_radius_m) and los_provider.has_line_of_sight(hostile.global_position, character.global_position):
+				var start := Command.create(&"start_combat", actor_id)
+				start.metadata = {"encounter_id": encounter_id, "participant_actor_ids": encounter.combatant_ids.duplicate()}
+				_start_encounter(start, true)
+				return
 
 
 func _take_enemy_turn() -> void:
 	var actor_id := battle_state.current_actor_id()
-	if not hostile_views.has(actor_id):
+	var hostile_view := hostile_views.get(actor_id) as CharacterView
+	if hostile_view == null or hostile_view.is_moving():
+		# Authoritative movement is applied before its presentation completes.
+		# Do not resolve the enemy's next action against that still-distant view.
 		return
 	var command: Command = EnemyAIScript.new().choose_command(battle_state, actor_id, nav_provider, los_provider)
 	if command == null:
@@ -389,23 +457,13 @@ func _take_enemy_turn() -> void:
 	_enemy_action_cooldown = 0.45
 
 
-func _end_combat_if_resolved() -> bool:
-	var heroes_alive := false
-	var enemies_alive := false
-	for actor_id in battle_state.actors:
-		var actor: ActorState = battle_state.actors[actor_id]
-		if actor.side == &"heroes":
-			heroes_alive = heroes_alive or actor.is_alive()
-		elif actor.side == &"enemies":
-			enemies_alive = enemies_alive or actor.is_alive()
-	if heroes_alive and enemies_alive:
-		return false
-	var current_actor_id := battle_state.current_actor_id()
-	if current_actor_id == -1:
-		return false
-	var result: ResolutionResult = session.submit_command(Command.create(&"end_combat", current_actor_id))
+func _start_encounter(start: Command, capture_checkpoint: bool) -> void:
+	if capture_checkpoint:
+		_encounter_checkpoint = battle_state.clone()
+		_encounter_start_command = Command.from_dict(start.to_dict())
+	var result: ResolutionResult = session.submit_command(start)
 	event_player.play_events(result.events)
-	return true
+	_enemy_action_cooldown = 0.4
 
 
 func _hostile_at_screen_position(screen_position: Vector2) -> CharacterView:
@@ -427,6 +485,9 @@ func _synchronize_completed_movement(actor_id: int) -> void:
 		_complete_pending_interaction()
 	if actor_id == character.actor_id and not _pending_targeted_action.is_empty():
 		_complete_pending_targeted_action()
+	if actor_id == character.actor_id and _pending_victory_overlay:
+		_pending_victory_overlay = false
+		hud.present_outcome(&"victory")
 
 
 func _approach_interactable(interactable_id: String) -> void:
@@ -491,10 +552,48 @@ func _resolve_interaction(interactable_id: String) -> void:
 			continue
 		var pickup_view := compilation.root.get_node_or_null(NodePath(looted_id))
 		if pickup_view != null:
-			pickup_view.queue_free()
-		_interactable_highlights.erase(looted_id)
+			_set_interactable_view_active(pickup_view, false)
+		var collected_highlight := _interactable_highlights.get(looted_id) as MeshInstance3D
+		if collected_highlight != null:
+			collected_highlight.visible = false
 		if _highlighted_interactable_id == looted_id:
 			_highlighted_interactable_id = ""
+
+
+func _sync_interactable_views() -> void:
+	for interactable_id in battle_state.interactables:
+		var interactable := battle_state.interactables[interactable_id] as InteractableState
+		if interactable.type != &"pickup":
+			continue
+		var view := compilation.root.get_node_or_null(NodePath(interactable.id))
+		if view != null:
+			_set_interactable_view_active(view, interactable.state != &"collected")
+
+
+func _remember_interaction_layers(root: Node) -> void:
+	var collision_objects: Array[Node] = []
+	if root is CollisionObject3D:
+		collision_objects.append(root)
+	for child in root.find_children("*", "CollisionObject3D", true, false):
+		collision_objects.append(child)
+	for collision_object_node in collision_objects:
+		var collision_object := collision_object_node as CollisionObject3D
+		if not collision_object.has_meta("active_collision_layer"):
+			collision_object.set_meta("active_collision_layer", collision_object.collision_layer)
+
+
+func _set_interactable_view_active(root: Node, active: bool) -> void:
+	if root is Node3D:
+		(root as Node3D).visible = active
+	var collision_objects: Array[Node] = []
+	if root is CollisionObject3D:
+		collision_objects.append(root)
+	for child in root.find_children("*", "CollisionObject3D", true, false):
+		collision_objects.append(child)
+	for collision_object_node in collision_objects:
+		var collision_object := collision_object_node as CollisionObject3D
+		var active_layer := int(collision_object.get_meta("active_collision_layer", collision_object.collision_layer))
+		collision_object.collision_layer = active_layer if active else 0
 
 
 func _dress_player(player: CharacterView, player_data: Dictionary) -> void:
@@ -563,6 +662,8 @@ func _setup_hud() -> void:
 	hud.inventory_item_requested.connect(_on_inventory_item_requested)
 	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
 	hud.cancel_requested.connect(_on_hud_cancel_requested)
+	hud.retry_requested.connect(_on_retry_requested)
+	hud.restart_requested.connect(_on_restart_requested)
 
 
 func _setup_music(settings: Dictionary) -> void:
@@ -578,6 +679,8 @@ func _setup_music(settings: Dictionary) -> void:
 
 
 func _on_hud_ability_requested(ability_id: StringName) -> void:
+	if character != null and character.is_moving():
+		return
 	_cancel_pending_interaction()
 	_pending_targeted_action.clear()
 	_clear_interactable_highlight()
@@ -595,6 +698,8 @@ func _on_hud_ability_requested(ability_id: StringName) -> void:
 
 
 func _on_inventory_item_requested(item_id: StringName) -> void:
+	if character != null and character.is_moving():
+		return
 	_cancel_pending_interaction()
 	_pending_targeted_action.clear()
 	_clear_interactable_highlight()
@@ -606,6 +711,8 @@ func _on_inventory_item_requested(item_id: StringName) -> void:
 
 
 func _on_hud_end_turn_requested() -> void:
+	if character != null and character.is_moving():
+		return
 	_cancel_pending_interaction()
 	_clear_interactable_highlight()
 	_pending_targeted_action.clear()
@@ -622,6 +729,40 @@ func _on_hud_cancel_requested() -> void:
 	_clear_path_preview()
 
 
+func _on_retry_requested() -> void:
+	if _encounter_checkpoint == null or _encounter_start_command == null:
+		return
+	battle_state = _encounter_checkpoint.clone()
+	session.replace_state(battle_state)
+	event_player.reset_views(battle_state)
+	hud.reset_outcome()
+	_pending_victory_overlay = false
+	_cancel_pending_interaction()
+	_pending_targeted_action.clear()
+	_clear_targeting()
+	_clear_interactable_highlight()
+	_clear_path_preview()
+	_sync_interactable_views()
+	_update_world_health_bars()
+	_start_encounter(Command.from_dict(_encounter_start_command.to_dict()), false)
+
+
+func _on_outcome_events_resolved(events: Array[Event]) -> void:
+	if not events.any(func(event: Event): return event.type in [&"game_over", &"game_completed"]):
+		return
+	_cancel_pending_interaction()
+	_pending_targeted_action.clear()
+	_clear_targeting()
+	_clear_interactable_highlight()
+	_clear_path_preview()
+	if _destination_marker != null:
+		_destination_marker.hide_marker()
+
+
+func _on_restart_requested() -> void:
+	get_tree().reload_current_scene()
+
+
 func _update_target_highlight(hostile: CharacterView) -> void:
 	var next_target_id := hostile.actor_id if hostile != null else -1
 	if _highlighted_target_id == next_target_id:
@@ -636,7 +777,7 @@ func _update_target_highlight(hostile: CharacterView) -> void:
 
 
 func _submit_targeted_ability(target_id: int) -> void:
-	if not battle_state.actors.has(character.actor_id) or not battle_state.actors.has(target_id):
+	if character.is_moving() or not battle_state.actors.has(character.actor_id) or not battle_state.actors.has(target_id):
 		return
 	_cancel_pending_interaction()
 	_clear_interactable_highlight()
@@ -739,7 +880,11 @@ func _show_error(message: String) -> void:
 
 func _move(target: Vector3) -> ResolutionResult:
 	var result: ResolutionResult = session.submit_move(1, target, character.global_position)
+	_pending_victory_overlay = result.events.any(func(event: Event): return event.type == &"game_completed")
 	event_player.play_events(result.events)
+	if _pending_victory_overlay and not character.is_moving():
+		_pending_victory_overlay = false
+		hud.present_outcome(&"victory")
 	return result
 
 

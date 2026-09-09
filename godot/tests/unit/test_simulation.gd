@@ -178,22 +178,22 @@ static func _test_opportunity_attack_and_disengage(failures: Array[String]) -> v
 static func _test_conditions_and_death(failures: Array[String]) -> void:
 	var prone_state := TestHelpers.make_battle()
 	_remove_opportunity_threat(prone_state)
-	(prone_state.actors[1] as ActorState).conditions.append(&"prone")
+	(prone_state.actors[1] as ActorState).add_condition(&"prone")
 	var prone_move := Command.create(&"move", 1)
 	prone_move.target_pos = Vector3(3.0, 0.0, 0.0)
 	var prone_result := Resolver.resolve(prone_state, prone_move, FakeNavProvider.new(), FakeLosProvider.new())
 	_expect(prone_result.events[0].type == &"condition_removed" and prone_result.events[1].type == &"movement_spent" and is_equal_approx(float(prone_result.events[1].data["amount"]), 4.5), "prone did not spend half base movement to stand", failures)
 	TestHelpers.apply_result(prone_state, prone_result)
-	_expect(not (prone_state.actors[1] as ActorState).conditions.has(&"prone") and is_equal_approx((prone_state.actors[1] as ActorState).movement_remaining, 1.5), "prone standing movement did not apply", failures)
+	_expect(not (prone_state.actors[1] as ActorState).has_condition(&"prone") and is_equal_approx((prone_state.actors[1] as ActorState).movement_remaining, 1.5), "prone standing movement did not apply", failures)
 	var prone_target_state := TestHelpers.make_battle()
-	(prone_target_state.actors[2] as ActorState).conditions.append(&"prone")
+	(prone_target_state.actors[2] as ActorState).add_condition(&"prone")
 	var prone_attack := Command.create(&"attack", 1)
 	prone_attack.target_id = 2
 	var prone_attack_result := Resolver.resolve(prone_target_state, prone_attack, FakeNavProvider.new(), FakeLosProvider.new())
 	_expect(prone_attack_result.events[0].data["advantage"] and (prone_attack_result.events[0].data["rolls"] as Array).size() == 2, "melee attack against prone target did not use advantage", failures)
 	var ranged_prone_state := TestHelpers.make_battle()
 	(ranged_prone_state.actors[2] as ActorState).position = Vector3(3.0, 0.0, 0.0)
-	(ranged_prone_state.actors[2] as ActorState).conditions.append(&"prone")
+	(ranged_prone_state.actors[2] as ActorState).add_condition(&"prone")
 	var ranged_prone_attack := Command.create(&"attack", 1)
 	ranged_prone_attack.target_id = 2
 	ranged_prone_attack.metadata = {"is_ranged": true, "range_meters": 9.0}
@@ -201,14 +201,14 @@ static func _test_conditions_and_death(failures: Array[String]) -> void:
 	_expect(ranged_prone_result.events[0].data["disadvantage"] and not ranged_prone_result.events[0].data["advantage"], "ranged attack beyond close range against prone target did not use disadvantage", failures)
 
 	var poisoned_state := TestHelpers.make_battle()
-	(poisoned_state.actors[1] as ActorState).conditions.append(&"poisoned")
+	(poisoned_state.actors[1] as ActorState).add_condition(&"poisoned")
 	var poison_attack := Command.create(&"attack", 1)
 	poison_attack.target_id = 2
 	var poison_result := Resolver.resolve(poisoned_state, poison_attack, FakeNavProvider.new(), FakeLosProvider.new())
 	_expect(poison_result.events[0].data["disadvantage"] and (poison_result.events[0].data["rolls"] as Array).size() == 2, "poisoned attack did not use deterministic disadvantage", failures)
 
 	var unconscious_state := TestHelpers.make_battle()
-	(unconscious_state.actors[1] as ActorState).conditions.append(&"unconscious")
+	(unconscious_state.actors[1] as ActorState).add_condition(&"unconscious")
 	var unconscious_move := Resolver.resolve(unconscious_state, Command.create(&"move", 1), FakeNavProvider.new(), FakeLosProvider.new())
 	_expect(unconscious_move.events[0].data["reason"] == &"actor_cannot_act", "unconscious actor was allowed to move", failures)
 
@@ -222,7 +222,7 @@ static func _test_conditions_and_death(failures: Array[String]) -> void:
 	var lethal_result := Resolver.resolve(lethal_state, lethal_attack, FakeNavProvider.new(), FakeLosProvider.new())
 	_expect(_event_count(lethal_result, &"actor_died") == 1, "massive damage did not produce the dead condition event", failures)
 	TestHelpers.apply_result(lethal_state, lethal_result)
-	_expect((lethal_state.actors[2] as ActorState).conditions.has(&"dead"), "actor_died did not apply dead condition", failures)
+	_expect((lethal_state.actors[2] as ActorState).has_condition(&"dead"), "actor_died did not apply dead condition", failures)
 
 
 static func _test_a5_resolution_is_pure(failures: Array[String]) -> void:
@@ -383,10 +383,9 @@ static func _test_combat_start_and_end_apply_lifecycle(failures: Array[String]) 
 	state.rng_state = start_result.next_rng_state
 	_expect(state.phase == &"combat" and state.initiative_order.size() == 2 and state.current_actor_id() != -1, "combat start did not apply initiative and active turn", failures)
 	var end_result := Resolver.resolve(state, Command.create(&"end_combat", state.current_actor_id()), FakeNavProvider.new(), FakeLosProvider.new())
-	Resolver.apply(state, end_result.events[0])
-	_expect(state.phase == &"combat_ending", "combat_ending event did not apply its phase", failures)
-	Resolver.apply(state, end_result.events[1])
-	_expect(state.phase == &"exploration" and state.initiative_order.is_empty() and state.round_number == 1, "combat end did not restore exploration lifecycle state", failures)
+	_expect(end_result.events.size() == 1 and end_result.events[0].type == &"command_rejected", "unresolved combat did not reject end_combat", failures)
+	_expect(end_result.events[0].data["reason"] == &"combat_unresolved", "unresolved combat returned the wrong rejection reason", failures)
+	_expect(state.phase == &"combat" and not state.initiative_order.is_empty(), "rejected combat end changed lifecycle state", failures)
 
 
 static func _test_only_current_actor_can_move_or_end_turn(failures: Array[String]) -> void:

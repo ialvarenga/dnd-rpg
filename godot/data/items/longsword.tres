@@ -10,4 +10,5 @@ slot = &"weapon"
 attack_bonus_modifier = 2
 damage_die = 8
 damage_modifier = 2
+damage_type = &"slashing"
 held_model_path = "res://assets/kaykit_adventurers_weapons/sword_1handed.gltf"

@@ -69,12 +69,25 @@ func _narrate_event(event: Event) -> void:
 		&"interaction_completed":
 			if view != null:
 				view.present_interaction()
-		&"actor_downed", &"condition_added", &"condition_removed", &"command_rejected":
+		&"actor_downed":
+			# A downed actor is no longer an active combatant in this runtime.
+			# Keep the simulation's unconscious/dead distinction, but use the
+			# shared death presentation for every character prefab so enemies do
+			# not remain standing after reaching 0 HP.
+			if view != null:
+				view.present_death()
+				_present_floating_feedback(view, event)
+		&"condition_added", &"condition_removed", &"command_rejected":
 			if view != null:
 				_present_floating_feedback(view, event)
 		&"actor_died":
 			if view != null:
 				view.present_death()
+		&"game_over":
+			for defeated_id in event.data.get("defeated_actor_ids", []):
+				var defeated_view := get_character_view(int(defeated_id))
+				if defeated_view != null:
+					defeated_view.present_death()
 
 
 func get_resolved_path(actor_id: int) -> PackedVector3Array:
@@ -85,6 +98,15 @@ func get_resolved_path(actor_id: int) -> PackedVector3Array:
 
 func get_character_view(actor_id: int) -> CharacterView:
 	return _views_by_actor.get(actor_id) as CharacterView
+
+
+func reset_views(state: BattleState) -> void:
+	_last_paths.clear()
+	last_played_events.clear()
+	for actor_id in _views_by_actor:
+		var view := _views_by_actor[actor_id] as CharacterView
+		if view != null and state.actors.has(actor_id):
+			view.reset_presentation(state.actors[actor_id], state.phase == &"combat")
 
 
 ## A CharacterView is the anchor because it follows the interpolated world

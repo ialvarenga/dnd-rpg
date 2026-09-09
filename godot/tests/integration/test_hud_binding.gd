@@ -26,7 +26,7 @@ func run() -> Dictionary:
 func _test_initial_binding(hud: HudRoot, failures: Array[String]) -> void:
 	var hp_label: Label = hud.get_node("Margin/Layout/ActorPortrait/Margin/Rows/HPText")
 	_expect(hp_label.text == "HP 20/20", "HUD bind did not project actor health", failures)
-	_expect(hud.hotbar.get_child_count() == 3, "HUD hotbar should contain only character actions, not inventory consumables", failures)
+	_expect(hud.hotbar.get_child_count() == 5, "HUD hotbar should contain the knight's five character actions, not inventory consumables", failures)
 	var end_turn: Button = hud.get_node("Margin/Layout/EndTurn")
 	_expect(hud.hotbar.mouse_filter == Control.MOUSE_FILTER_IGNORE, "empty hotbar space should remain pass-through", failures)
 	_expect(end_turn.mouse_filter == Control.MOUSE_FILTER_STOP, "end-turn button must consume pointer input", failures)
@@ -61,7 +61,7 @@ func _test_session_synchronization(session: EncounterSession, hud: HudRoot, stat
 	var result := session.submit_ability(1, &"dash", -1, Vector3.INF)
 	_expect(not result.events.is_empty() and result.events[0].type == &"action_spent", "session did not resolve dash through Resolver", failures)
 	_expect(not (state.actors[1] as ActorState).action_available, "dash result was not applied before HUD synchronization", failures)
-	var dash_button := hud.hotbar.get_child(1) as AbilityButton
+	var dash_button := _ability_button(hud, &"dash")
 	_expect(dash_button.disabled, "HUD did not synchronize action availability after session state_changed", failures)
 	_expect(hud.combat_log.get_parsed_text().contains("Knight uses an action."), "HUD did not narrate resolved events in the combat log", failures)
 
@@ -71,6 +71,14 @@ func _send_action(hud: HudRoot, action: StringName) -> void:
 	event.action = action
 	event.pressed = true
 	hud._unhandled_input(event)
+
+
+func _ability_button(hud: HudRoot, ability_id: StringName) -> AbilityButton:
+	for child in hud.hotbar.get_children():
+		var button := child as AbilityButton
+		if button != null and button.ability_id == ability_id:
+			return button
+	return null
 
 
 func _expect(condition: bool, message: String, failures: Array[String]) -> void:

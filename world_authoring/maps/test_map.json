@@ -824,6 +824,10 @@
       "position": [
         162,
         68
+      ],
+      "radius_m": 2.0,
+      "requires_encounter_ids": [
+        "emberwatch_ambush"
       ]
     }
   ],

@@ -1,6 +1,29 @@
 class_name HudViewModel
 extends RefCounted
 
+
+static func objective_prompt(state: BattleState) -> String:
+	if state == null:
+		return "Explore the area"
+	if state.game_outcome == &"victory":
+		return "Adventure complete"
+	if state.game_outcome == &"defeat":
+		return "The hero has fallen"
+	if state.phase == &"combat":
+		return "Defeat the encounter"
+	var objective_ids: Array = state.objectives.keys()
+	objective_ids.sort()
+	for objective_id in objective_ids:
+		var objective := state.objectives[objective_id] as ObjectiveState
+		if objective == null or objective.completed:
+			continue
+		if objective.requirements_met(state.cleared_encounter_ids):
+			return "Reach %s" % String(objective.id).replace("_", " ").capitalize()
+		for encounter_id in objective.requires_encounter_ids:
+			if not state.cleared_encounter_ids.has(encounter_id):
+				return "Clear %s" % String(encounter_id).replace("_", " ").capitalize()
+	return "Explore the area"
+
 ## Pure projection of authoritative state for Canvas UI.  It never stores or
 ## changes BattleState, and availability is advisory only.
 static func for_actor(state: BattleState, actor_id: int, defs: DefinitionLibrary, actions: Array[Dictionary] = []) -> Dictionary:
@@ -24,7 +47,7 @@ static func for_actor(state: BattleState, actor_id: int, defs: DefinitionLibrary
 		"armor_class": actor.armor_class, "movement_remaining": actor.movement_remaining,
 		"movement_speed": actor.movement_speed, "movement_fraction": clampf(actor.movement_remaining / maxf(0.01, actor.movement_speed), 0.0, 1.0),
 		"action_available": actor.action_available, "bonus_action_available": actor.bonus_action_available,
-		"reaction_available": actor.reaction_available, "conditions": actor.conditions.duplicate(),
+		"reaction_available": actor.reaction_available, "conditions": actor.condition_ids(),
 		"is_current_turn": state.current_actor_id() == actor_id, "phase": state.phase,
 		"movement_budget_ignored": state.phase == &"exploration", "action_availability": actions.duplicate(true),
 	}
@@ -55,6 +78,10 @@ static func narrate(event: Event, state: BattleState, defs: DefinitionLibrary) -
 		&"initiative_established": return "Initiative order established."
 		&"combat_ending": return "Combat is ending."
 		&"combat_ended": return "Combat ended."
+		&"encounter_resolved": return "Encounter won." if d.get("outcome") == &"victory" else "The party was defeated."
+		&"game_over": return "Defeat."
+		&"objective_completed": return "Objective completed: %s." % String(d.get("objective_id", "objective")).replace("_", " ").capitalize()
+		&"game_completed": return "Adventure complete."
 		&"movement_segment": return "%s moves." % actor_name
 		&"movement_spent": return "%s spends %.1f movement." % [actor_name, float(d.get("amount", 0.0))]
 		&"movement_gained": return "%s gains %.1f movement." % [actor_name, float(d.get("amount", 0.0))]
@@ -63,7 +90,10 @@ static func narrate(event: Event, state: BattleState, defs: DefinitionLibrary) -
 		&"reaction_triggered": return "%s reacts." % actor_name
 		&"disengage_applied": return "%s disengages." % actor_name
 		&"attack_rolled": return "%s %s %s (roll %d)." % [actor_name, "hits" if d.get("hit", false) else "misses", target_name, int(d.get("roll", 0))]
-		&"damage_taken": return "%s takes %d damage." % [actor_name, int(d.get("amount", 0))]
+		&"damage_taken":
+			var damage_type := String(d.get("damage_type", ""))
+			return "%s takes %d%s damage." % [actor_name, int(d.get("amount", 0)), " " + damage_type if not damage_type.is_empty() else ""]
+		&"d20_test_rolled": return "%s %s a %s save (%d vs DC %d)." % [actor_name, "passes" if d.get("success", false) else "fails", String(d.get("ability", "ability")), int(d.get("total", 0)), int(d.get("difficulty_class", 0))]
 		&"healing_received": return "%s recovers %d HP." % [actor_name, int(d.get("amount", 0))]
 		&"item_consumed": return "%s consumes %s." % [actor_name, String(d.get("item_id", "an item")).replace("_", " ")]
 		&"actor_downed": return "%s is downed." % actor_name

@@ -11,7 +11,15 @@ static func dexterity_modifier(dexterity: int) -> int:
 
 
 static func resolve(state: BattleState) -> Dictionary:
-	var actor_ids := TurnOrderRules.eligible_actor_ids(state)
+	return resolve_for_actor_ids(state, TurnOrderRules.eligible_actor_ids(state))
+
+
+static func resolve_for_actor_ids(state: BattleState, requested_actor_ids: Array[int]) -> Dictionary:
+	var actor_ids: Array[int] = []
+	for actor_id in requested_actor_ids:
+		if state.actors.has(actor_id) and TurnOrderRules.is_actor_eligible(state.actors[actor_id]):
+			actor_ids.append(actor_id)
+	actor_ids.sort()
 	var next_rng_state := state.rng_state
 	var entries: Array[Dictionary] = []
 	for actor_id in actor_ids:

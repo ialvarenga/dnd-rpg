@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/item_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"shortbow"
+display_name = "Shortbow"
+slot = &"weapon"
+damage_die = 6
+damage_modifier = 2
+damage_type = &"piercing"
+normal_range_meters = 24.0
+long_range_meters = 96.0
+is_ranged_weapon = true
+held_model_path = ""

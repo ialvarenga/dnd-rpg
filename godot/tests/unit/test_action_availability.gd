@@ -47,7 +47,7 @@ static func _test_not_in_combat_agrees_with_resolver(failures: Array[String]) ->
 
 static func _test_unconscious_actor_agrees_with_resolver(failures: Array[String]) -> void:
 	var state := TestHelpers.make_battle()
-	(state.actors[1] as ActorState).conditions.append(&"unconscious")
+	(state.actors[1] as ActorState).add_condition(&"unconscious")
 	var evaluation := ActionAvailability.evaluate(state, 1, &"dash")
 	_assert_agrees_with_resolver(state, 1, &"dash", evaluation, "actor_cannot_act", failures)
 

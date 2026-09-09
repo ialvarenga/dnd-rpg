@@ -7,4 +7,5 @@ script = ExtResource("1_ijk8m")
 id = &"dagger"
 display_name = "Dagger"
 slot = &"weapon"
+damage_type = &"piercing"
 held_model_path = "res://assets/kaykit_adventurers_weapons/dagger.gltf"

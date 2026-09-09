@@ -45,7 +45,7 @@ static func _test_dash_effect_magnitude_comes_from_definition_data(failures: Arr
 
 static func _test_poisoned_resolved_from_default_definition(failures: Array[String]) -> void:
 	var state := TestHelpers.make_battle()
-	(state.actors[1] as ActorState).conditions.append(&"poisoned")
+	(state.actors[1] as ActorState).add_condition(&"poisoned")
 	var attack := Command.create(&"attack", 1)
 	attack.target_id = 2
 	var result := Resolver.resolve(state, attack, FakeNavProvider.new(), FakeLosProvider.new())
@@ -64,7 +64,7 @@ static func _test_poisoned_modifier_comes_from_definition_data(failures: Array[S
 	custom.add_condition(condition)
 	custom.add_ability(_make_ability(&"basic_attack", true, [_make_attack_effect()]))
 	var state := TestHelpers.make_battle()
-	(state.actors[1] as ActorState).conditions.append(&"poisoned")
+	(state.actors[1] as ActorState).add_condition(&"poisoned")
 	var attack := Command.create(&"attack", 1)
 	attack.target_id = 2
 	var result := Resolver.resolve(state, attack, FakeNavProvider.new(), FakeLosProvider.new(), custom)
@@ -92,7 +92,7 @@ static func _test_unknown_ability_definition_is_rejected_deterministically(failu
 static func _test_unknown_condition_id_is_ignored_safely(failures: Array[String]) -> void:
 	var state := TestHelpers.make_battle()
 	var enemy: ActorState = state.actors[2]
-	enemy.conditions.append(&"not_a_real_condition")
+	enemy.add_condition(&"not_a_real_condition")
 	_expect(enemy.is_alive() and enemy.is_conscious() and not enemy.is_prone(), "an unrecognized condition id changed actor eligibility", failures)
 	var attack := Command.create(&"attack", 1)
 	attack.target_id = 2

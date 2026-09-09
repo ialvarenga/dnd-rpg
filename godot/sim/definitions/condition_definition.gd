@@ -10,10 +10,16 @@ extends Resource
 @export var display_name: String = ""
 @export var tags: Array[StringName] = []
 
+## Instance lifetime defaults. -1 is permanent; otherwise the count is
+## consumed at the selected actor turn boundary.
+@export var default_duration_triggers: int = -1
+@export var default_expiration_timing: StringName = &"none"
+
 ## Attack-roll modifiers.
 @export var attack_roll_disadvantage: bool = false
 @export var melee_advantage_when_close: bool = false
 @export var ranged_disadvantage_when_not_close: bool = false
+@export var attacks_against_disadvantage: bool = false
 
 ## Actor-eligibility / movement modifiers.
 @export var prevents_actions: bool = false

@@ -14,7 +14,7 @@ extends RefCounted
 
 ## Fase C2 bump: ActorState now serializes ability_ids/equipment_slots/
 ## inventory/definition_id.
-const SCHEMA_VERSION: int = 2
+const SCHEMA_VERSION: int = 3
 const GAME_VERSION: String = "0.1.0"
 
 var schema_version: int = SCHEMA_VERSION

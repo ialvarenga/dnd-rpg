@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/ability_definition.gd" id="1"]
+[ext_resource type="Script" path="res://sim/definitions/ability_effect.gd" id="2"]
+
+[sub_resource type="Resource" id="Effect_save"]
+script = ExtResource("2")
+type = &"saving_throw"
+save_abilities = Array[StringName]([&"strength", &"dexterity"])
+save_dc_base = 8
+save_dc_ability = &"strength"
+
+[sub_resource type="Resource" id="Effect_prone"]
+script = ExtResource("2")
+type = &"apply_condition"
+condition_id = &"prone"
+apply_when = &"failed_save"
+
+[resource]
+script = ExtResource("1")
+id = &"shove"
+display_name = "Shove"
+costs_action = true
+targeting = &"actor"
+target_range_meters = 1.5
+effects = Array[ExtResource("2")]([SubResource("Effect_save"), SubResource("Effect_prone")])

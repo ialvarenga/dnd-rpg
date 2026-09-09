@@ -41,6 +41,28 @@ static func aggregate_damage_modifier(actor: ActorState, defs: DefinitionLibrary
 	return actor.damage_modifier + (weapon.damage_modifier if weapon != null else 0)
 
 
+static func aggregate_damage_type(actor: ActorState, defs: DefinitionLibrary) -> StringName:
+	var weapon := _equipped_item(actor, SLOT_WEAPON, defs)
+	return weapon.damage_type if weapon != null else &"untyped"
+
+
+static func is_ranged_weapon(actor: ActorState, defs: DefinitionLibrary) -> bool:
+	var weapon := _equipped_item(actor, SLOT_WEAPON, defs)
+	return weapon != null and weapon.is_ranged_weapon
+
+
+static func normal_range(actor: ActorState, defs: DefinitionLibrary, fallback: float) -> float:
+	var weapon := _equipped_item(actor, SLOT_WEAPON, defs)
+	return weapon.normal_range_meters if weapon != null and weapon.normal_range_meters > 0.0 else fallback
+
+
+static func long_range(actor: ActorState, defs: DefinitionLibrary, fallback: float) -> float:
+	var weapon := _equipped_item(actor, SLOT_WEAPON, defs)
+	if weapon != null and weapon.long_range_meters > 0.0:
+		return weapon.long_range_meters
+	return normal_range(actor, defs, fallback)
+
+
 static func aggregate_armor_class(actor: ActorState, defs: DefinitionLibrary) -> int:
 	var armor := _equipped_item(actor, SLOT_ARMOR, defs)
 	return actor.armor_class + (armor.armor_class_bonus if armor != null else 0)

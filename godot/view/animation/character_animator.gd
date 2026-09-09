@@ -1,10 +1,12 @@
 class_name CharacterAnimator
 extends Node
 
+const DEFAULT_ANIMATION_SET: ActorAnimationSet = preload("res://data/animations/knight_animation_set.tres")
+
 ## Explicit presentation state machine.  It owns no simulation references and
 ## accepts only already-narrated view intents from CharacterView/EventPlayer.
 
-@export var animation_set: ActorAnimationSet
+@export var animation_set: ActorAnimationSet = DEFAULT_ANIMATION_SET
 @export_range(0.0, 1.0, 0.01) var blend_seconds := 0.15
 
 var current_state: StringName = &"idle"

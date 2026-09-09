@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ConditionDefinition" format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/condition_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"dodging"
+display_name = "Dodging"
+tags = Array[StringName]([&"condition.dodging"])
+default_duration_triggers = 1
+default_expiration_timing = &"turn_start"
+attacks_against_disadvantage = true

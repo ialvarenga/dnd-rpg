@@ -13,7 +13,7 @@ extends RefCounted
 ## (bonus_action/reaction/movement_cost), not only costs_action.
 ## Bump 3: actor-targeted abilities may author their range at the ability
 ## boundary, shared by resolution, targeting previews, and approach planning.
-const RULES_VERSION: int = 3
+const RULES_VERSION: int = 4
 
 const ATTACK_RANGE_METERS := 1.5
 const THREAT_RANGE_METERS := 1.5
@@ -34,6 +34,7 @@ const EFFECT_APPLY_CONDITION := &"apply_condition"
 const EFFECT_REMOVE_CONDITION := &"remove_condition"
 const EFFECT_APPLY_DISENGAGE := &"apply_disengage"
 const EFFECT_PERFORM_ATTACK := &"perform_attack"
+const EFFECT_SAVING_THROW := &"saving_throw"
 const EFFECT_HEAL := &"heal"
 const EFFECT_CONSUME_ITEM := &"consume_item"
 
@@ -53,9 +54,16 @@ const INTERACTABLE_TRANSITIONS := {
 
 
 static func resolve(state: BattleState, cmd: Command, nav: NavProvider, los: LosProvider, defs: DefinitionLibrary = null) -> ResolutionResult:
+	var result := _resolve_command(state, cmd, nav, los, defs)
+	return _finalize_resolution(state, cmd, result)
+
+
+static func _resolve_command(state: BattleState, cmd: Command, nav: NavProvider, los: LosProvider, defs: DefinitionLibrary = null) -> ResolutionResult:
 	var definitions := defs if defs != null else DefinitionLibrary.get_default()
 	var result := ResolutionResult.new()
 	result.next_rng_state = state.rng_state
+	if state.phase == EncounterRules.GAME_OVER:
+		return _rejected(result, cmd, RejectionReasonRules.GAME_OVER)
 	if not state.actors.has(cmd.actor_id):
 		return _rejected(result, cmd, RejectionReasonRules.UNKNOWN_ACTOR)
 	if cmd.type == &"start_combat":
@@ -87,12 +95,32 @@ static func _resolve_start_combat(state: BattleState, cmd: Command, result: Reso
 		return _rejected(result, cmd, RejectionReasonRules.COMBAT_ALREADY_ACTIVE)
 	if not TurnOrderRules.is_actor_eligible(state.actors[cmd.actor_id]):
 		return _rejected(result, cmd, RejectionReasonRules.ACTOR_NOT_ELIGIBLE)
-	var initiative := InitiativeRules.resolve(state)
+	var requested_participants: Array[int] = []
+	for actor_id in cmd.metadata.get("participant_actor_ids", []):
+		var parsed_id := int(actor_id)
+		if not requested_participants.has(parsed_id):
+			requested_participants.append(parsed_id)
+	if requested_participants.is_empty():
+		requested_participants = TurnOrderRules.eligible_actor_ids(state)
+	requested_participants.sort()
+	var encounter_id := str(cmd.metadata.get("encounter_id", ""))
+	if not encounter_id.is_empty() and (
+		not requested_participants.has(cmd.actor_id)
+		or not _all_participants_eligible(state, requested_participants)
+		or not _has_opposing_sides(state, requested_participants)
+	):
+		return _rejected(result, cmd, RejectionReasonRules.INVALID_ENCOUNTER)
+	var initiative := InitiativeRules.resolve_for_actor_ids(state, requested_participants)
 	var order: Array[int] = initiative["order"]
 	if order.is_empty():
 		return _rejected(result, cmd, RejectionReasonRules.NO_ELIGIBLE_ACTORS)
 	var first_actor: ActorState = state.actors[order[0]]
-	result.events.append(Event.create(&"combat_started", {"initiator_actor_id": cmd.actor_id, "phase": EncounterRules.COMBAT_STARTING}))
+	result.events.append(Event.create(&"combat_started", {
+		"initiator_actor_id": cmd.actor_id,
+		"phase": EncounterRules.COMBAT_STARTING,
+		"encounter_id": encounter_id,
+		"combatant_ids": requested_participants.duplicate(),
+	}))
 	result.events.append(Event.create(&"initiative_established", {"initiative_order": order, "initiative_rolls": initiative["entries"], "current_turn_index": 0, "round_number": 1}))
 	result.events.append(_turn_started_event(first_actor, 0, 1))
 	result.next_rng_state = initiative["next_rng_state"]
@@ -104,9 +132,30 @@ static func _resolve_end_combat(state: BattleState, cmd: Command, result: Resolu
 		return _rejected(result, cmd, RejectionReasonRules.NOT_IN_COMBAT)
 	if state.current_actor_id() != cmd.actor_id:
 		return _rejected(result, cmd, RejectionReasonRules.NOT_CURRENT_ACTOR)
+	if EncounterRules.resolved_outcome(state) == EncounterRules.OUTCOME_NONE:
+		return _rejected(result, cmd, RejectionReasonRules.COMBAT_UNRESOLVED)
 	result.events.append(Event.create(&"combat_ending", {"phase": EncounterRules.COMBAT_ENDING}))
 	result.events.append(Event.create(&"combat_ended", {"phase": EncounterRules.EXPLORATION, "initiative_order": [], "current_turn_index": 0, "round_number": 1}))
 	return result
+
+
+static func _has_opposing_sides(state: BattleState, actor_ids: Array[int]) -> bool:
+	var heroes := false
+	var enemies := false
+	for actor_id in actor_ids:
+		if not state.actors.has(actor_id):
+			continue
+		var actor: ActorState = state.actors[actor_id]
+		heroes = heroes or actor.side == &"heroes"
+		enemies = enemies or actor.side == &"enemies"
+	return heroes and enemies
+
+
+static func _all_participants_eligible(state: BattleState, actor_ids: Array[int]) -> bool:
+	for actor_id in actor_ids:
+		if not state.actors.has(actor_id) or not TurnOrderRules.is_actor_eligible(state.actors[actor_id]):
+			return false
+	return true
 
 
 static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult) -> ResolutionResult:
@@ -214,15 +263,43 @@ static func _resolve_ability_command(state: BattleState, cmd: Command, los: LosP
 	if conscious_rejection != &"": return _rejected(result, cmd, conscious_rejection)
 	var ability := definitions.get_ability(ability_id)
 	if ability == null: return _rejected(result, cmd, RejectionReasonRules.UNKNOWN_ABILITY_DEFINITION)
-	for effect in ability.effects:
-		if effect.type == EFFECT_PERFORM_ATTACK:
-			return _resolve_attack_effect(state, cmd, ability, effect, los, definitions, result)
 	var cost_rejection := AbilityCostRulesScript.rejection_for_cost(actor, ability, definitions)
 	if cost_rejection != &"": return _rejected(result, cmd, cost_rejection)
-	_spend_ability_cost(result, actor, ability)
+	var target: ActorState = null
+	if ability.targeting == &"actor":
+		if not state.actors.has(cmd.target_id): return _rejected(result, cmd, RejectionReasonRules.UNKNOWN_TARGET)
+		target = state.actors[cmd.target_id]
+		if cmd.target_id == cmd.actor_id or actor.side == target.side or not target.is_alive():
+			return _rejected(result, cmd, RejectionReasonRules.INVALID_TARGET)
+		var authored_range := AbilityTargetingRules.target_range(definitions, ability.id)
+		var command_range := maxf(authored_range, float(cmd.metadata.get("range_meters", authored_range)))
+		if actor.position.distance_to(target.position) > command_range + MOVEMENT_EPSILON:
+			return _rejected(result, cmd, RejectionReasonRules.TARGET_OUT_OF_RANGE)
+		if los.cover_between(actor.position, target.position) == LosProvider.COVER_TOTAL:
+			return _rejected(result, cmd, RejectionReasonRules.NO_LINE_OF_SIGHT)
+	var has_attack := ability.effects.any(func(effect: AbilityEffect): return effect.type == EFFECT_PERFORM_ATTACK)
+	_spend_ability_cost(result, actor, ability, not has_attack, not has_attack)
 	var working := state.clone()
+	var source: ActorState = working.actors[actor.id]
+	var working_target: ActorState = working.actors.get(cmd.target_id) as ActorState
+	var context := {"attack_hit": false, "save_succeeded": false}
 	for effect in ability.effects:
-		_apply_generic_effect(result, working, working.actors[actor.id], effect)
+		match effect.type:
+			EFFECT_PERFORM_ATTACK:
+				var authored_range := AbilityTargetingRules.target_range(definitions, ability.id)
+				var maximum_range := maxf(authored_range, float(cmd.metadata.get("range_meters", authored_range)))
+				var is_ranged := bool(cmd.metadata.get("is_ranged", effect.is_ranged or EquipmentRules.is_ranged_weapon(source, definitions)))
+				var normal_range := EquipmentRules.normal_range(source, definitions, maximum_range) if is_ranged else maximum_range
+				var long_range := EquipmentRules.long_range(source, definitions, maximum_range) if is_ranged else maximum_range
+				context["attack_hit"] = _resolve_attack_between(
+					working, source, working_target, los, definitions, result,
+					ability.costs_action, ability.costs_reaction, effect.attack_kind,
+					long_range, is_ranged, normal_range,
+				)
+			EFFECT_SAVING_THROW:
+				context["save_succeeded"] = _resolve_saving_throw(working, source, working_target, effect, result)
+			_:
+				_apply_generic_effect(result, working, source, working_target, effect, context, definitions)
 	result.next_rng_state = working.rng_state
 	return result
 
@@ -242,7 +319,10 @@ static func _spend_ability_cost(result: ResolutionResult, actor: ActorState, abi
 		}))
 
 
-static func _apply_generic_effect(result: ResolutionResult, working: BattleState, actor: ActorState, effect: AbilityEffect) -> void:
+static func _apply_generic_effect(result: ResolutionResult, working: BattleState, actor: ActorState, target: ActorState, effect: AbilityEffect, context: Dictionary, definitions: DefinitionLibrary) -> void:
+	if not _effect_should_apply(effect.apply_when, context):
+		return
+	var recipient := target if target != null else actor
 	match effect.type:
 		EFFECT_ADD_BASE_MOVEMENT:
 			var amount := actor.movement_speed * effect.multiplier
@@ -250,9 +330,24 @@ static func _apply_generic_effect(result: ResolutionResult, working: BattleState
 		EFFECT_APPLY_DISENGAGE:
 			result.events.append(Event.create(&"disengage_applied", {"actor_id": actor.id}))
 		EFFECT_APPLY_CONDITION:
-			result.events.append(Event.create(&"condition_added", {"actor_id": actor.id, "condition": effect.condition_id}))
+			var duration := effect.condition_duration_triggers
+			var expiration := effect.condition_expiration_timing
+			if duration == -2:
+				var condition_definition := definitions.get_condition(effect.condition_id)
+				if condition_definition != null:
+					duration = condition_definition.default_duration_triggers
+					expiration = condition_definition.default_expiration_timing
+				else:
+					duration = -1
+			_append_and_apply(result, working, Event.create(&"condition_added", {
+				"actor_id": recipient.id,
+				"condition": effect.condition_id,
+				"source_actor_id": actor.id,
+				"remaining_triggers": duration,
+				"expiration_timing": expiration,
+			}))
 		EFFECT_REMOVE_CONDITION:
-			result.events.append(Event.create(&"condition_removed", {"actor_id": actor.id, "condition": effect.condition_id}))
+			_append_and_apply(result, working, Event.create(&"condition_removed", {"actor_id": recipient.id, "condition": effect.condition_id}))
 		EFFECT_HEAL:
 			var roll := Dice.roll_dice(working.rng_state, effect.heal_dice_count, effect.heal_die)
 			working.rng_state = int(roll["next_rng_state"])
@@ -266,39 +361,53 @@ static func _apply_generic_effect(result: ResolutionResult, working: BattleState
 			push_error("Unknown ability effect type: %s" % effect.type)
 
 
-static func _resolve_attack_effect(state: BattleState, cmd: Command, ability: AbilityDefinition, effect: AbilityEffect, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult) -> ResolutionResult:
-	if not state.actors.has(cmd.target_id): return _rejected(result, cmd, RejectionReasonRules.UNKNOWN_TARGET)
-	var attacker: ActorState = state.actors[cmd.actor_id]
-	var target: ActorState = state.actors[cmd.target_id]
-	if cmd.target_id == cmd.actor_id or attacker.side == target.side or not attacker.is_conscious() or not target.is_alive():
-		return _rejected(result, cmd, RejectionReasonRules.INVALID_TARGET)
-	# Same shared cost gate _resolve_ability_command uses, so a perform_attack
-	# effect ability that declares costs_bonus_action/costs_reaction/
-	# movement_cost is rejected on an unaffordable one instead of only ever
-	# checking costs_action.
-	var cost_rejection := AbilityCostRulesScript.rejection_for_cost(attacker, ability, definitions)
-	if cost_rejection != &"": return _rejected(result, cmd, cost_rejection)
-	if not los.has_line_of_sight(attacker.position, target.position): return _rejected(result, cmd, RejectionReasonRules.NO_LINE_OF_SIGHT)
-	var authored_range := AbilityTargetingRules.target_range(definitions, ability.id)
-	var attack_range := maxf(authored_range, float(cmd.metadata.get("range_meters", authored_range)))
-	var is_ranged := bool(cmd.metadata.get("is_ranged", effect.is_ranged))
-	if attacker.position.distance_to(target.position) > attack_range + MOVEMENT_EPSILON:
-		return _rejected(result, cmd, RejectionReasonRules.TARGET_OUT_OF_RANGE)
-	# Action/reaction spending for this ability is carried by attack_rolled's
-	# action_spent/reaction_spent flags below; only bonus_action/movement need
-	# a distinct event here.
-	_spend_ability_cost(result, attacker, ability, false, false)
-	var working := state.clone()
-	_resolve_attack_between(working, working.actors[attacker.id], working.actors[target.id], los, definitions, result, ability.costs_action, ability.costs_reaction, effect.attack_kind, attack_range, is_ranged)
-	return result
+static func _effect_should_apply(requirement: StringName, context: Dictionary) -> bool:
+	match requirement:
+		&"failed_save": return not bool(context.get("save_succeeded", false))
+		&"successful_save": return bool(context.get("save_succeeded", false))
+		&"attack_hit": return bool(context.get("attack_hit", false))
+		&"attack_miss": return not bool(context.get("attack_hit", false))
+		_: return true
 
 
-static func _resolve_attack_between(working: BattleState, attacker: ActorState, target: ActorState, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult, spends_action: bool, spends_reaction: bool, attack_kind: StringName, attack_range: float = ATTACK_RANGE_METERS, is_ranged: bool = false) -> void:
+static func _resolve_saving_throw(working: BattleState, source: ActorState, target: ActorState, effect: AbilityEffect, result: ResolutionResult) -> bool:
+	if target == null or effect.save_abilities.is_empty():
+		return false
+	var selected_ability: StringName = effect.save_abilities[0]
+	var modifier := target.saving_throw_modifier(selected_ability)
+	for ability in effect.save_abilities.slice(1):
+		var candidate_modifier := target.saving_throw_modifier(ability)
+		if candidate_modifier > modifier:
+			selected_ability = ability
+			modifier = candidate_modifier
+	var difficulty_class := effect.save_dc_base + source.proficiency_bonus + source.ability_modifier(effect.save_dc_ability)
+	var ability_modifier := target.ability_modifier(selected_ability)
+	var proficient := target.saving_throw_proficiencies.has(selected_ability)
+	var rng_state_before := working.rng_state
+	var rolled := D20Test.roll(working.rng_state, modifier, difficulty_class)
+	working.rng_state = int(rolled["next_rng_state"])
+	_append_and_apply(result, working, Event.create(&"d20_test_rolled", {
+		"test_type": &"saving_throw", "actor_id": target.id, "source_actor_id": source.id,
+		"ability": selected_ability, "difficulty_class": difficulty_class,
+		"roll": rolled["roll"], "rolls": rolled["rolls"], "modifier": modifier,
+		"ability_modifier": ability_modifier, "proficient": proficient,
+		"proficiency_bonus": target.proficiency_bonus if proficient else 0,
+		"total": rolled["total"], "success": rolled["success"],
+		"advantage": rolled["advantage"], "disadvantage": rolled["disadvantage"],
+		"rng_state_before": rng_state_before, "next_rng_state": working.rng_state,
+	}))
+	return bool(rolled["success"])
+
+
+static func _resolve_attack_between(working: BattleState, attacker: ActorState, target: ActorState, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult, spends_action: bool, spends_reaction: bool, attack_kind: StringName, attack_range: float = ATTACK_RANGE_METERS, is_ranged: bool = false, normal_range: float = ATTACK_RANGE_METERS) -> bool:
 	if not los.has_line_of_sight(attacker.position, target.position) or attacker.position.distance_to(target.position) > attack_range + MOVEMENT_EPSILON:
-		return
+		return false
 	var attack_bonus := EquipmentRules.aggregate_attack_bonus(attacker, definitions)
-	var armor_class := EquipmentRules.aggregate_armor_class(target, definitions)
-	var roll_result := _roll_attack_d20(working.rng_state, attacker, target, is_ranged, definitions)
+	var cover := los.cover_between(attacker.position, target.position)
+	var cover_bonus := 2 if cover == LosProvider.COVER_HALF else (5 if cover == LosProvider.COVER_THREE_QUARTERS else 0)
+	var armor_class := EquipmentRules.aggregate_armor_class(target, definitions) + cover_bonus
+	var range_disadvantage := is_ranged and attacker.position.distance_to(target.position) > normal_range + MOVEMENT_EPSILON
+	var roll_result := _roll_attack_d20(working.rng_state, attacker, target, is_ranged, definitions, range_disadvantage, _has_adjacent_hostile(working, attacker))
 	var roll: int = roll_result["roll"]
 	var critical := roll == 20
 	var hit := roll != 1 and (critical or (roll + attack_bonus >= armor_class))
@@ -306,6 +415,7 @@ static func _resolve_attack_between(working: BattleState, attacker: ActorState, 
 		"actor_id": attacker.id, "target_id": target.id, "attack_kind": attack_kind,
 		"roll": roll, "rolls": roll_result["rolls"], "total": roll + attack_bonus,
 		"critical": critical, "hit": hit, "advantage": roll_result["advantage"], "disadvantage": roll_result["disadvantage"], "is_ranged": is_ranged,
+		"cover": cover, "cover_bonus": cover_bonus,
 		"action_spent": spends_action, "reaction_spent": spends_reaction,
 	}))
 	working.rng_state = roll_result["next_rng_state"]
@@ -321,20 +431,21 @@ static func _resolve_attack_between(working: BattleState, attacker: ActorState, 
 			working.rng_state = critical_roll["next_rng_state"]
 		damage = max(1, damage)
 		var hp_before := target.hp
-		_append_and_apply(result, working, Event.create(&"damage_taken", {"actor_id": target.id, "source_actor_id": attacker.id, "amount": damage}))
+		_append_and_apply(result, working, Event.create(&"damage_taken", {"actor_id": target.id, "source_actor_id": attacker.id, "amount": damage, "damage_type": EquipmentRules.aggregate_damage_type(attacker, definitions)}))
 		if hp_before - damage <= -target.max_hp:
 			_append_and_apply(result, working, Event.create(&"actor_died", {"actor_id": target.id}))
 		elif hp_before - damage <= 0:
 			_append_and_apply(result, working, Event.create(&"actor_downed", {"actor_id": target.id}))
 	result.next_rng_state = working.rng_state
+	return hit
 
 
-static func _roll_attack_d20(rng_state: int, attacker: ActorState, target: ActorState, is_ranged: bool, definitions: DefinitionLibrary) -> Dictionary:
+static func _roll_attack_d20(rng_state: int, attacker: ActorState, target: ActorState, is_ranged: bool, definitions: DefinitionLibrary, range_disadvantage: bool = false, nearby_hostile: bool = false) -> Dictionary:
 	var target_is_close := attacker.position.distance_to(target.position) <= ATTACK_RANGE_METERS + MOVEMENT_EPSILON
 	var attacker_flags := _condition_flags(attacker, definitions)
 	var target_flags := _condition_flags(target, definitions)
 	var advantage: bool = not is_ranged and target_flags["melee_advantage_when_close"] and target_is_close
-	var disadvantage: bool = attacker_flags["attack_roll_disadvantage"] or (is_ranged and target_flags["ranged_disadvantage_when_not_close"] and not target_is_close)
+	var disadvantage: bool = attacker_flags["attack_roll_disadvantage"] or target_flags["attacks_against_disadvantage"] or range_disadvantage or (is_ranged and nearby_hostile) or (is_ranged and target_flags["ranged_disadvantage_when_not_close"] and not target_is_close)
 	if advantage and disadvantage:
 		advantage = false
 		disadvantage = false
@@ -350,6 +461,16 @@ static func _roll_attack_d20(rng_state: int, attacker: ActorState, target: Actor
 	return {"roll": selected_roll, "rolls": rolls, "next_rng_state": next_rng_state, "advantage": advantage, "disadvantage": disadvantage}
 
 
+static func _has_adjacent_hostile(state: BattleState, actor: ActorState) -> bool:
+	for actor_id in state.actors:
+		if not state.active_combatant_ids.is_empty() and not state.active_combatant_ids.has(int(actor_id)):
+			continue
+		var candidate := state.actors[actor_id] as ActorState
+		if candidate.id != actor.id and candidate.side != actor.side and candidate.is_conscious() and candidate.position.distance_to(actor.position) <= THREAT_RANGE_METERS + MOVEMENT_EPSILON:
+			return true
+	return false
+
+
 static func _resolve_end_turn(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
 	if state.initiative_order.is_empty(): return _rejected(result, cmd, RejectionReasonRules.NO_INITIATIVE_ORDER)
 	var next_index := TurnOrderRules.next_eligible_index(state, state.current_turn_index)
@@ -357,8 +478,23 @@ static func _resolve_end_turn(state: BattleState, cmd: Command, result: Resoluti
 	var next_round := state.round_number + (1 if next_index <= state.current_turn_index else 0)
 	var next_actor: ActorState = state.actors[state.initiative_order[next_index]]
 	result.events.append(Event.create(&"turn_ended", {"actor_id": cmd.actor_id}))
+	_append_condition_boundary_events(result, next_actor, &"turn_start")
 	result.events.append(_turn_started_event(next_actor, next_index, next_round))
 	return result
+
+
+static func _append_condition_boundary_events(result: ResolutionResult, actor: ActorState, timing: StringName) -> void:
+	for condition in actor.condition_states:
+		if condition.expiration_timing != timing or condition.remaining_triggers < 0:
+			continue
+		if condition.remaining_triggers <= 1:
+			result.events.append(Event.create(&"condition_removed", {"actor_id": actor.id, "condition": condition.definition_id}))
+		else:
+			result.events.append(Event.create(&"condition_duration_advanced", {
+				"actor_id": actor.id,
+				"condition": condition.definition_id,
+				"remaining_triggers": condition.remaining_triggers - 1,
+			}))
 
 
 static func _turn_started_event(actor: ActorState, turn_index: int, round_number: int) -> Event:
@@ -366,18 +502,19 @@ static func _turn_started_event(actor: ActorState, turn_index: int, round_number
 
 
 static func _condition_flags(actor: ActorState, definitions: DefinitionLibrary) -> Dictionary:
-	var flags := {"attack_roll_disadvantage": false, "melee_advantage_when_close": false, "ranged_disadvantage_when_not_close": false}
-	for condition_id in actor.conditions:
+	var flags := {"attack_roll_disadvantage": false, "melee_advantage_when_close": false, "ranged_disadvantage_when_not_close": false, "attacks_against_disadvantage": false}
+	for condition_id in actor.condition_ids():
 		var definition := definitions.get_condition(condition_id)
 		if definition == null: continue
 		flags["attack_roll_disadvantage"] = flags["attack_roll_disadvantage"] or definition.attack_roll_disadvantage
 		flags["melee_advantage_when_close"] = flags["melee_advantage_when_close"] or definition.melee_advantage_when_close
 		flags["ranged_disadvantage_when_not_close"] = flags["ranged_disadvantage_when_not_close"] or definition.ranged_disadvantage_when_not_close
+		flags["attacks_against_disadvantage"] = flags["attacks_against_disadvantage"] or definition.attacks_against_disadvantage
 	return flags
 
 
 static func _condition_requiring_stand(actor: ActorState, definitions: DefinitionLibrary) -> StringName:
-	for condition_id in actor.conditions:
+	for condition_id in actor.condition_ids():
 		var definition := definitions.get_condition(condition_id)
 		if definition != null and definition.half_speed_required_to_stand:
 			return condition_id
@@ -391,6 +528,8 @@ static func _next_opportunity_reaction(state: BattleState, mover_id: int, path: 
 	var actor_ids: Array = state.actors.keys()
 	actor_ids.sort()
 	for actor_id_variant in actor_ids:
+		if not state.active_combatant_ids.is_empty() and not state.active_combatant_ids.has(int(actor_id_variant)):
+			continue
 		var enemy: ActorState = state.actors[actor_id_variant]
 		if enemy.id == mover.id or enemy.side == mover.side or not enemy.is_conscious() or not enemy.reaction_available: continue
 		if not los.has_line_of_sight(enemy.position, mover.position): continue
@@ -460,6 +599,72 @@ static func _rejected(result: ResolutionResult, cmd: Command, reason: StringName
 	return result
 
 
+static func _finalize_resolution(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
+	if result.events.is_empty() or result.events[0].type == &"command_rejected":
+		return result
+	var working := state.clone()
+	for resolved_event in result.events:
+		apply(working, resolved_event)
+	working.rng_state = result.next_rng_state
+	if state.phase == EncounterRules.COMBAT and working.phase == EncounterRules.COMBAT:
+		var outcome := EncounterRules.resolved_outcome(working)
+		if outcome != EncounterRules.OUTCOME_NONE:
+			_append_encounter_outcome(result, working, outcome)
+			return result
+	if cmd.type == &"move" and working.phase == EncounterRules.EXPLORATION and working.game_outcome == &"ongoing":
+		_append_reached_objectives(result, working, cmd.actor_id)
+	return result
+
+
+static func _append_encounter_outcome(result: ResolutionResult, working: BattleState, outcome: StringName) -> void:
+	var defeated_actor_ids: Array[int] = []
+	for actor_id in working.active_combatant_ids:
+		if working.actors.has(actor_id) and not (working.actors[actor_id] as ActorState).is_conscious():
+			defeated_actor_ids.append(actor_id)
+	var winning_side := &"enemies" if outcome == EncounterRules.OUTCOME_DEFEAT else &"heroes"
+	result.events.append(Event.create(&"encounter_resolved", {
+		"encounter_id": working.active_encounter_id,
+		"outcome": outcome,
+		"winning_side": winning_side,
+		"defeated_actor_ids": defeated_actor_ids,
+	}))
+	result.events.append(Event.create(&"combat_ending", {"phase": EncounterRules.COMBAT_ENDING}))
+	var next_phase := EncounterRules.GAME_OVER if outcome == EncounterRules.OUTCOME_DEFEAT else EncounterRules.EXPLORATION
+	result.events.append(Event.create(&"combat_ended", {
+		"phase": next_phase,
+		"next_phase": next_phase,
+		"outcome": outcome,
+		"initiative_order": [],
+		"current_turn_index": 0,
+		"round_number": 1,
+	}))
+	if outcome == EncounterRules.OUTCOME_DEFEAT:
+		result.events.append(Event.create(&"game_over", {"outcome": outcome, "defeated_actor_ids": defeated_actor_ids}))
+
+
+static func _append_reached_objectives(result: ResolutionResult, working: BattleState, actor_id: int) -> void:
+	if not working.actors.has(actor_id) or (working.actors[actor_id] as ActorState).side != &"heroes":
+		return
+	var actor: ActorState = working.actors[actor_id]
+	var objective_ids: Array = working.objectives.keys()
+	objective_ids.sort()
+	for objective_id in objective_ids:
+		var objective: ObjectiveState = working.objectives[objective_id]
+		if objective.completed or not objective.requirements_met(working.cleared_encounter_ids):
+			continue
+		if actor.position.distance_to(objective.position) > objective.radius_m:
+			continue
+		var completed := Event.create(&"objective_completed", {"objective_id": objective.id, "actor_id": actor_id})
+		result.events.append(completed)
+		apply(working, completed)
+	if working.objectives.is_empty():
+		return
+	for objective in working.objectives.values():
+		if not (objective as ObjectiveState).completed:
+			return
+	result.events.append(Event.create(&"game_completed", {"outcome": EncounterRules.OUTCOME_VICTORY, "phase": EncounterRules.GAME_OVER}))
+
+
 static func apply(state: BattleState, event: Event) -> void:
 	match event.type:
 		&"movement_segment": (state.actors[event.data["actor_id"]] as ActorState).position = event.data["to"]
@@ -480,16 +685,26 @@ static func apply(state: BattleState, event: Event) -> void:
 		&"item_consumed": (state.actors[event.data["actor_id"]] as ActorState).inventory.erase(StringName(str(event.data["item_id"])))
 		&"actor_downed":
 			var downed_actor: ActorState = state.actors[event.data["actor_id"]]
-			if not downed_actor.conditions.has(&"unconscious"): downed_actor.conditions.append(&"unconscious")
+			downed_actor.add_condition(&"unconscious")
 		&"actor_died":
 			var dead_actor: ActorState = state.actors[event.data["actor_id"]]
 			dead_actor.hp = 0
-			if not dead_actor.conditions.has(&"dead"): dead_actor.conditions.append(&"dead")
+			dead_actor.add_condition(&"dead")
 		&"condition_added":
 			var conditioned_actor: ActorState = state.actors[event.data["actor_id"]]
 			var added := StringName(str(event.data["condition"]))
-			if not conditioned_actor.conditions.has(added): conditioned_actor.conditions.append(added)
-		&"condition_removed": (state.actors[event.data["actor_id"]] as ActorState).conditions.erase(StringName(str(event.data["condition"])))
+			conditioned_actor.add_condition(
+				added,
+				int(event.data.get("source_actor_id", -1)),
+				int(event.data.get("remaining_triggers", -1)),
+				StringName(str(event.data.get("expiration_timing", "none"))),
+			)
+		&"condition_duration_advanced":
+			var duration_actor: ActorState = state.actors[event.data["actor_id"]]
+			var duration_state := duration_actor.condition_state(StringName(str(event.data["condition"])))
+			if duration_state != null:
+				duration_state.remaining_triggers = int(event.data["remaining_triggers"])
+		&"condition_removed": (state.actors[event.data["actor_id"]] as ActorState).remove_condition(StringName(str(event.data["condition"])))
 		&"interaction_completed":
 			var interactable: InteractableState = state.interactables[event.data["interactable_id"]]
 			interactable.state = event.data["new_state"]
@@ -498,16 +713,36 @@ static func apply(state: BattleState, event: Event) -> void:
 			for item_id in event.data["item_ids"]:
 				looter.inventory.append(StringName(str(item_id)))
 			(state.interactables[event.data["interactable_id"]] as InteractableState).contents.clear()
-		&"combat_started", &"combat_ending": state.phase = event.data["phase"]
+		&"combat_started":
+			state.phase = event.data["phase"]
+			state.active_encounter_id = str(event.data.get("encounter_id", ""))
+			state.active_combatant_ids = _actor_ids(event.data.get("combatant_ids", []))
+			state.last_encounter_outcome = EncounterRules.OUTCOME_NONE
+		&"combat_ending": state.phase = event.data["phase"]
+		&"encounter_resolved":
+			state.last_encounter_outcome = StringName(str(event.data["outcome"]))
+			var resolved_encounter_id := str(event.data.get("encounter_id", ""))
+			if state.last_encounter_outcome == EncounterRules.OUTCOME_VICTORY and not resolved_encounter_id.is_empty() and not state.cleared_encounter_ids.has(resolved_encounter_id):
+				state.cleared_encounter_ids.append(resolved_encounter_id)
 		&"initiative_established":
 			state.initiative_order = _actor_ids(event.data["initiative_order"])
 			state.current_turn_index = event.data["current_turn_index"]
 			state.round_number = event.data["round_number"]
+		&"game_over": state.game_outcome = StringName(str(event.data.get("outcome", "defeat")))
+		&"objective_completed":
+			var objective := state.objectives.get(str(event.data["objective_id"])) as ObjectiveState
+			if objective != null:
+				objective.completed = true
+		&"game_completed":
+			state.game_outcome = StringName(str(event.data.get("outcome", "victory")))
+			state.phase = StringName(str(event.data.get("phase", EncounterRules.GAME_OVER)))
 		&"combat_ended":
 			state.phase = event.data["phase"]
 			state.initiative_order = _actor_ids(event.data["initiative_order"])
 			state.current_turn_index = event.data["current_turn_index"]
 			state.round_number = event.data["round_number"]
+			state.active_encounter_id = ""
+			state.active_combatant_ids.clear()
 		&"turn_started":
 			if event.data.has("phase"): state.phase = event.data["phase"]
 			state.current_turn_index = event.data["turn_index"]

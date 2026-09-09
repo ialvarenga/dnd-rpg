@@ -28,6 +28,9 @@ func _test_health_bar_creation(map: CompiledMapController, failures: Array[Strin
 	for hostile in map.hostile_views.values():
 		var view := hostile as CharacterView
 		_expect(view != null and view.get_node_or_null("WorldHealthBar") is WorldHealthBar, "spawned hostile CharacterView has no WorldHealthBar", failures)
+	for actor_id in map.hostile_views:
+		var actor := map.battle_state.actors[int(actor_id)] as ActorState
+		_expect(not Equipment.is_ranged_weapon(actor, DefinitionLibrary.get_default()), "compiled map activated ranged enemy content without ranged presentation", failures)
 	_expect(map._interactable_highlights.size() == map.battle_state.interactables.size(), "not every pickup and container received an interaction highlight", failures)
 	for highlight in map._interactable_highlights.values():
 		_expect((highlight as MeshInstance3D).visible == false, "interaction highlight was visible before hover or selection", failures)
@@ -114,7 +117,7 @@ func _test_interactable_highlight_and_approach(map: CompiledMapController, failu
 	player.position = start
 	player.movement_remaining = player.movement_speed
 	player.action_available = true
-	player.conditions.clear()
+	player.condition_states.clear()
 	map.character.synchronize_to_authoritative_position(start)
 	map.battle_state.phase = &"combat"
 	map.battle_state.initiative_order = [player.id, enemy_id]
@@ -133,7 +136,7 @@ func _test_interactable_highlight_and_approach(map: CompiledMapController, failu
 	_expect(map._pending_interactable_id.is_empty(), "queued pickup interaction did not complete after movement", failures)
 	_expect(not player.action_available and player.inventory.size() == inventory_before + 1, "queued pickup was not collected after movement", failures)
 	_expect(pickup.state == &"collected", "collected pickup did not update authoritative interactable state", failures)
-	_expect(not map._interactable_highlights.has(pickup.id), "collected pickup retained a stale highlight", failures)
+	_expect(map._interactable_highlights.has(pickup.id) and not (map._interactable_highlights[pickup.id] as MeshInstance3D).visible, "collected pickup did not retain a hidden, retry-safe highlight", failures)
 
 
 func _expect(condition: bool, message: String, failures: Array[String]) -> void:

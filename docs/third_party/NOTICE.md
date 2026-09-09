@@ -1,12 +1,24 @@
 # Third-party notices
 
-No third-party code is included as of A1. Tactical Slash was inspected as a
-camera reference but no source was copied or adapted; see `reuse-audit.md`
-for the immutable source and decision.
+## System Reference Document 5.2.1
 
-When code is reused, add its repository URL, immutable commit or tag, license,
-files/concepts used, local modifications, and required attribution here and in
-`reuse-audit.md`.
+This work includes material from the System Reference Document 5.2.1 (“SRD
+5.2.1”) by Wizards of the Coast LLC, available at
+https://www.dndbeyond.com/srd. The SRD 5.2.1 is licensed under the Creative
+Commons Attribution 4.0 International License, available at
+https://creativecommons.org/licenses/by/4.0/legalcode.
+
+The rules have been adapted into a deterministic, metric, single-hero tactical
+video game. Adaptations include presentation-friendly melee distances, rounded
+feet-to-meter range bands, automated selection of the defender's better Shove
+save, an action-cost healing potion retained from the existing game economy,
+and omission of rules the runtime does not yet model. The exact provenance and
+changes for each rules resource are recorded in
+`docs/rules/open-content-ledger.csv`. This project describes itself only as
+“5E compatible.”
+
+Tactical Slash was inspected as a camera reference but no source was copied or
+adapted; see `reuse-audit.md` for the immutable source and decision.
 
 ## Assets
 

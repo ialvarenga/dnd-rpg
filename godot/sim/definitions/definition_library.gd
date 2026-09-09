@@ -17,13 +17,16 @@ extends RefCounted
 ## Fase C3 bump: adds the raider actor definition used by map encounters.
 ## Bump 5: adds the shared healing-potion consumable ability and item.
 ## Bump 6: targeted abilities own reusable target-range metadata.
-const CONTENT_VERSION: int = 6
+const CONTENT_VERSION: int = 7
 
 const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/basic_attack.tres",
 	"res://data/abilities/dash.tres",
 	"res://data/abilities/disengage.tres",
 	"res://data/abilities/quaff_healing_potion.tres",
+	"res://data/abilities/shove.tres",
+	"res://data/abilities/dodge.tres",
+	"res://data/abilities/ranged_attack.tres",
 ]
 
 const CONDITION_MANIFEST: Array[String] = [
@@ -31,6 +34,7 @@ const CONDITION_MANIFEST: Array[String] = [
 	"res://data/conditions/prone.tres",
 	"res://data/conditions/unconscious.tres",
 	"res://data/conditions/dead.tres",
+	"res://data/conditions/dodging.tres",
 ]
 
 const ITEM_MANIFEST: Array[String] = [
@@ -38,11 +42,13 @@ const ITEM_MANIFEST: Array[String] = [
 	"res://data/items/leather_armor.tres",
 	"res://data/items/dagger.tres",
 	"res://data/items/healing_potion.tres",
+	"res://data/items/shortbow.tres",
 ]
 
 const ACTOR_MANIFEST: Array[String] = [
 	"res://data/actors/knight.tres",
 	"res://data/actors/raider.tres",
+	"res://data/actors/archer.tres",
 ]
 
 var content_version: int = CONTENT_VERSION

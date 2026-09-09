@@ -92,7 +92,7 @@ static func _simulate_definitions(seed: int) -> String:
 	# poisoned's attack-roll disadvantage modifier) through the same replay
 	# harness as A3-A6, using the default DefinitionLibrary content.
 	var state := TestHelpers.make_battle(seed)
-	(state.actors[2] as ActorState).conditions.append(&"poisoned")
+	(state.actors[2] as ActorState).add_condition(&"poisoned")
 	var nav := FakeNavProvider.new()
 	var los := FakeLosProvider.new()
 	var commands: Array[Command] = [Command.create(&"dash", 1), Command.create(&"end_turn", 1)]

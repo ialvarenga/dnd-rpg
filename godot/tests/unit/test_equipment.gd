@@ -24,8 +24,11 @@ static func _test_default_library_has_ordered_knight_content(failures: Array[Str
 	_expect(defs.has_item(&"longsword"), "default library is missing the longsword ItemDefinition", failures)
 	_expect(defs.has_item(&"leather_armor"), "default library is missing the leather_armor ItemDefinition", failures)
 	_expect(defs.has_item(&"dagger"), "default library is missing the dagger ItemDefinition", failures)
-	_expect(defs.ordered_actor_ids() == [&"knight", &"raider"], "ordered_actor_ids did not match the fixed actor manifest order", failures)
-	_expect(defs.ordered_item_ids() == [&"longsword", &"leather_armor", &"dagger", &"healing_potion"], "ordered_item_ids did not match the fixed item manifest order", failures)
+	_expect(defs.ordered_actor_ids() == [&"knight", &"raider", &"archer"], "ordered_actor_ids did not match the fixed actor manifest order", failures)
+	_expect(defs.ordered_item_ids() == [&"longsword", &"leather_armor", &"dagger", &"healing_potion", &"shortbow"], "ordered_item_ids did not match the fixed item manifest order", failures)
+	var shortbow := defs.get_item(&"shortbow")
+	_expect(shortbow != null and shortbow.is_ranged_weapon and shortbow.damage_type == &"piercing", "shortbow content is missing its ranged or piercing metadata", failures)
+	_expect(is_equal_approx(shortbow.normal_range_meters, 24.0) and is_equal_approx(shortbow.long_range_meters, 96.0), "shortbow range bands do not match the authored metric conversion", failures)
 
 
 static func _test_from_definition_builds_independent_actor(failures: Array[String]) -> void:

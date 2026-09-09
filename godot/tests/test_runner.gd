@@ -7,6 +7,7 @@ const TestArenaRuntimeScript = preload("res://tests/integration/test_arena_runti
 const TestEventPlayerFeedbackScript = preload("res://tests/integration/test_event_player_feedback.gd")
 const TestCompiledMapHealthBarsScript = preload("res://tests/integration/test_compiled_map_health_bars.gd")
 const TestHudBindingScript = preload("res://tests/integration/test_hud_binding.gd")
+const TestGameplayOutcomeRuntimeScript = preload("res://tests/integration/test_gameplay_outcome_runtime.gd")
 const TestConsumablesScript = preload("res://tests/unit/test_consumables.gd")
 const TestTargetedActionPlannerScript = preload("res://tests/unit/test_targeted_action_planner.gd")
 const TestInteractableActionPlannerScript = preload("res://tests/unit/test_interactable_action_planner.gd")
@@ -18,7 +19,7 @@ func _init() -> void:
 
 func _run() -> void:
 	var failure_count := 0
-	var suites := [TestSimulation, TestDefinitions, TestActionAvailability, TestHudViewModel, TestEquipment, TestInteractables, TestAssetCatalog, TestTerrainProviderScript, TestMapCompilerScript, TestCharacterAnimatorScript, TestEnemyAI, TestConsumablesScript, TestTargetedActionPlannerScript, TestInteractableActionPlannerScript, TestPathPreviewRendererScript, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion, TestEncounterSession]
+	var suites := [TestSimulation, TestDefinitions, TestActionAvailability, TestHudViewModel, TestEquipment, TestGameplayRules, TestInteractables, TestAssetCatalog, TestTerrainProviderScript, TestMapCompilerScript, TestCharacterAnimatorScript, TestEnemyAI, TestConsumablesScript, TestTargetedActionPlannerScript, TestInteractableActionPlannerScript, TestPathPreviewRendererScript, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion, TestEncounterSession]
 	for suite in suites:
 		var report: Dictionary = suite.run()
 		var failures: Array = report["failures"]
@@ -28,7 +29,7 @@ func _run() -> void:
 			for failure in failures:
 				push_error("FAIL %s: %s" % [report["name"], failure])
 			failure_count += failures.size()
-	for async_suite_script in [TestArenaRuntimeScript, TestEventPlayerFeedbackScript, TestCompiledMapHealthBarsScript, TestHudBindingScript]:
+	for async_suite_script in [TestArenaRuntimeScript, TestEventPlayerFeedbackScript, TestCompiledMapHealthBarsScript, TestHudBindingScript, TestGameplayOutcomeRuntimeScript]:
 		var async_suite := async_suite_script.new() as Node
 		root.add_child(async_suite)
 		var async_report: Dictionary = await async_suite.run()

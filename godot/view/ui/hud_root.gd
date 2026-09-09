@@ -1,12 +1,16 @@
 class_name HudRoot
 extends CanvasLayer
 
+const OutcomeOverlayScript = preload("res://view/ui/outcome_overlay.gd")
+
 ## Presentation adapter. It listens to the shared session but never submits a
 ## command itself; the owning world controller decides targets and calls it.
 signal ability_requested(ability_id: StringName)
 signal end_turn_requested
 signal cancel_requested
 signal inventory_item_requested(item_id: StringName)
+signal retry_requested
+signal restart_requested
 
 ## DefinitionLibrary is a RefCounted catalog, not an inspector Resource.
 ## Controllers may inject it at runtime; otherwise _ready() uses the default.
@@ -22,12 +26,16 @@ var actor_id := -1
 @onready var combat_log: CombatLog = $CombatLog
 @onready var tooltip_layer: TooltipLayer = $TooltipLayer
 @onready var item_slots: GridContainer = $Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots
+@onready var outcome_overlay: OutcomeOverlayScript = $OutcomeOverlay
+@onready var objective_label: Label = $Margin/TopBar/ObjectiveLabel
 
 func _ready() -> void:
 	definitions = definitions if definitions != null else DefinitionLibrary.get_default()
 	hotbar.ability_requested.connect(func(id): ability_requested.emit(id))
 	$Margin/Layout/EndTurn.icon = hotbar.icon_set.texture_for(&"end_turn") if hotbar.icon_set != null else null
 	$Margin/Layout/EndTurn.pressed.connect(func(): end_turn_requested.emit())
+	outcome_overlay.retry_requested.connect(func(): retry_requested.emit())
+	outcome_overlay.restart_requested.connect(func(): restart_requested.emit())
 
 func bind(next_session: EncounterSession, next_actor_id: int) -> void:
 	if session != null:
@@ -49,6 +57,7 @@ func sync() -> void:
 	hotbar.set_actions(data.action_availability)
 	turns.set_turn_order(HudViewModel.turn_order(session.battle_state, definitions))
 	conditions.set_conditions(data.conditions)
+	objective_label.text = "OBJECTIVE: %s" % HudViewModel.objective_prompt(session.battle_state)
 	_sync_inventory(session.battle_state.actors[actor_id] as ActorState)
 
 
@@ -89,12 +98,25 @@ func _on_events_resolved(events: Array[Event]) -> void:
 		return
 	for event in events:
 		combat_log.append_line(HudViewModel.narrate(event, session.battle_state, definitions))
+		if event.type == &"game_over":
+			present_outcome(&"defeat")
 
 
 func set_selected_ability(ability_id: StringName) -> void:
 	hotbar.set_selected_ability(ability_id)
 
+
+func present_outcome(outcome: StringName) -> void:
+	outcome_overlay.present(outcome)
+
+
+func reset_outcome() -> void:
+	outcome_overlay.reset()
+	sync()
+
 func _unhandled_input(event: InputEvent) -> void:
+	if outcome_overlay.visible:
+		return
 	for slot in range(6):
 		if event.is_action_pressed(StringName("hotbar_%d" % (slot + 1))):
 			hotbar.request_slot(slot)

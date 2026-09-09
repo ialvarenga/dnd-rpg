@@ -1,5 +1,11 @@
 # Dependencies
 
+## Gameplay rules
+
+| Name | Version / pin | License | Why used | Update strategy |
+| --- | --- | --- | --- | --- |
+| System Reference Document | 5.2.1 | CC BY 4.0 | Openly licensed fifth-edition-compatible combat, action, condition, and equipment rules | Keep this rules pack pinned to 5.2.1; audit and version any later SRD migration explicitly in `docs/rules/open-content-ledger.csv` |
+
 ## A0 / A1
 
 | Name | Version / pin | License | Why used | Update strategy |

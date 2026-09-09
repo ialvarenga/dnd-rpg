@@ -16,13 +16,14 @@ var intelligence: int = 10
 var wisdom: int = 10
 var charisma: int = 10
 var proficiency_bonus: int = 2
+var saving_throw_proficiencies: Array[StringName] = []
 
 var movement_speed: float = 9.0
 var movement_remaining: float = 9.0
 var action_available: bool = true
 var bonus_action_available: bool = true
 var reaction_available: bool = true
-var conditions: Array[StringName] = []
+var condition_states: Array[ConditionState] = []
 var disengaged: bool = false
 
 # Spike A-0 combat fields. These are the actor's own base stats; Resolver
@@ -67,6 +68,7 @@ static func from_definition(definition: ActorDefinition, actor_id: int, side: St
 	actor.wisdom = definition.wisdom
 	actor.charisma = definition.charisma
 	actor.proficiency_bonus = definition.proficiency_bonus
+	actor.saving_throw_proficiencies = definition.saving_throw_proficiencies.duplicate()
 	actor.movement_speed = definition.movement_speed
 	actor.movement_remaining = definition.movement_speed
 	actor.attack_bonus = definition.attack_bonus
@@ -94,12 +96,14 @@ func clone() -> ActorState:
 	copy.wisdom = wisdom
 	copy.charisma = charisma
 	copy.proficiency_bonus = proficiency_bonus
+	copy.saving_throw_proficiencies = saving_throw_proficiencies.duplicate()
 	copy.movement_speed = movement_speed
 	copy.movement_remaining = movement_remaining
 	copy.action_available = action_available
 	copy.bonus_action_available = bonus_action_available
 	copy.reaction_available = reaction_available
-	copy.conditions = conditions.duplicate()
+	for condition_state in condition_states:
+		copy.condition_states.append(condition_state.clone())
 	copy.disengaged = disengaged
 	copy.attack_bonus = attack_bonus
 	copy.damage_die = damage_die
@@ -126,9 +130,64 @@ func is_prone() -> bool:
 	return _has_condition_flag(&"counts_as_prone")
 
 
+func add_condition(
+	condition_id: StringName,
+	source_actor_id: int = -1,
+	remaining_triggers: int = -1,
+	expiration_timing: StringName = &"none"
+) -> void:
+	var existing := condition_state(condition_id)
+	if existing == null:
+		condition_states.append(ConditionState.create(condition_id, source_actor_id, remaining_triggers, expiration_timing))
+	else:
+		existing.source_actor_id = source_actor_id
+		existing.remaining_triggers = remaining_triggers
+		existing.expiration_timing = expiration_timing
+
+
+func remove_condition(condition_id: StringName) -> void:
+	for index in range(condition_states.size() - 1, -1, -1):
+		if condition_states[index].definition_id == condition_id:
+			condition_states.remove_at(index)
+
+
+func condition_state(condition_id: StringName) -> ConditionState:
+	for state in condition_states:
+		if state.definition_id == condition_id:
+			return state
+	return null
+
+
+func has_condition(condition_id: StringName) -> bool:
+	return condition_state(condition_id) != null
+
+
+func condition_ids() -> Array[StringName]:
+	var ids: Array[StringName] = []
+	for state in condition_states:
+		ids.append(state.definition_id)
+	return ids
+
+
+func ability_modifier(ability: StringName) -> int:
+	var score := 10
+	match ability:
+		&"strength": score = strength
+		&"dexterity": score = dexterity
+		&"constitution": score = constitution
+		&"intelligence": score = intelligence
+		&"wisdom": score = wisdom
+		&"charisma": score = charisma
+	return floori(float(score - 10) / 2.0)
+
+
+func saving_throw_modifier(ability: StringName) -> int:
+	return ability_modifier(ability) + (proficiency_bonus if saving_throw_proficiencies.has(ability) else 0)
+
+
 func _has_condition_flag(flag_name: StringName) -> bool:
 	var library := DefinitionLibrary.get_default()
-	for condition_id in conditions:
+	for condition_id in condition_ids():
 		var definition := library.get_condition(condition_id)
 		if definition != null and bool(definition.get(flag_name)):
 			return true
@@ -150,12 +209,13 @@ func to_dict() -> Dictionary:
 		"wisdom": wisdom,
 		"charisma": charisma,
 		"proficiency_bonus": proficiency_bonus,
+		"saving_throw_proficiencies": SimulationSerialization.value_to_data(saving_throw_proficiencies),
 		"movement_speed": movement_speed,
 		"movement_remaining": movement_remaining,
 		"action_available": action_available,
 		"bonus_action_available": bonus_action_available,
 		"reaction_available": reaction_available,
-		"conditions": SimulationSerialization.value_to_data(conditions),
+		"condition_states": condition_states.map(func(state: ConditionState): return state.to_dict()),
 		"disengaged": disengaged,
 		"attack_bonus": attack_bonus,
 		"damage_die": damage_die,
@@ -191,15 +251,23 @@ static func from_dict(data: Dictionary) -> ActorState:
 	actor.wisdom = int(data.get("wisdom", 10))
 	actor.charisma = int(data.get("charisma", 10))
 	actor.proficiency_bonus = int(data.get("proficiency_bonus", 2))
+	for proficiency in data.get("saving_throw_proficiencies", []):
+		actor.saving_throw_proficiencies.append(StringName(str(proficiency)))
 	actor.movement_speed = float(data.get("movement_speed", 9.0))
 	actor.movement_remaining = float(data.get("movement_remaining", 9.0))
 	actor.action_available = bool(data.get("action_available", true))
 	actor.bonus_action_available = bool(data.get("bonus_action_available", true))
 	actor.reaction_available = bool(data.get("reaction_available", true))
-	var restored_conditions: Variant = SimulationSerialization.data_to_value(data.get("conditions", []))
-	if restored_conditions is Array:
-		for condition in restored_conditions:
-			actor.conditions.append(StringName(str(condition)))
+	for condition_data in data.get("condition_states", []):
+		if condition_data is Dictionary:
+			actor.condition_states.append(ConditionState.from_dict(condition_data))
+	# Direct BattleState deserialization remains tolerant of the pre-v3 shape,
+	# while SaveGame compatibility still rejects old schema versions.
+	if actor.condition_states.is_empty():
+		var legacy_conditions: Variant = SimulationSerialization.data_to_value(data.get("conditions", []))
+		if legacy_conditions is Array:
+			for condition in legacy_conditions:
+				actor.add_condition(StringName(str(condition)))
 	actor.disengaged = bool(data.get("disengaged", false))
 	actor.attack_bonus = int(data.get("attack_bonus", 0))
 	actor.damage_die = int(data.get("damage_die", 6))

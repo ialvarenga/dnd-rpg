@@ -13,12 +13,25 @@ extends Resource
 
 ## apply_condition / remove_condition: condition id to add or remove.
 @export var condition_id: StringName = &""
+## Optional timed instance metadata. -2 inherits the ConditionDefinition
+## defaults; -1 is permanent; otherwise the count is consumed at the selected
+## actor turn boundary.
+@export var condition_duration_triggers: int = -2
+@export var condition_expiration_timing: StringName = &"none"
+## always | failed_save | successful_save | attack_hit | attack_miss
+@export var apply_when: StringName = &"always"
 
 ## perform_attack: legacy range fallback plus weapon metadata. New definitions
 ## should author AbilityDefinition.target_range_meters.
 @export var range_meters: float = 1.5
 @export var is_ranged: bool = false
 @export var attack_kind: StringName = &"basic"
+
+## saving_throw: target chooses the listed ability with the highest modifier.
+## DC = save_dc_base + source proficiency + source ability modifier.
+@export var save_abilities: Array[StringName] = []
+@export var save_dc_base: int = 8
+@export var save_dc_ability: StringName = &"strength"
 
 ## heal: roll heal_dice_count d heal_die and add heal_modifier. A heal_die of
 ## 0 means the effect has no dice metadata, preserving existing effects.

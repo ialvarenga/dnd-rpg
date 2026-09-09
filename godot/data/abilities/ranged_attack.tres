@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/ability_definition.gd" id="1"]
+[ext_resource type="Script" path="res://sim/definitions/ability_effect.gd" id="2"]
+
+[sub_resource type="Resource" id="Effect_attack"]
+script = ExtResource("2")
+type = &"perform_attack"
+range_meters = 96.0
+is_ranged = true
+attack_kind = &"ranged"
+
+[resource]
+script = ExtResource("1")
+id = &"ranged_attack"
+display_name = "Ranged Attack"
+costs_action = true
+targeting = &"actor"
+target_range_meters = 96.0
+effects = Array[ExtResource("2")]([SubResource("Effect_attack")])

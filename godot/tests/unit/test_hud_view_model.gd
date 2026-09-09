@@ -15,8 +15,8 @@ static func run() -> Dictionary:
 	var order := HudViewModel.turn_order(state, DefinitionLibrary.get_default())
 	_expect(order.size() == 2 and order[0].actor_id == 1, "turn order should follow authoritative initiative order", failures)
 	state.actors[2].hp = 0
-	state.actors[2].conditions.clear()
-	state.actors[2].conditions.append(&"dead")
+	state.actors[2].condition_states.clear()
+	state.actors[2].add_condition(&"dead")
 	order = HudViewModel.turn_order(state, DefinitionLibrary.get_default())
 	_expect(order.size() == 1 and order[0].actor_id == 1, "turn order should remove dead actors", failures)
 	for event_type in _event_narration_expectations():

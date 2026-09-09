@@ -15,6 +15,8 @@ const RejectionReasonRules = preload("res://sim/rules/rejection_reason.gd")
 ## Empty StringName means the command may proceed as far as phase/turn
 ## ownership is concerned; Resolver still runs command-specific checks after.
 static func rejection_for_combat_turn(state: BattleState, actor_id: int) -> StringName:
+	if state.phase == EncounterRules.GAME_OVER:
+		return RejectionReasonRules.GAME_OVER
 	if state.phase != EncounterRules.COMBAT:
 		return RejectionReasonRules.NOT_IN_COMBAT
 	if state.current_actor_id() != actor_id:

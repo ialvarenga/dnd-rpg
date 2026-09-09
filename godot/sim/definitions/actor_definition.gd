@@ -20,6 +20,7 @@ extends Resource
 @export var wisdom: int = 10
 @export var charisma: int = 10
 @export var proficiency_bonus: int = 2
+@export var saving_throw_proficiencies: Array[StringName] = []
 
 @export var movement_speed: float = 9.0
 

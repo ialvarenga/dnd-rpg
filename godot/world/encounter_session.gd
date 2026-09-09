@@ -22,6 +22,11 @@ func configure(state: BattleState, nav_provider: NavProvider, los_provider: LosP
 	los = los_provider
 
 
+func replace_state(state: BattleState) -> void:
+	battle_state = state
+	state_changed.emit()
+
+
 func preview_move(actor_id: int, target: Vector3, view_position: Vector3 = Vector3.INF):
 	var preview = MovePreviewScript.new()
 	preview.ignores_budget = battle_state != null and battle_state.phase != &"combat"
