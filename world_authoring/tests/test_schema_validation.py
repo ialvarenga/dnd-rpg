@@ -27,6 +27,10 @@ class SchemaValidationCliTests(unittest.TestCase):
         result = self.run_validator("map-spec", "valid_minimal_map_spec.json")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_valid_map_spec_with_dialogs(self) -> None:
+        result = self.run_validator("map-spec", "valid_map_spec_dialogs.json")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_invalid_map_spec_cases_report_paths(self) -> None:
         cases = {
             "invalid_map_spec_unknown_field.json": "/: Additional properties",
@@ -34,6 +38,10 @@ class SchemaValidationCliTests(unittest.TestCase):
             "invalid_map_spec_bad_vector.json": "/spawn_points/0/position:",
             "invalid_map_spec_missing_required.json": "/map: 'seed' is a required property",
             "invalid_map_spec_invalid_enum.json": "/map/preset:",
+            # A dialog option that rolls must say what happens when the roll
+            # fails, or a failed persuasion silently does nothing.
+            "invalid_map_spec_dialog_missing_outcome.json": "/dialogs/0/nodes/0/options/0:",
+            "invalid_map_spec_bad_disposition.json": "/actors/0/initial_disposition:",
         }
         for fixture, expected in cases.items():
             with self.subTest(fixture=fixture):

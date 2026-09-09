@@ -20,7 +20,7 @@ static func run() -> Dictionary:
 	order = HudViewModel.turn_order(state, DefinitionLibrary.get_default())
 	_expect(order.size() == 1 and order[0].actor_id == 1, "turn order should remove dead actors", failures)
 	for event_type in _event_narration_expectations():
-		var line := HudViewModel.narrate(Event.create(event_type, {"actor_id": 1, "target_id": 2, "amount": 2, "roll": 12, "hit": true, "condition": &"poisoned", "reason": &"not_current_actor"}), state, DefinitionLibrary.get_default())
+		var line := HudViewModel.narrate(Event.create(event_type, {"actor_id": 1, "target_id": 2, "amount": 2, "roll": 12, "hit": true, "condition": &"poisoned", "reason": &"not_current_actor", "skill": &"persuasion", "difficulty_class": 12, "total": 14, "success": true, "disposition": &"neutral", "dialog_id": &"emberwatch_toll"}), state, DefinitionLibrary.get_default())
 		_expect(line == _event_narration_expectations()[event_type], "narration did not match the supported %s event" % event_type, failures)
 	return {"name": "unit/test_hud_view_model", "failures": failures}
 
@@ -49,6 +49,9 @@ static func _event_narration_expectations() -> Dictionary:
 		&"turn_ended": "Knight ends their turn.",
 		&"turn_started": "Knight's turn.",
 		&"command_rejected": "Command rejected: not_current_actor.",
+		&"skill_check_rolled": "Knight rolls Persuasion: 14 vs DC 12 - success.",
+		&"disposition_changed": "Knight stands down.",
+		&"dialog_started": "Knight speaks with Actor 2.",
 	}
 
 static func _expect(condition: bool, message: String, failures: Array[String]) -> void:

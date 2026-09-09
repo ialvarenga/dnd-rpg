@@ -30,6 +30,9 @@ static func run() -> Dictionary:
 	_test_only_current_actor_can_move_or_end_turn(failures)
 	_test_end_turn_advances_wraps_and_restores_resources(failures)
 	_test_serialization_round_trip(failures)
+	_test_skill_check_rolls_in_any_phase(failures)
+	_test_skill_check_rejects_malformed_metadata(failures)
+	_test_set_disposition_applies_and_is_exploration_only(failures)
 	return {"name": "unit/test_simulation", "failures": failures}
 
 
@@ -442,6 +445,81 @@ static func _json_dictionary(data: Dictionary) -> Dictionary:
 	if parsed is Dictionary:
 		return parsed
 	return {}
+
+
+## A check is not an action: it is legal on either side of the phase boundary
+## and spends nothing, because a conversation happens outside the turn economy.
+static func _test_skill_check_rolls_in_any_phase(failures: Array[String]) -> void:
+	for phase in [&"exploration", &"combat"]:
+		var state := TestHelpers.make_battle()
+		state.phase = phase
+		var actor: ActorState = state.actors[1]
+		actor.charisma = 16
+		actor.proficiency_bonus = 2
+		var command := Command.create(&"skill_check", 1)
+		command.target_id = 2
+		command.metadata = {"ability": &"charisma", "skill": &"persuasion", "dc": 12, "proficient": true}
+		var result := Resolver.resolve(state, command, FakeNavProvider.new(), FakeLosProvider.new())
+		var rolled := _first_event(result, &"skill_check_rolled")
+		_expect(rolled != null, "skill_check should resolve during %s" % phase, failures)
+		if rolled == null:
+			continue
+		_expect(int(rolled.data["modifier"]) == 5, "the check should use the actor's charisma plus proficiency", failures)
+		_expect(int(rolled.data["total"]) == int(rolled.data["roll"]) + 5, "total should be the roll plus the modifier", failures)
+		_expect(bool(rolled.data["success"]) == (int(rolled.data["total"]) >= 12), "success should compare the total against the DC", failures)
+		_expect(rolled.data["skill"] == &"persuasion" and int(rolled.data["target_id"]) == 2, "the event should carry its narration context", failures)
+		_expect(result.next_rng_state != state.rng_state, "a check must advance the rng_state", failures)
+		# A check costs nothing, so applying it must leave the turn economy alone.
+		TestHelpers.apply_result(state, result)
+		_expect(actor.action_available and is_equal_approx(actor.movement_remaining, actor.movement_speed), "a check must not spend an action or movement", failures)
+
+
+static func _test_skill_check_rejects_malformed_metadata(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle()
+	# A skill name is not an ability score; this is the guard that keeps the
+	# resolver from silently treating one as the other.
+	for metadata in [{"ability": &"persuasion", "dc": 12}, {"ability": &"", "dc": 12}]:
+		var bad_ability := Command.create(&"skill_check", 1)
+		bad_ability.metadata = metadata
+		var rejection := _first_event(Resolver.resolve(state, bad_ability, FakeNavProvider.new(), FakeLosProvider.new()), &"command_rejected")
+		_expect(rejection != null and rejection.data["reason"] == &"invalid_ability_score", "a non-ability-score check should be rejected", failures)
+	var bad_dc := Command.create(&"skill_check", 1)
+	bad_dc.metadata = {"ability": &"charisma", "dc": 0}
+	var dc_rejection := _first_event(Resolver.resolve(state, bad_dc, FakeNavProvider.new(), FakeLosProvider.new()), &"command_rejected")
+	_expect(dc_rejection != null and dc_rejection.data["reason"] == &"invalid_difficulty_class", "a DC below 1 should be rejected", failures)
+
+
+static func _test_set_disposition_applies_and_is_exploration_only(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle()
+	state.phase = &"exploration"
+	var enemy: ActorState = state.actors[2]
+	_expect(enemy.disposition == &"hostile", "an actor should default to a hostile stance", failures)
+	var pacify := Command.create(&"set_disposition", 2)
+	pacify.metadata = {"disposition": &"neutral"}
+	var result := Resolver.resolve(state, pacify, FakeNavProvider.new(), FakeLosProvider.new())
+	var changed := _first_event(result, &"disposition_changed")
+	_expect(changed != null and changed.data["previous_disposition"] == &"hostile", "the event should record the stance it replaced", failures)
+	TestHelpers.apply_result(state, result)
+	_expect(enemy.disposition == &"neutral", "apply() should be the only thing that changes the stance", failures)
+
+	var garbage := Command.create(&"set_disposition", 2)
+	garbage.metadata = {"disposition": &"furious"}
+	var garbage_rejection := _first_event(Resolver.resolve(state, garbage, FakeNavProvider.new(), FakeLosProvider.new()), &"command_rejected")
+	_expect(garbage_rejection != null and garbage_rejection.data["reason"] == &"invalid_disposition", "an unknown stance should be rejected", failures)
+
+	# V1 rule: you cannot talk a fight down once it has started.
+	state.phase = &"combat"
+	var mid_combat := Command.create(&"set_disposition", 2)
+	mid_combat.metadata = {"disposition": &"neutral"}
+	var combat_rejection := _first_event(Resolver.resolve(state, mid_combat, FakeNavProvider.new(), FakeLosProvider.new()), &"command_rejected")
+	_expect(combat_rejection != null and combat_rejection.data["reason"] == &"combat_already_active", "set_disposition should be rejected during combat", failures)
+
+
+static func _first_event(result: ResolutionResult, type: StringName) -> Event:
+	for event in result.events:
+		if event.type == type:
+			return event
+	return null
 
 
 static func _expect(condition: bool, message: String, failures: Array[String]) -> void:

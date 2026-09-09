@@ -675,6 +675,9 @@
       "id": "camp_sentry",
       "archetype": "character_rogue_01",
       "side": "enemies",
+      "stat_block": "bandit_scout",
+      "initial_disposition": "neutral",
+      "dialog": "emberwatch_grunt",
       "position": [
         155,
         67
@@ -685,6 +688,9 @@
       "id": "camp_raider",
       "archetype": "character_ranger_01",
       "side": "enemies",
+      "stat_block": "bandit_raider",
+      "initial_disposition": "neutral",
+      "dialog": "emberwatch_grunt",
       "position": [
         167,
         74
@@ -695,6 +701,9 @@
       "id": "camp_chieftain",
       "archetype": "character_barbarian_01",
       "side": "enemies",
+      "stat_block": "bandit_chieftain",
+      "initial_disposition": "neutral",
+      "dialog": "emberwatch_toll",
       "position": [
         170,
         88
@@ -842,6 +851,122 @@
         "camp_sentry",
         "camp_raider",
         "camp_chieftain"
+      ]
+    }
+  ],
+  "dialogs": [
+    {
+      "id": "emberwatch_grunt",
+      "root": "halt",
+      "nodes": [
+        {
+          "id": "halt",
+          "text": "Far enough. Nobody walks this stretch without the chief's say-so, and I am not the chief. He is the big one by the fire. Talk to him, or turn around.",
+          "options": [
+            {
+              "text": "Ask what the toll is.",
+              "outcome": { "next": "not_my_coin" }
+            },
+            {
+              "text": "Draw.",
+              "outcome": { "effect": "start_combat" }
+            },
+            {
+              "text": "Turn around.",
+              "outcome": { "effect": "end" }
+            }
+          ]
+        },
+        {
+          "id": "not_my_coin",
+          "text": "Not my call and not my coin. I just stand here. Take it up with the chief before I have to make it my problem.",
+          "options": [
+            {
+              "text": "Go and find the chief.",
+              "outcome": { "effect": "end" }
+            },
+            {
+              "text": "Draw.",
+              "outcome": { "effect": "start_combat" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "emberwatch_toll",
+      "root": "greeting",
+      "nodes": [
+        {
+          "id": "greeting",
+          "text": "Far enough. This stretch of the Emberwatch road is ours, and the toll is whatever you are carrying. Set it down and you keep the hand.",
+          "options": [
+            {
+              "text": "The garrison is an hour behind me. Collect your toll from them instead.",
+              "check": { "ability": "charisma", "skill": "persuasion", "dc": 12, "proficient": true },
+              "outcome": { "next": "stand_aside" },
+              "failure_outcome": { "next": "saw_through_it" }
+            },
+            {
+              "text": "Count your people. Now look at my sword and count again.",
+              "check": { "ability": "charisma", "skill": "intimidation", "dc": 14, "proficient": true },
+              "outcome": { "next": "stand_aside" },
+              "failure_outcome": { "next": "saw_through_it" }
+            },
+            {
+              "text": "Ask what a camp this size is doing on a dead road.",
+              "outcome": { "next": "what_road" }
+            },
+            {
+              "text": "Say nothing. Draw.",
+              "outcome": { "effect": "start_combat" }
+            },
+            {
+              "text": "Back away down the road.",
+              "outcome": { "effect": "end" }
+            }
+          ]
+        },
+        {
+          "id": "what_road",
+          "text": "Dead road, is it. Something came up out of the valley and emptied the waystation, and we are the only ones still standing on it. That is worth a toll.",
+          "options": [
+            {
+              "text": "Then we want the same thing. Let me through.",
+              "check": { "ability": "charisma", "skill": "persuasion", "dc": 10, "proficient": true },
+              "outcome": { "next": "stand_aside" },
+              "failure_outcome": { "next": "saw_through_it" }
+            },
+            {
+              "text": "Go back to the toll.",
+              "outcome": { "next": "greeting" }
+            },
+            {
+              "text": "Say nothing. Draw.",
+              "outcome": { "effect": "start_combat" }
+            }
+          ]
+        },
+        {
+          "id": "stand_aside",
+          "text": "...Off the road, both of you. Walk through, keep your hands where I can see them, and do not come back this way after dark.",
+          "options": [
+            {
+              "text": "Walk through the camp.",
+              "outcome": { "effect": "pacify_encounter" }
+            }
+          ]
+        },
+        {
+          "id": "saw_through_it",
+          "text": "No. No, I do not think any of that is true. Take them.",
+          "options": [
+            {
+              "text": "Draw.",
+              "outcome": { "effect": "start_combat" }
+            }
+          ]
+        }
       ]
     }
   ]

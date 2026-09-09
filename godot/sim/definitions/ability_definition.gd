@@ -22,4 +22,9 @@ extends Resource
 ## for future spells and other targeted actions without knowing their effects.
 @export var target_range_meters: float = -1.0
 
+## True when this ability may also resolve outside combat. Every other ability
+## stays behind the combat turn-ownership gate, so this defaults false and
+## existing content keeps its exact rejection order.
+@export var usable_in_exploration: bool = false
+
 @export var effects: Array[AbilityEffect] = []

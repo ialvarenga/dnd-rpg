@@ -6,6 +6,7 @@ static func run() -> Dictionary:
 	_test_round_trip_preserves_mid_combat_state(failures)
 	_test_from_dict_defaults_missing_fields(failures)
 	_test_is_compatible_detects_version_drift(failures)
+	_test_disposition_and_dialog_round_trip(failures)
 	return {"name": "unit/test_save_game", "failures": failures}
 
 
@@ -109,6 +110,22 @@ static func _test_is_compatible_detects_version_drift(failures: Array[String]) -
 	var stale := SaveGame.from_dict(save.to_dict())
 	stale.schema_version = SaveGame.SCHEMA_VERSION + 1
 	_expect(not stale.is_compatible(), "schema_version drift should be detected", failures)
+
+
+## A pacified camp has to survive a save, or reloading re-arms the ambush the
+## player already talked their way out of.
+static func _test_disposition_and_dialog_round_trip(failures: Array[String]) -> void:
+	var actor := ActorState.new()
+	actor.id = 4
+	actor.disposition = &"neutral"
+	actor.dialog_id = &"emberwatch_toll"
+	var restored := ActorState.from_dict(actor.to_dict())
+	_expect(restored.disposition == &"neutral", "disposition did not round-trip through serialization", failures)
+	_expect(restored.dialog_id == &"emberwatch_toll", "dialog_id did not round-trip through serialization", failures)
+	# Saves written before these fields existed must still load as they did.
+	var legacy := ActorState.from_dict({"id": 5})
+	_expect(legacy.disposition == &"hostile", "an actor with no stored disposition should default to hostile", failures)
+	_expect(legacy.dialog_id == &"", "an actor with no stored dialog should default to silent", failures)
 
 
 static func _expect(condition: bool, message: String, failures: Array[String]) -> void:

@@ -1,0 +1,59 @@
+{
+  "version": "1.0",
+  "map": {
+    "id": "forest_test",
+    "preset": "encounter",
+    "seed": 918273,
+    "bounds": {
+      "width_m": 64,
+      "height_m": 64
+    },
+    "asset_catalog_version": "1.0"
+  },
+  "dialogs": [
+    {
+      "id": "toll",
+      "root": "greeting",
+      "nodes": [
+        {
+          "id": "greeting",
+          "speaker": "Bandit Chieftain",
+          "text": "Pay the toll.",
+          "options": [
+            {
+              "text": "Bluff",
+              "check": {
+                "ability": "charisma",
+                "skill": "persuasion",
+                "dc": 12,
+                "proficient": true
+              },
+              "outcome": {
+                "effect": "pacify_encounter"
+              }
+            },
+            {
+              "text": "Leave",
+              "outcome": {
+                "effect": "end"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "actors": [
+    {
+      "id": "chief",
+      "archetype": "character_knight_01",
+      "position": [
+        8,
+        8
+      ],
+      "stat_block": "bandit_chieftain",
+      "initial_disposition": "neutral",
+      "dialog": "toll"
+    }
+  ]
+}

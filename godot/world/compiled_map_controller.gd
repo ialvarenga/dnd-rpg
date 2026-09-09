@@ -33,6 +33,8 @@ var _highlighted_interactable_id := ""
 var _interactable_highlights: Dictionary[String, MeshInstance3D] = {}
 var _pending_interactable_id := ""
 var _pending_targeted_action: Dictionary = {}
+var _dialog_catalog: DialogCatalogScript
+var _dialog_session: DialogSessionScript
 var _interactable_highlight_time := 0.0
 var music
 var _encounter_checkpoint: BattleState
@@ -50,6 +52,8 @@ const TACTICAL_SUN_SCENE = preload("res://scenes/world/tactical_sun.tscn")
 const EncounterSessionScript = preload("res://world/encounter_session.gd")
 const MapSpecSourceScript = preload("res://world/map_spec_source.gd")
 const ScreenPickerScript = preload("res://world/screen_picker.gd")
+const DialogCatalogScript = preload("res://world/dialog_catalog.gd")
+const DialogSessionScript = preload("res://world/dialog_session.gd")
 const MusicDirectorScript = preload("res://view/music_director.gd")
 const WORLD_HEALTH_BAR_SCENE = preload("res://view/ui/world_health_bar.tscn")
 const PathPreviewRendererScript = preload("res://view/path_preview_renderer.gd")
@@ -62,6 +66,18 @@ const INTERACTABLE_BLOCKED_COLOR := Color("ef625d")
 ## MapSpec interactable kinds this map runtime owns. Every other kind is
 ## authored as scenery: compiled and collision-checked, never registered.
 const REGISTERED_INTERACTABLE_KINDS: Array[StringName] = [&"chest", &"barrel"]
+
+## Stat block used for an authored enemy that names none. Keeps maps written
+## before MapSpec actor.stat_block existed spawning exactly as they did.
+const DEFAULT_ENEMY_STAT_BLOCK := &"raider"
+
+## Ability that opens a conversation. Named here rather than inlined so the
+## click handler, the approach planner, and the hotbar all agree.
+const TALK_ABILITY := &"talk"
+
+## How long the rolled check stays on screen before the conversation moves on,
+## so the player reads the number instead of only its consequence.
+const CHECK_REVEAL_SECONDS := 1.4
 
 
 func _ready() -> void:
@@ -98,6 +114,7 @@ func _ready() -> void:
 	_update_world_health_bars()
 	_setup_music(compilation.music)
 	_setup_hud()
+	_setup_dialogs(spec)
 	NavigationServer3D.map_force_update(compilation.navigation.navigation_region.get_navigation_map())
 
 
@@ -105,6 +122,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	if camera == null or nav_provider == null:
 		return
 	if battle_state.phase == &"game_over":
+		get_viewport().set_input_as_handled()
+		return
+	if _dialog_session != null and _dialog_session.is_active():
+		# The panel's own buttons still receive input; everything that would
+		# move or attack from the world below it does not.
 		get_viewport().set_input_as_handled()
 		return
 	if battle_state.phase == &"combat" and character.is_moving():
@@ -118,6 +140,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			_clear_interactable_highlight()
 			_update_target_highlight(_hostile_at_screen_position(event.position))
 			return
+		var hovered := _hostile_at_screen_position(event.position)
+		if hovered != null and _dialog_id_for_actor(hovered.actor_id) != &"":
+			_clear_interactable_highlight()
+			_clear_path_preview()
+			_update_target_highlight(hovered, TALK_ABILITY)
+			return
+		_update_target_highlight(null, TALK_ABILITY)
 		var hovered_interactable_id := ScreenPickerScript.interactable_id(camera, get_world_3d().direct_space_state, event.position)
 		if not _pending_interactable_id.is_empty():
 			return
@@ -144,6 +173,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _targeting_ability_id != &"":
 			if hostile != null:
 				_submit_targeted_ability(hostile.actor_id)
+			get_viewport().set_input_as_handled()
+			return
+		if hostile != null and _dialog_id_for_actor(hostile.actor_id) != &"":
+			# Talking reuses the ordinary approach-then-act path: `talk` is an
+			# ability with a range like any other, so the walk-into-range
+			# machinery needs no special case.
+			_targeting_ability_id = TALK_ABILITY
+			_submit_targeted_ability(hostile.actor_id)
 			get_viewport().set_input_as_handled()
 			return
 		if hostile != null:
@@ -336,13 +373,22 @@ func _setup_hostiles(spec: Dictionary) -> void:
 		event_player.register_character_view(hostile)
 		hostile.movement_completed.connect(_synchronize_completed_movement)
 		hostile_views[actor_id] = hostile
-		# The compiled map currently has melee presentation only. Keep the
-		# ranger-looking art as scenery, but do not activate the unfinished
-		# Archer/ranged rules until a ranged attack animation exists.
-		var raider := DefinitionLibrary.get_default().get_actor(&"raider")
-		var raider_actor := ActorState.from_definition(raider, actor_id, &"enemies", hostile.global_position)
-		battle_state.actors[actor_id] = raider_actor
-		hostile.held_weapon_model_path = Equipment.held_weapon_model_path(raider_actor, DefinitionLibrary.get_default())
+		# Stats are authored per actor instance. `archetype` still picks the art
+		# only, so the same model can be a scout on one map and a chieftain on
+		# another; an unknown or absent stat_block falls back to the default
+		# block rather than silently spawning an actor with no stats.
+		var definitions := DefinitionLibrary.get_default()
+		var stat_block_id := StringName(str(raw_actor.get("stat_block", DEFAULT_ENEMY_STAT_BLOCK)))
+		if not definitions.has_actor(stat_block_id):
+			push_error("Actor '%s' names unknown stat_block '%s'; falling back to '%s'" % [authored_id, stat_block_id, DEFAULT_ENEMY_STAT_BLOCK])
+			stat_block_id = DEFAULT_ENEMY_STAT_BLOCK
+		var hostile_actor := ActorState.from_definition(definitions.get_actor(stat_block_id), actor_id, &"enemies", hostile.global_position)
+		# Social stance and conversation are per-instance map data, never part of
+		# the stat block -- see ActorState.disposition / dialog_id.
+		hostile_actor.disposition = StringName(str(raw_actor.get("initial_disposition", "hostile")))
+		hostile_actor.dialog_id = StringName(str(raw_actor.get("dialog", "")))
+		battle_state.actors[actor_id] = hostile_actor
+		hostile.held_weapon_model_path = Equipment.held_weapon_model_path(hostile_actor, definitions)
 		_attach_world_health_bar(hostile)
 		actor_id += 1
 
@@ -408,7 +454,10 @@ func _process(delta: float) -> void:
 		return
 	if battle_state.phase == &"exploration":
 		_clear_path_preview()
-		_check_hostile_detection()
+		# Detection is _process-driven, so the panel's mouse_filter alone would
+		# not stop a sentry noticing you mid-sentence.
+		if _dialog_session == null or not _dialog_session.is_active():
+			_check_hostile_detection()
 		return
 	if _destination_marker != null:
 		_destination_marker.hide_marker()
@@ -434,6 +483,11 @@ func _check_hostile_detection() -> void:
 			var hostile := hostile_views[actor_id] as CharacterView
 			var hostile_state := battle_state.actors[actor_id] as ActorState
 			if hostile == null or not hostile_state.is_conscious():
+				continue
+			# A pacified or peaceable actor stays in the encounter roster (so a
+			# fight started another way still includes them) but does not start
+			# one itself.
+			if hostile_state.disposition != &"hostile":
 				continue
 			if character.global_position.distance_to(hostile.global_position) <= float(encounter.trigger_radius_m) and los_provider.has_line_of_sight(hostile.global_position, character.global_position):
 				var start := Command.create(&"start_combat", actor_id)
@@ -763,7 +817,11 @@ func _on_restart_requested() -> void:
 	get_tree().reload_current_scene()
 
 
-func _update_target_highlight(hostile: CharacterView) -> void:
+## `ability_id` defaults to whatever the hotbar has selected. Hovering a
+## talkable NPC passes `talk` instead, so the ring reports talk range rather
+## than the range of an attack the player has not chosen.
+func _update_target_highlight(hostile: CharacterView, ability_id: StringName = &"") -> void:
+	var range_ability := ability_id if ability_id != &"" else _targeting_ability_id
 	var next_target_id := hostile.actor_id if hostile != null else -1
 	if _highlighted_target_id == next_target_id:
 		return
@@ -773,7 +831,116 @@ func _update_target_highlight(hostile: CharacterView) -> void:
 	if hostile != null:
 		var source: ActorState = battle_state.actors.get(character.actor_id)
 		var target: ActorState = battle_state.actors.get(hostile.actor_id)
-		hostile.set_target_highlight(true, AbilityTargetingRules.is_target_in_range(source, target, DefinitionLibrary.get_default(), _targeting_ability_id))
+		hostile.set_target_highlight(true, AbilityTargetingRules.is_target_in_range(source, target, DefinitionLibrary.get_default(), range_ability))
+
+
+## Composition root for conversations. The catalog is map content, the session
+## is a pure graph walker, and this controller is the only thing that turns a
+## chosen option into an authoritative command.
+func _setup_dialogs(spec: Dictionary) -> void:
+	_dialog_catalog = DialogCatalogScript.new()
+	_dialog_catalog.configure(spec)
+	_dialog_session = DialogSessionScript.new()
+	_dialog_session.configure(_dialog_catalog)
+	_dialog_session.presented.connect(_on_dialog_presented)
+	_dialog_session.check_requested.connect(_on_dialog_check_requested)
+	_dialog_session.finished.connect(_on_dialog_finished)
+	hud.dialog_panel.option_chosen.connect(_on_dialog_option_chosen)
+	hud.dialog_panel.dismissed.connect(_on_dialog_dismissed)
+	session.events_resolved.connect(_on_dialog_events_resolved)
+
+
+func _dialog_id_for_actor(actor_id: int) -> StringName:
+	var actor := battle_state.actors.get(actor_id) as ActorState
+	if actor == null or not actor.is_conscious():
+		return &""
+	return actor.dialog_id
+
+
+## The Resolver decides whether the conversation may open at all (range, line
+## of sight, whether the target has anything to say); this only reacts to the
+## event it emits.
+func _on_dialog_events_resolved(events: Array[Event]) -> void:
+	for event in events:
+		if event.type != &"dialog_started":
+			continue
+		var speaker_id := int(event.data["target_id"])
+		var speaker_name := str(HudViewModel.for_actor(battle_state, speaker_id, DefinitionLibrary.get_default()).get("name", ""))
+		_dialog_session.begin(StringName(str(event.data["dialog_id"])), speaker_id, speaker_name)
+		return
+
+
+func _on_dialog_presented(view: Dictionary) -> void:
+	_clear_targeting()
+	_clear_path_preview()
+	hud.dialog_panel.present(view)
+
+
+func _on_dialog_option_chosen(option_index: int) -> void:
+	_dialog_session.choose(option_index)
+
+
+func _on_dialog_dismissed() -> void:
+	_dialog_session.cancel()
+	hud.dialog_panel.close()
+
+
+## The roll itself belongs to the simulation, so the option is not resolved
+## until skill_check comes back. The result is held on screen briefly before
+## the conversation moves on.
+func _on_dialog_check_requested(option_index: int, ability: StringName, skill: StringName, difficulty_class: int, proficient: bool) -> void:
+	var command := Command.create(&"skill_check", character.actor_id)
+	command.target_id = _dialog_session.speaker_actor_id()
+	command.metadata = {"ability": ability, "skill": skill, "dc": difficulty_class, "proficient": proficient}
+	var result: ResolutionResult = session.submit_command(command)
+	var success := false
+	for event in result.events:
+		if event.type != &"skill_check_rolled":
+			continue
+		success = bool(event.data["success"])
+		hud.dialog_panel.present_check(skill, int(event.data["difficulty_class"]), int(event.data["total"]), success)
+		await get_tree().create_timer(CHECK_REVEAL_SECONDS).timeout
+		break
+	if _dialog_session.is_active():
+		_dialog_session.resolve_check(option_index, success)
+
+
+func _on_dialog_finished(effect: StringName) -> void:
+	var speaker_id := _dialog_session.speaker_actor_id()
+	hud.dialog_panel.close()
+	match effect:
+		DialogSessionScript.EFFECT_PACIFY_ENCOUNTER:
+			_set_encounter_disposition(speaker_id, &"neutral")
+		DialogSessionScript.EFFECT_START_COMBAT:
+			_set_encounter_disposition(speaker_id, &"hostile")
+			var encounter_id := _encounter_id_for_actor(speaker_id)
+			var start := Command.create(&"start_combat", speaker_id)
+			if not encounter_id.is_empty():
+				start.metadata = {"encounter_id": encounter_id, "participant_actor_ids": (encounter_definitions[encounter_id].combatant_ids as Array).duplicate()}
+			_start_encounter(start, true)
+
+
+## Talking is with the camp, not one bandit: a stance the conversation settles
+## applies to everyone the encounter would have pulled into the fight.
+func _set_encounter_disposition(speaker_id: int, disposition: StringName) -> void:
+	var encounter_id := _encounter_id_for_actor(speaker_id)
+	var actor_ids: Array = [speaker_id] if encounter_id.is_empty() else encounter_definitions[encounter_id].combatant_ids
+	for actor_id in actor_ids:
+		if actor_id == character.actor_id or not battle_state.actors.has(actor_id):
+			continue
+		var command := Command.create(&"set_disposition", int(actor_id))
+		command.metadata = {"disposition": disposition}
+		var result: ResolutionResult = session.submit_command(command)
+		event_player.play_events(result.events)
+
+
+func _encounter_id_for_actor(actor_id: int) -> String:
+	var encounter_ids: Array = encounter_definitions.keys()
+	encounter_ids.sort()
+	for encounter_id in encounter_ids:
+		if (encounter_definitions[encounter_id].combatant_ids as Array).has(actor_id):
+			return str(encounter_id)
+	return ""
 
 
 func _submit_targeted_ability(target_id: int) -> void:

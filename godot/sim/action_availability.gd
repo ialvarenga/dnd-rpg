@@ -29,14 +29,17 @@ static func evaluate(state: BattleState, actor_id: int, ability_id: StringName, 
 	var definitions := defs if defs != null else DefinitionLibrary.get_default()
 	if not state.actors.has(actor_id):
 		return _result(ability_id, false, RejectionReasonRules.UNKNOWN_ACTOR)
-	var phase_rejection := CommandPhaseRulesScript.rejection_for_combat_turn(state, actor_id)
+	# The ability is resolved first because its own usable_in_exploration flag
+	# decides which phase gate applies -- Resolver._resolve_command does the
+	# same, so the two cannot report different reasons.
+	var ability := definitions.get_ability(ability_id)
+	var phase_rejection := CommandPhaseRulesScript.rejection_for_ability(state, actor_id, ability)
 	if phase_rejection != &"":
 		return _result(ability_id, false, phase_rejection)
 	var actor: ActorState = state.actors[actor_id]
 	var conscious_rejection := CommandPhaseRulesScript.rejection_for_conscious(actor)
 	if conscious_rejection != &"":
 		return _result(ability_id, false, conscious_rejection)
-	var ability := definitions.get_ability(ability_id)
 	if ability == null:
 		return _result(ability_id, false, RejectionReasonRules.UNKNOWN_ABILITY_DEFINITION)
 	var cost_rejection := AbilityCostRulesScript.rejection_for_cost(actor, ability, definitions)

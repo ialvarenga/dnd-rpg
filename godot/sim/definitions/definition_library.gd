@@ -17,7 +17,9 @@ extends RefCounted
 ## Fase C3 bump: adds the raider actor definition used by map encounters.
 ## Bump 5: adds the shared healing-potion consumable ability and item.
 ## Bump 6: targeted abilities own reusable target-range metadata.
-const CONTENT_VERSION: int = 7
+## Bump 8: per-encounter bandit stat blocks, chainmail, and the talk ability
+## replace the single hardcoded raider block used by every map enemy.
+const CONTENT_VERSION: int = 8
 
 const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/basic_attack.tres",
@@ -27,6 +29,7 @@ const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/shove.tres",
 	"res://data/abilities/dodge.tres",
 	"res://data/abilities/ranged_attack.tres",
+	"res://data/abilities/talk.tres",
 ]
 
 const CONDITION_MANIFEST: Array[String] = [
@@ -43,12 +46,16 @@ const ITEM_MANIFEST: Array[String] = [
 	"res://data/items/dagger.tres",
 	"res://data/items/healing_potion.tres",
 	"res://data/items/shortbow.tres",
+	"res://data/items/chainmail.tres",
 ]
 
 const ACTOR_MANIFEST: Array[String] = [
 	"res://data/actors/knight.tres",
 	"res://data/actors/raider.tres",
 	"res://data/actors/archer.tres",
+	"res://data/actors/bandit_scout.tres",
+	"res://data/actors/bandit_raider.tres",
+	"res://data/actors/bandit_chieftain.tres",
 ]
 
 var content_version: int = CONTENT_VERSION

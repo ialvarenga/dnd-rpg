@@ -2,6 +2,7 @@ class_name HudRoot
 extends CanvasLayer
 
 const OutcomeOverlayScript = preload("res://view/ui/outcome_overlay.gd")
+const DialogPanelScript = preload("res://view/ui/dialog_panel.gd")
 
 ## Presentation adapter. It listens to the shared session but never submits a
 ## command itself; the owning world controller decides targets and calls it.
@@ -28,6 +29,7 @@ var actor_id := -1
 @onready var item_slots: GridContainer = $Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots
 @onready var outcome_overlay: OutcomeOverlayScript = $OutcomeOverlay
 @onready var objective_label: Label = $Margin/TopBar/ObjectiveLabel
+@onready var dialog_panel: DialogPanelScript = $DialogPanel
 
 func _ready() -> void:
 	definitions = definitions if definitions != null else DefinitionLibrary.get_default()
@@ -115,7 +117,7 @@ func reset_outcome() -> void:
 	sync()
 
 func _unhandled_input(event: InputEvent) -> void:
-	if outcome_overlay.visible:
+	if outcome_overlay.visible or dialog_panel.visible:
 		return
 	for slot in range(6):
 		if event.is_action_pressed(StringName("hotbar_%d" % (slot + 1))):

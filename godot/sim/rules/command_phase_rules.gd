@@ -24,5 +24,14 @@ static func rejection_for_combat_turn(state: BattleState, actor_id: int) -> Stri
 	return &""
 
 
+## Phase gate for an ability command. An ability that declares
+## usable_in_exploration resolves outside combat without owning a turn;
+## everything else falls through to the shared combat turn gate unchanged.
+static func rejection_for_ability(state: BattleState, actor_id: int, ability: AbilityDefinition) -> StringName:
+	if state.phase == EncounterRules.EXPLORATION and ability != null and ability.usable_in_exploration:
+		return &""
+	return rejection_for_combat_turn(state, actor_id)
+
+
 static func rejection_for_conscious(actor: ActorState) -> StringName:
 	return &"" if actor.is_conscious() else RejectionReasonRules.ACTOR_CANNOT_ACT

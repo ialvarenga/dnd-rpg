@@ -26,6 +26,7 @@
     "bridges": { "type": "array", "items": { "$ref": "#/$defs/bridge" }, "uniqueItems": true },
     "objectives": { "type": "array", "items": { "$ref": "#/$defs/objective" }, "uniqueItems": true },
     "encounters": { "type": "array", "items": { "$ref": "#/$defs/encounter" }, "uniqueItems": true },
+    "dialogs": { "type": "array", "items": { "$ref": "#/$defs/dialog" }, "uniqueItems": true, "description": "Reusable conversation graphs referenced by actor.dialog. Dialog text and graph navigation are presentation; only the check roll, disposition changes, and combat start reach the resolver." },
     "doors": { "type": "array", "items": { "$ref": "#/$defs/door" }, "uniqueItems": true }
   },
   "$defs": {
@@ -132,6 +133,9 @@
         "id": { "$ref": "#/$defs/stableId" },
         "archetype": { "$ref": "#/$defs/stableId" },
         "side": { "type": "string", "enum": ["heroes", "enemies"], "default": "enemies", "description": "Combat team. Enemy actors can detect the player and start an encounter." },
+        "stat_block": { "$ref": "#/$defs/stableId", "description": "ActorDefinition id used to build this actor's authoritative stats. Omitted falls back to the runtime default block." },
+        "dialog": { "$ref": "#/$defs/stableId", "description": "Id of an entry in the top-level `dialogs` array. Actors without one cannot be talked to." },
+        "initial_disposition": { "type": "string", "enum": ["hostile", "neutral"], "default": "hostile", "description": "Social stance, independent of `side`. Only hostile actors trigger encounter detection; a neutral actor can be approached and talked to until provoked." },
         "position": { "$ref": "#/$defs/vector2" },
         "rotation_deg": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 }
       }
@@ -204,6 +208,59 @@
         "position": { "$ref": "#/$defs/vector2" },
         "trigger_radius_m": { "type": "number", "exclusiveMinimum": 0, "default": 8.0 },
         "actor_ids": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/stableId" }, "uniqueItems": true }
+      }
+    },
+    "dialog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "root", "nodes"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "root": { "$ref": "#/$defs/stableId", "description": "Id of the node in `nodes` this dialog opens on." },
+        "nodes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/dialogNode" }, "uniqueItems": true }
+      }
+    },
+    "dialogNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "text"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "speaker": { "type": "string", "maxLength": 64, "description": "Display name shown above the line. Omitted uses the addressed actor's stat block display name." },
+        "text": { "type": "string", "minLength": 1, "maxLength": 600 },
+        "options": { "type": "array", "items": { "$ref": "#/$defs/dialogOption" } }
+      }
+    },
+    "dialogOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "outcome"],
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "check": { "$ref": "#/$defs/dialogCheck" },
+        "outcome": { "$ref": "#/$defs/dialogOutcome", "description": "Taken unconditionally, or on a successful `check`." },
+        "failure_outcome": { "$ref": "#/$defs/dialogOutcome", "description": "Taken when `check` fails. Required whenever `check` is present." }
+      },
+      "if": { "required": ["check"] },
+      "then": { "required": ["failure_outcome"] }
+    },
+    "dialogCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ability", "dc"],
+      "properties": {
+        "ability": { "enum": ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"] },
+        "skill": { "enum": ["athletics", "acrobatics", "stealth", "insight", "perception", "persuasion", "deception", "intimidation"], "description": "Narration label only. The modifier comes from `ability` plus `proficient`." },
+        "dc": { "type": "integer", "minimum": 1, "maximum": 30 },
+        "proficient": { "type": "boolean", "default": false }
+      }
+    },
+    "dialogOutcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "next": { "$ref": "#/$defs/stableId", "description": "Id of the next node in this dialog. Omitted closes the dialog." },
+        "effect": { "enum": ["none", "end", "start_combat", "pacify_encounter"], "default": "none", "description": "pacify_encounter sets every actor in the speaker's encounter to neutral; start_combat opens that encounter." }
       }
     },
     "door": {

@@ -10,6 +10,7 @@
 [ext_resource type="PackedScene" path="res://view/ui/combat_log.tscn" id="10_combat_log"]
 [ext_resource type="PackedScene" path="res://view/ui/tooltip_layer.tscn" id="11_tooltip_layer"]
 [ext_resource type="PackedScene" path="res://view/ui/outcome_overlay.tscn" id="12_outcome"]
+[ext_resource type="PackedScene" path="res://view/ui/dialog_panel.tscn" id="13_dialog"]
 
 [sub_resource type="StyleBoxTexture" id="StyleBox_hud_panel"]
 texture = ExtResource("8_panel")
@@ -230,5 +231,7 @@ disabled = true
 custom_minimum_size = Vector2(48, 48)
 size_flags_vertical = 4
 tooltip_text = "Settings — coming soon"
+
+[node name="DialogPanel" parent="." instance=ExtResource("13_dialog")]
 
 [node name="OutcomeOverlay" parent="." instance=ExtResource("12_outcome")]

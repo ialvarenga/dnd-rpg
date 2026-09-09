@@ -9,6 +9,7 @@ static func run() -> Dictionary:
 	var turn_baseline := _simulate_turns(42)
 	var action_baseline := _simulate_actions_and_reactions(42)
 	var definitions_baseline := _simulate_definitions(42)
+	var social_baseline := _simulate_social(42)
 	for index in range(RUNS):
 		var replay := _simulate(42)
 		if replay != baseline:
@@ -23,10 +24,14 @@ static func run() -> Dictionary:
 		if _simulate_definitions(42) != definitions_baseline:
 			failures.append("same seed A7 definition-driven replay diverged on run %d" % (index + 1))
 			break
+		if _simulate_social(42) != social_baseline:
+			failures.append("same seed social replay diverged on run %d" % (index + 1))
+			break
 	_expect(_simulate(43) != baseline, "different seed did not change an event log with attacks", failures)
 	_expect(_simulate_turns(43) != turn_baseline, "different seed did not change an initiative event log", failures)
 	_expect(_simulate_actions_and_reactions(43) != action_baseline, "different seed did not change an A5 reaction event log", failures)
 	_expect(_simulate_definitions(43) != definitions_baseline, "different seed did not change an A7 definition-driven event log", failures)
+	_expect(_simulate_social(43) != social_baseline, "different seed did not change a skill-check event log", failures)
 	return {"name": "deterministic/test_replay", "failures": failures}
 
 
@@ -50,6 +55,32 @@ static func _simulate(seed: int) -> String:
 
 	var log: Array[String] = []
 	for command in commands:
+		var result := Resolver.resolve(state, command, nav, los)
+		log.append(TestHelpers.event_log_entry(result))
+		TestHelpers.apply_result(state, result)
+	return "\n".join(log).md5_text()
+
+
+## Skill checks consume rng_state like any other roll, so a conversation has to
+## replay byte-for-byte on the same seed and diverge on a different one. Two
+## checks bracket the disposition change, which proves the second roll picks up
+## the state the first one advanced.
+static func _simulate_social(seed: int) -> String:
+	var state := TestHelpers.make_battle(seed)
+	state.phase = &"exploration"
+	var nav := FakeNavProvider.new()
+	var los := FakeLosProvider.new()
+	var persuade := Command.create(&"skill_check", 1)
+	persuade.target_id = 2
+	persuade.metadata = {"ability": &"charisma", "skill": &"persuasion", "dc": 12, "proficient": true}
+	var pacify := Command.create(&"set_disposition", 2)
+	pacify.metadata = {"disposition": &"neutral"}
+	var second_look := Command.create(&"skill_check", 1)
+	second_look.target_id = 2
+	second_look.metadata = {"ability": &"wisdom", "skill": &"insight", "dc": 10, "proficient": false}
+
+	var log: Array[String] = []
+	for command in [persuade, pacify, second_look]:
 		var result := Resolver.resolve(state, command, nav, los)
 		log.append(TestHelpers.event_log_entry(result))
 		TestHelpers.apply_result(state, result)

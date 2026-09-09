@@ -25,8 +25,8 @@ func run() -> Dictionary:
 
 func _test_initial_binding(hud: HudRoot, failures: Array[String]) -> void:
 	var hp_label: Label = hud.get_node("Margin/Layout/ActorPortrait/Margin/Rows/HPText")
-	_expect(hp_label.text == "HP 20/20", "HUD bind did not project actor health", failures)
-	_expect(hud.hotbar.get_child_count() == 5, "HUD hotbar should contain the knight's five character actions, not inventory consumables", failures)
+	_expect(hp_label.text == "HP 30/30", "HUD bind did not project actor health", failures)
+	_expect(hud.hotbar.get_child_count() == 6, "HUD hotbar should contain the knight's six character actions, not inventory consumables", failures)
 	var end_turn: Button = hud.get_node("Margin/Layout/EndTurn")
 	_expect(hud.hotbar.mouse_filter == Control.MOUSE_FILTER_IGNORE, "empty hotbar space should remain pass-through", failures)
 	_expect(end_turn.mouse_filter == Control.MOUSE_FILTER_STOP, "end-turn button must consume pointer input", failures)

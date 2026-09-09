@@ -6,7 +6,7 @@
 script = ExtResource("1_kn1ght")
 id = &"knight"
 display_name = "Knight"
-max_hp = 20
+max_hp = 30
 armor_class = 10
 strength = 14
 dexterity = 12
@@ -20,9 +20,9 @@ movement_speed = 9.0
 attack_bonus = 2
 damage_die = 4
 damage_modifier = 0
-ability_ids = Array[StringName]([&"basic_attack", &"shove", &"dodge", &"dash", &"disengage"])
+ability_ids = Array[StringName]([&"basic_attack", &"shove", &"dodge", &"dash", &"disengage", &"talk"])
 equipment_slots = {
 &"weapon": &"longsword",
-&"armor": &"leather_armor"
+&"armor": &"chainmail"
 }
 starting_inventory = Array[StringName]([&"healing_potion"])

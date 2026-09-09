@@ -78,6 +78,11 @@ func _test_approach_then_attack(map: CompiledMapController, failures: Array[Stri
 	var target_id: int = map.hostile_views.keys()[0]
 	var target := map.battle_state.actors[target_id] as ActorState
 	var player := map.battle_state.actors[map.character.actor_id] as ActorState
+	# _test_state_changed_health_update just hit this same actor with AC forced
+	# to 0, and a light stat block can be downed by that one roll. Restore it, so
+	# this test measures approach-then-attack rather than the previous damage roll.
+	target.hp = target.max_hp
+	target.condition_states.clear()
 	var start := target.position + Vector3(4.0, 0.0, 0.0)
 	player.position = start
 	player.movement_remaining = player.movement_speed

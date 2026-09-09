@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ActorDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/actor_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"bandit_chieftain"
+display_name = "Bandit Chieftain"
+max_hp = 14
+armor_class = 13
+strength = 14
+dexterity = 12
+constitution = 13
+intelligence = 10
+wisdom = 11
+charisma = 13
+proficiency_bonus = 2
+movement_speed = 8.0
+attack_bonus = 3
+damage_die = 6
+damage_modifier = 2
+ability_ids = Array[StringName]([&"basic_attack", &"dash", &"disengage"])
+equipment_slots = {
+&"weapon": &"dagger"
+}
+starting_inventory = Array[StringName]([&"healing_potion"])

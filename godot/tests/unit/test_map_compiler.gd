@@ -29,6 +29,7 @@ static func run() -> Dictionary:
 	_test_dense_forest_stays_walkable(failures)
 	_test_scatter_respects_poisson_spacing(failures)
 	_test_scatter_density_is_patchy(failures)
+	_test_dialog_and_stat_block_cross_references(failures)
 	return {"name": "unit/test_map_compiler", "failures": failures}
 
 
@@ -137,6 +138,84 @@ static func _test_compiler_places_actor_visuals(failures: Array[String]) -> void
 	_expect(result.is_valid() and result.root != null and result.root.get_node_or_null("guard") != null, "actor archetype did not compile into a visual node", failures)
 	if result.root != null:
 		result.root.free()
+
+
+## The JSON Schema can check a dialog's shape but not that its references
+## resolve, so these are the checks that stop an authored conversation from
+## silently jumping nowhere or pacifying nobody.
+static func _dialog_spec(dialogs: Array, actors: Array, encounters: Array = []) -> Dictionary:
+	return {
+		"map": {"id": "dialog_map", "seed": 1, "bounds": {"width_m": 64, "height_m": 64}},
+		"terrain": {"profile": "flat"},
+		"actors": actors,
+		"encounters": encounters,
+		"dialogs": dialogs,
+	}
+
+
+static func _compile_codes(spec: Dictionary) -> Array[StringName]:
+	var result := CompilerScript.new().compile(spec)
+	var codes: Array[StringName] = []
+	for error in result.errors:
+		codes.append(error.code)
+	if result.root != null:
+		result.root.free()
+	return codes
+
+
+static func _test_dialog_and_stat_block_cross_references(failures: Array[String]) -> void:
+	var talker := {"id": "chief", "archetype": "character_knight_01", "position": [32, 16], "dialog": "toll"}
+	var encounters := [{"id": "ambush", "position": [32, 16], "actor_ids": ["chief"]}]
+	var good_dialog := [{"id": "toll", "root": "greeting", "nodes": [
+		{"id": "greeting", "text": "Pay up.", "options": [
+			{"text": "Bluff", "check": {"ability": "charisma", "dc": 12}, "outcome": {"next": "aside"}, "failure_outcome": {"effect": "start_combat"}},
+		]},
+		{"id": "aside", "text": "Go on.", "options": [{"text": "Go", "outcome": {"effect": "pacify_encounter"}}]},
+	]}]
+	_expect(_compile_codes(_dialog_spec(good_dialog, [talker], encounters)).is_empty(), "a well-formed dialog should compile without errors", failures)
+
+	var bad_root := [{"id": "toll", "root": "nowhere", "nodes": [{"id": "greeting", "text": "Pay up."}]}]
+	_expect(_compile_codes(_dialog_spec(bad_root, [talker], encounters)).has(&"UNKNOWN_DIALOG_NODE"), "a dialog opening on a missing node should be rejected", failures)
+
+	var bad_jump := [{"id": "toll", "root": "greeting", "nodes": [
+		{"id": "greeting", "text": "Pay up.", "options": [{"text": "Go", "outcome": {"next": "missing"}}]},
+	]}]
+	_expect(_compile_codes(_dialog_spec(bad_jump, [talker], encounters)).has(&"UNKNOWN_DIALOG_NODE"), "an option jumping to a missing node should be rejected", failures)
+
+	var duplicate_nodes := [{"id": "toll", "root": "greeting", "nodes": [
+		{"id": "greeting", "text": "Pay up."}, {"id": "greeting", "text": "Again."},
+	]}]
+	_expect(_compile_codes(_dialog_spec(duplicate_nodes, [talker], encounters)).has(&"DUPLICATE_DIALOG_NODE"), "a dialog declaring one node id twice should be rejected", failures)
+
+	var malformed_node := [{"id": "toll", "root": "greeting", "nodes": [
+		{"id": "greeting", "text": "Pay up."}, {"id": "Not An Id", "text": "..."},
+	]}]
+	_expect(_compile_codes(_dialog_spec(malformed_node, [talker], encounters)).has(&"MALFORMED_ID"), "a malformed node id should be rejected", failures)
+
+	var checkless_failure := [{"id": "toll", "root": "greeting", "nodes": [
+		{"id": "greeting", "text": "Pay up.", "options": [{"text": "Bluff", "check": {"ability": "charisma", "dc": 12}, "outcome": {"effect": "end"}}]},
+	]}]
+	_expect(_compile_codes(_dialog_spec(checkless_failure, [talker], encounters)).has(&"INVALID_DIALOG_OPTION"), "a check with no failure_outcome should be rejected", failures)
+
+	var stranger := {"id": "chief", "archetype": "character_knight_01", "position": [32, 16], "dialog": "missing_dialog"}
+	_expect(_compile_codes(_dialog_spec(good_dialog, [stranger], encounters)).has(&"UNKNOWN_DIALOG"), "an actor naming a missing dialog should be rejected", failures)
+
+	# The one that actually bites in play: pacify_encounter has nothing to act
+	# on when the speaker belongs to no encounter, so it would silently no-op.
+	_expect(_compile_codes(_dialog_spec(good_dialog, [talker], [])).has(&"DIALOG_WITHOUT_ENCOUNTER"), "a dialog that pacifies an encounter its speaker is not in should be rejected", failures)
+
+	# The hole that shipped once already: a camp made neutral so it can be
+	# approached, but with nothing to say, is scenery the player walks past.
+	var mute := {"id": "chief", "archetype": "character_knight_01", "position": [32, 16], "initial_disposition": "neutral"}
+	_expect(_compile_codes(_dialog_spec([], [mute], encounters)).has(&"INERT_ENCOUNTER"), "an all-neutral encounter with no dialog should be rejected", failures)
+	var mute_but_hostile := {"id": "chief", "archetype": "character_knight_01", "position": [32, 16]}
+	_expect(not _compile_codes(_dialog_spec([], [mute_but_hostile], encounters)).has(&"INERT_ENCOUNTER"), "a hostile encounter needs no dialog to be reachable", failures)
+	_expect(not _compile_codes(_dialog_spec(good_dialog, [talker], encounters)).has(&"INERT_ENCOUNTER"), "a neutral encounter with a dialog is reachable by talking", failures)
+
+	var bad_block := {"id": "chief", "archetype": "character_knight_01", "position": [32, 16], "stat_block": "not_a_stat_block"}
+	_expect(_compile_codes(_dialog_spec([], [bad_block])).has(&"UNKNOWN_STAT_BLOCK"), "an actor naming a missing stat block should be rejected", failures)
+	var good_block := {"id": "chief", "archetype": "character_knight_01", "position": [32, 16], "stat_block": "bandit_scout"}
+	_expect(not _compile_codes(_dialog_spec([], [good_block])).has(&"UNKNOWN_STAT_BLOCK"), "a real stat block should compile", failures)
 
 
 static func _test_wall_blockers_match_navigation(failures: Array[String]) -> void:

@@ -79,6 +79,7 @@ func stable_snapshot() -> Dictionary:
 			"bonus_action_available": actor.bonus_action_available,
 			"reaction_available": actor.reaction_available,
 			"disengaged": actor.disengaged,
+			"disposition": String(actor.disposition),
 			"condition_states": actor.condition_states.map(func(condition: ConditionState): return condition.to_dict()),
 			"inventory": actor.inventory,
 		})

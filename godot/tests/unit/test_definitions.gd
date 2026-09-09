@@ -20,6 +20,8 @@ static func run() -> Dictionary:
 	_test_consumable_metadata_defaults_clone_and_resource_round_trip(failures)
 	_test_perform_attack_effect_checks_and_spends_full_ability_cost(failures)
 	_test_attack_targeting_range_uses_ability_data(failures)
+	_test_talk_ability_is_authored_for_exploration(failures)
+	_test_bandit_stat_blocks_and_chainmail_are_loadable(failures)
 	return {"name": "unit/test_definitions", "failures": failures}
 
 
@@ -247,6 +249,36 @@ static func _json_dictionary(data: Dictionary) -> Dictionary:
 	if parsed is Dictionary:
 		return parsed
 	return {}
+
+
+static func _test_talk_ability_is_authored_for_exploration(failures: Array[String]) -> void:
+	var talk := DefinitionLibrary.get_default().get_ability(&"talk")
+	_expect(talk != null, "the default library is missing the talk ability", failures)
+	if talk == null:
+		return
+	_expect(talk.usable_in_exploration, "talk must be usable outside combat or an NPC can never be addressed", failures)
+	_expect(not talk.costs_action, "talking should not cost an action", failures)
+	_expect(is_zero_approx(talk.movement_cost), "talk must not declare a movement cost, or drifting movement would start rejecting it", failures)
+	_expect(talk.targeting == &"actor" and is_equal_approx(talk.target_range_meters, 3.0), "talk should be an actor-targeted ability with an authored range", failures)
+	_expect(talk.effects.size() == 1 and talk.effects[0].type == &"start_dialog", "talk should carry exactly one start_dialog effect", failures)
+
+
+static func _test_bandit_stat_blocks_and_chainmail_are_loadable(failures: Array[String]) -> void:
+	var definitions := DefinitionLibrary.get_default()
+	for stat_block_id in [&"bandit_scout", &"bandit_raider", &"bandit_chieftain"]:
+		var block := definitions.get_actor(stat_block_id)
+		_expect(block != null, "the default library is missing the %s stat block" % stat_block_id, failures)
+		if block == null:
+			continue
+		# The dagger is worn for the held model only; every number that matters
+		# is authored on the stat block itself.
+		_expect(block.max_hp > 0 and block.armor_class > 0, "%s should author its own HP and AC" % stat_block_id, failures)
+		_expect(block.ability_ids.has(&"basic_attack"), "%s should be able to attack" % stat_block_id, failures)
+	var chainmail := definitions.get_item(&"chainmail")
+	_expect(chainmail != null and chainmail.slot == &"armor" and chainmail.armor_class_bonus == 5, "chainmail should be armor worth +5 AC", failures)
+	var knight := definitions.get_actor(&"knight")
+	_expect(knight != null and knight.equipment_slots.get(&"armor", &"") == &"chainmail", "the knight should be wearing the rebalanced armor", failures)
+	_expect(knight != null and knight.ability_ids.has(&"talk"), "the knight should be able to start a conversation", failures)
 
 
 static func _expect(condition: bool, message: String, failures: Array[String]) -> void:

@@ -47,6 +47,20 @@ var inventory: Array[StringName] = []
 ## never looks this up.
 var definition_id: StringName = &""
 
+## Social stance, deliberately separate from `side`. `side` stays the combat
+## team; this decides whether the actor is currently out for your blood. Only
+## &"hostile" actors trigger encounter detection, so a &"neutral" enemy-side
+## actor can be walked up to and talked to until it is provoked. Authored per
+## map instance (MapSpec actor.initial_disposition), not per stat block, and
+## changed only by the set_disposition command.
+var disposition: StringName = &"hostile"
+
+## Dialog graph this actor opens when talked to; &"" means not talkable.
+## Authored per map instance (MapSpec actor.dialog), not part of the
+## ActorDefinition, so the same stat block can be silent on one map and
+## talkative on another.
+var dialog_id: StringName = &""
+
 
 ## Builds a fresh ActorState from stable content instead of a caller setting
 ## HP/AC/etc. constants by hand. The result is fully independent of
@@ -112,6 +126,8 @@ func clone() -> ActorState:
 	copy.equipment_slots = equipment_slots.duplicate()
 	copy.inventory = inventory.duplicate()
 	copy.definition_id = definition_id
+	copy.disposition = disposition
+	copy.dialog_id = dialog_id
 	return copy
 
 
@@ -224,6 +240,8 @@ func to_dict() -> Dictionary:
 		"equipment_slots": _equipment_slots_to_data(equipment_slots),
 		"inventory": SimulationSerialization.value_to_data(inventory),
 		"definition_id": String(definition_id),
+		"disposition": String(disposition),
+		"dialog_id": String(dialog_id),
 	}
 
 
@@ -285,4 +303,6 @@ static func from_dict(data: Dictionary) -> ActorState:
 		for item_id in restored_inventory:
 			actor.inventory.append(StringName(str(item_id)))
 	actor.definition_id = StringName(str(data.get("definition_id", "")))
+	actor.disposition = StringName(str(data.get("disposition", "hostile")))
+	actor.dialog_id = StringName(str(data.get("dialog_id", "")))
 	return actor

@@ -18,6 +18,11 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 	_validate_required_data(spec, result.errors)
 	if not result.errors.is_empty():
 		return result
+	# Dialog/stat-block references are pure data cross-checks with no terrain or
+	# navigation dependency, so they fail before any compilation cost is paid.
+	_validate_dialog_references(spec, result.errors)
+	if not result.errors.is_empty():
+		return result
 	result.music = spec.get("music", {}).duplicate()
 	var map: Dictionary = spec["map"]
 	var bounds_data: Dictionary = map["bounds"]
@@ -295,12 +300,12 @@ func _validate_required_data(spec: Dictionary, errors: Array[MapValidationError]
 	if not spec.has("map") or not spec.map is Dictionary or not spec.map.has("seed") or not spec.map.has("bounds"):
 		_add(errors, &"MISSING_REQUIRED_DATA", "validated MapSpec requires map.seed and map.bounds", &"map")
 		return
-	for group in ["structures", "walls", "vegetation", "hills", "pickups", "interactables", "actors", "spawn_points", "regions", "rivers", "roads", "bridges", "objectives", "encounters", "doors"]:
+	for group in ["structures", "walls", "vegetation", "hills", "pickups", "interactables", "actors", "spawn_points", "regions", "rivers", "roads", "bridges", "objectives", "encounters", "doors", "dialogs"]:
 		if spec.has(group) and not spec[group] is Array:
 			_add(errors, &"MISSING_REQUIRED_DATA", "'%s' must be an array" % group, StringName(group))
 	var id_regex := RegEx.new()
 	id_regex.compile(ID_PATTERN)
-	for group in ["structures", "walls", "vegetation", "hills", "pickups", "interactables", "actors", "spawn_points", "regions", "rivers", "roads", "bridges", "objectives", "encounters", "doors"]:
+	for group in ["structures", "walls", "vegetation", "hills", "pickups", "interactables", "actors", "spawn_points", "regions", "rivers", "roads", "bridges", "objectives", "encounters", "doors", "dialogs"]:
 		for entity in spec.get(group, []):
 			var id := String(entity.get("id", ""))
 			if id_regex.search(id) == null or id_regex.search(id).get_string() != id:
@@ -329,6 +334,83 @@ func _non_degenerate_points(points: PackedVector2Array) -> PackedVector2Array:
 
 func _fits_bounds(point: Vector2, radius: float, bounds: Vector2) -> bool:
 	return is_finite(point.x) and is_finite(point.y) and point.x - radius >= 0.0 and point.y - radius >= 0.0 and point.x + radius <= bounds.x and point.y + radius <= bounds.y
+
+
+## Cross-references the schema cannot express: a dialog id an actor names must
+## exist, every node id an outcome jumps to must exist inside that same dialog,
+## a stat_block must be real content, and a dialog that pacifies or starts a
+## fight needs an encounter to act on -- otherwise those outcomes silently
+## no-op at runtime.
+func _validate_dialog_references(spec: Dictionary, errors: Array[MapValidationError]) -> void:
+	var id_regex := RegEx.new()
+	id_regex.compile(ID_PATTERN)
+	var node_ids_by_dialog: Dictionary = {}
+	var group_effects_by_dialog: Dictionary = {}
+	for dialog in spec.get("dialogs", []):
+		var dialog_id := String(dialog.get("id", ""))
+		var node_ids: Array[String] = []
+		var uses_encounter := false
+		for node in dialog.get("nodes", []):
+			var node_id := String(node.get("id", ""))
+			var matched := id_regex.search(node_id)
+			if matched == null or matched.get_string() != node_id:
+				_add(errors, &"MALFORMED_ID", "dialog '%s' has malformed node id '%s'" % [dialog_id, node_id], StringName(dialog_id))
+				continue
+			if node_ids.has(node_id):
+				_add(errors, &"DUPLICATE_DIALOG_NODE", "dialog '%s' declares node '%s' twice" % [dialog_id, node_id], StringName(dialog_id))
+				continue
+			node_ids.append(node_id)
+		node_ids_by_dialog[dialog_id] = node_ids
+		var root := String(dialog.get("root", ""))
+		if not node_ids.has(root):
+			_add(errors, &"UNKNOWN_DIALOG_NODE", "dialog '%s' opens on unknown node '%s'" % [dialog_id, root], StringName(dialog_id))
+		for node in dialog.get("nodes", []):
+			for option in node.get("options", []):
+				if option.has("check") and not option.has("failure_outcome"):
+					_add(errors, &"INVALID_DIALOG_OPTION", "dialog '%s' node '%s' has a check with no failure_outcome" % [dialog_id, node.get("id", "")], StringName(dialog_id))
+				for key in ["outcome", "failure_outcome"]:
+					var outcome: Dictionary = option.get(key, {})
+					var next := String(outcome.get("next", ""))
+					if not next.is_empty() and not node_ids.has(next):
+						_add(errors, &"UNKNOWN_DIALOG_NODE", "dialog '%s' node '%s' jumps to unknown node '%s'" % [dialog_id, node.get("id", ""), next], StringName(dialog_id))
+					var effect := String(outcome.get("effect", "none"))
+					uses_encounter = uses_encounter or effect == "pacify_encounter" or effect == "start_combat"
+		group_effects_by_dialog[dialog_id] = uses_encounter
+	var encountered_actor_ids: Array[String] = []
+	for encounter in spec.get("encounters", []):
+		for actor_id in encounter.get("actor_ids", []):
+			encountered_actor_ids.append(str(actor_id))
+	# An encounter whose members are all neutral and none of whom carry a dialog
+	# can never start (detection only fires on a hostile actor) and can never be
+	# parleyed. It is scenery the player will walk past with no feedback at all.
+	var actors_by_id: Dictionary = {}
+	for actor in spec.get("actors", []):
+		actors_by_id[String(actor.get("id", ""))] = actor
+	for encounter in spec.get("encounters", []):
+		var members: Array = encounter.get("actor_ids", [])
+		if members.is_empty():
+			continue
+		var can_trigger := false
+		var can_talk := false
+		for member_id in members:
+			var member: Dictionary = actors_by_id.get(str(member_id), {})
+			can_trigger = can_trigger or String(member.get("initial_disposition", "hostile")) == "hostile"
+			can_talk = can_talk or not String(member.get("dialog", "")).is_empty()
+		if not can_trigger and not can_talk:
+			_add(errors, &"INERT_ENCOUNTER", "encounter '%s' is all-neutral and has no dialog, so it can never start or be talked to" % encounter.get("id", "encounter"), StringName(encounter.get("id", "")))
+	var definitions := DefinitionLibrary.get_default()
+	for actor in spec.get("actors", []):
+		var actor_id := String(actor.get("id", ""))
+		var stat_block := String(actor.get("stat_block", ""))
+		if not stat_block.is_empty() and not definitions.has_actor(StringName(stat_block)):
+			_add(errors, &"UNKNOWN_STAT_BLOCK", "actor '%s' names unknown stat_block '%s'" % [actor_id, stat_block], StringName(actor_id))
+		var dialog_id := String(actor.get("dialog", ""))
+		if dialog_id.is_empty():
+			continue
+		if not node_ids_by_dialog.has(dialog_id):
+			_add(errors, &"UNKNOWN_DIALOG", "actor '%s' names unknown dialog '%s'" % [actor_id, dialog_id], StringName(actor_id))
+		elif bool(group_effects_by_dialog.get(dialog_id, false)) and not encountered_actor_ids.has(actor_id):
+			_add(errors, &"DIALOG_WITHOUT_ENCOUNTER", "actor '%s' runs dialog '%s', which pacifies or starts an encounter, but belongs to none" % [actor_id, dialog_id], StringName(actor_id))
 
 
 func _add(errors: Array[MapValidationError], code: StringName, message: String, id: StringName = &"", context: Dictionary = {}) -> void:

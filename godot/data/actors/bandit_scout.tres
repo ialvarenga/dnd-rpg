@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="ActorDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/actor_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"bandit_scout"
+display_name = "Bandit Scout"
+max_hp = 7
+armor_class = 12
+strength = 10
+dexterity = 14
+constitution = 10
+intelligence = 9
+wisdom = 10
+charisma = 9
+proficiency_bonus = 2
+movement_speed = 8.0
+attack_bonus = 2
+damage_die = 4
+damage_modifier = 0
+ability_ids = Array[StringName]([&"basic_attack", &"dash", &"disengage"])
+equipment_slots = {
+&"weapon": &"dagger"
+}
+starting_inventory = Array[StringName]([])

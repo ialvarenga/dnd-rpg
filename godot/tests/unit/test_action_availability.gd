@@ -21,6 +21,7 @@ static func run() -> Dictionary:
 	_test_movement_resource_agrees_with_resolver(failures)
 	_test_unknown_ability_agrees_with_resolver(failures)
 	_test_unknown_actor_is_unavailable(failures)
+	_test_exploration_ability_is_available_and_agrees_with_resolver(failures)
 	return {"name": "unit/test_action_availability", "failures": failures}
 
 
@@ -114,6 +115,29 @@ static func _custom_library_with_full_cost_dash() -> DefinitionLibrary:
 	dash.effects = [effect]
 	library.add_ability(dash)
 	return library
+
+
+## An ability that declares usable_in_exploration must be offered outside
+## combat, and the resolver must actually accept it -- while `dash`, which does
+## not declare it, must still report not_in_combat. That second half is the
+## regression guard for reordering Resolver's dispatch around the phase gate.
+static func _test_exploration_ability_is_available_and_agrees_with_resolver(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle()
+	state.phase = &"exploration"
+	var talker: ActorState = state.actors[1]
+	talker.ability_ids = [&"talk", &"dash"]
+	(state.actors[2] as ActorState).dialog_id = &"emberwatch_toll"
+	(state.actors[2] as ActorState).position = talker.position + Vector3(1.0, 0.0, 0.0)
+
+	var talk_evaluation := ActionAvailability.evaluate(state, 1, &"talk")
+	_expect(bool(talk_evaluation["available"]), "an ability marked usable_in_exploration should be offered outside combat", failures)
+	var talk_command := Command.create(&"talk", 1)
+	talk_command.target_id = 2
+	var talk_result := Resolver.resolve(state, talk_command, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(talk_result.events.any(func(event: Event): return event.type == &"dialog_started"), "the resolver should accept the ability ActionAvailability reported available", failures)
+
+	var dash_evaluation := ActionAvailability.evaluate(state, 1, &"dash")
+	_assert_agrees_with_resolver(state, 1, &"dash", dash_evaluation, &"not_in_combat", failures)
 
 
 static func _assert_agrees_with_resolver(state: BattleState, actor_id: int, ability_id: StringName, evaluation: Dictionary, expected_reason: StringName, failures: Array[String], defs: DefinitionLibrary = null) -> void:

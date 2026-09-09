@@ -12,6 +12,7 @@ const TestConsumablesScript = preload("res://tests/unit/test_consumables.gd")
 const TestTargetedActionPlannerScript = preload("res://tests/unit/test_targeted_action_planner.gd")
 const TestInteractableActionPlannerScript = preload("res://tests/unit/test_interactable_action_planner.gd")
 const TestPathPreviewRendererScript = preload("res://tests/unit/test_path_preview_renderer.gd")
+const TestDialogRuntimeScript = preload("res://tests/integration/test_dialog_runtime.gd")
 
 func _init() -> void:
 	call_deferred("_run")
@@ -19,7 +20,7 @@ func _init() -> void:
 
 func _run() -> void:
 	var failure_count := 0
-	var suites := [TestSimulation, TestDefinitions, TestActionAvailability, TestHudViewModel, TestEquipment, TestGameplayRules, TestInteractables, TestAssetCatalog, TestTerrainProviderScript, TestMapCompilerScript, TestCharacterAnimatorScript, TestEnemyAI, TestConsumablesScript, TestTargetedActionPlannerScript, TestInteractableActionPlannerScript, TestPathPreviewRendererScript, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion, TestEncounterSession]
+	var suites := [TestSimulation, TestDefinitions, TestActionAvailability, TestHudViewModel, TestEquipment, TestGameplayRules, TestInteractables, TestAssetCatalog, TestTerrainProviderScript, TestMapCompilerScript, TestCharacterAnimatorScript, TestEnemyAI, TestConsumablesScript, TestTargetedActionPlannerScript, TestInteractableActionPlannerScript, TestPathPreviewRendererScript, TestAbilityCheck, TestDialogSession, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion, TestEncounterSession]
 	for suite in suites:
 		var report: Dictionary = suite.run()
 		var failures: Array = report["failures"]
@@ -29,7 +30,7 @@ func _run() -> void:
 			for failure in failures:
 				push_error("FAIL %s: %s" % [report["name"], failure])
 			failure_count += failures.size()
-	for async_suite_script in [TestArenaRuntimeScript, TestEventPlayerFeedbackScript, TestCompiledMapHealthBarsScript, TestHudBindingScript, TestGameplayOutcomeRuntimeScript]:
+	for async_suite_script in [TestArenaRuntimeScript, TestEventPlayerFeedbackScript, TestCompiledMapHealthBarsScript, TestHudBindingScript, TestDialogRuntimeScript, TestGameplayOutcomeRuntimeScript]:
 		var async_suite := async_suite_script.new() as Node
 		root.add_child(async_suite)
 		var async_report: Dictionary = await async_suite.run()

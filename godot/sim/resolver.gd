@@ -13,7 +13,10 @@ extends RefCounted
 ## (bonus_action/reaction/movement_cost), not only costs_action.
 ## Bump 3: actor-targeted abilities may author their range at the ability
 ## boundary, shared by resolution, targeting previews, and approach planning.
-const RULES_VERSION: int = 4
+## Bump 5: adds skill_check and set_disposition commands, the start_dialog
+## ability effect, and lets an ability opt into resolving outside combat
+## (usable_in_exploration) instead of every ability being combat-gated.
+const RULES_VERSION: int = 5
 
 const ATTACK_RANGE_METERS := 1.5
 const THREAT_RANGE_METERS := 1.5
@@ -28,6 +31,7 @@ const CommandPhaseRulesScript = preload("res://sim/rules/command_phase_rules.gd"
 const AbilityCostRulesScript = preload("res://sim/rules/ability_cost_rules.gd")
 const AbilityTargetingRules = preload("res://sim/ability_targeting.gd")
 const EquipmentRules = preload("res://sim/equipment.gd")
+const AbilityCheckRules = preload("res://sim/rules/ability_check.gd")
 
 const EFFECT_ADD_BASE_MOVEMENT := &"add_base_movement"
 const EFFECT_APPLY_CONDITION := &"apply_condition"
@@ -37,6 +41,12 @@ const EFFECT_PERFORM_ATTACK := &"perform_attack"
 const EFFECT_SAVING_THROW := &"saving_throw"
 const EFFECT_HEAL := &"heal"
 const EFFECT_CONSUME_ITEM := &"consume_item"
+const EFFECT_START_DIALOG := &"start_dialog"
+
+## Every social stance set_disposition accepts. Kept beside the interactable
+## transition table: a small fixed vocabulary the resolver validates against
+## rather than trusting whatever a caller puts in metadata.
+const DISPOSITIONS: Array[StringName] = [&"hostile", &"neutral"]
 
 const INTERACT_RANGE_EPSILON := 0.0001
 
@@ -74,6 +84,19 @@ static func _resolve_command(state: BattleState, cmd: Command, nav: NavProvider,
 		return _resolve_move(state, cmd, nav, los, definitions, result)
 	if cmd.type == &"interact" and state.phase == EncounterRules.EXPLORATION:
 		return _resolve_interact(state, cmd, result, false)
+	if cmd.type == &"skill_check":
+		return _resolve_skill_check(state, cmd, result)
+	if cmd.type == &"set_disposition":
+		return _resolve_set_disposition(state, cmd, result)
+	# Abilities resolve their own phase gate, because one may declare
+	# usable_in_exploration. Everything else stays behind the combat turn gate,
+	# in the same order as before.
+	var ability_id := AbilityRoutingRules.ability_id_for_command(cmd.type) if AbilityRoutingRules.is_ability_command(cmd.type) else (cmd.type if definitions.has_ability(cmd.type) else &"")
+	if ability_id != &"":
+		var ability_rejection := CommandPhaseRulesScript.rejection_for_ability(state, cmd.actor_id, definitions.get_ability(ability_id))
+		if ability_rejection != &"":
+			return _rejected(result, cmd, ability_rejection)
+		return _resolve_ability_command(state, cmd, los, definitions, result, ability_id)
 	var phase_rejection := CommandPhaseRulesScript.rejection_for_combat_turn(state, cmd.actor_id)
 	if phase_rejection != &"":
 		return _rejected(result, cmd, phase_rejection)
@@ -83,10 +106,6 @@ static func _resolve_command(state: BattleState, cmd: Command, nav: NavProvider,
 		return _resolve_interact(state, cmd, result, true)
 	if cmd.type == &"end_turn":
 		return _resolve_end_turn(state, cmd, result)
-	if AbilityRoutingRules.is_ability_command(cmd.type):
-		return _resolve_ability_command(state, cmd, los, definitions, result, AbilityRoutingRules.ability_id_for_command(cmd.type))
-	if definitions.has_ability(cmd.type):
-		return _resolve_ability_command(state, cmd, los, definitions, result, cmd.type)
 	return _rejected(result, cmd, RejectionReasonRules.UNSUPPORTED_COMMAND)
 
 
@@ -278,6 +297,10 @@ static func _resolve_ability_command(state: BattleState, cmd: Command, los: LosP
 		if los.cover_between(actor.position, target.position) == LosProvider.COVER_TOTAL:
 			return _rejected(result, cmd, RejectionReasonRules.NO_LINE_OF_SIGHT)
 	var has_attack := ability.effects.any(func(effect: AbilityEffect): return effect.type == EFFECT_PERFORM_ATTACK)
+	# Effects only ever append events, so "this actor has nothing to say" has to
+	# be a rejection here. Keyed off the effect type, never off an ability id.
+	if ability.effects.any(func(effect: AbilityEffect): return effect.type == EFFECT_START_DIALOG) and (target == null or target.dialog_id == &""):
+		return _rejected(result, cmd, RejectionReasonRules.TARGET_HAS_NO_DIALOG)
 	_spend_ability_cost(result, actor, ability, not has_attack, not has_attack)
 	var working := state.clone()
 	var source: ActorState = working.actors[actor.id]
@@ -304,6 +327,59 @@ static func _resolve_ability_command(state: BattleState, cmd: Command, los: LosP
 	return result
 
 
+## Generic d20 check against a DC. Every parameter arrives in cmd.metadata --
+## ability, skill, dc, proficient -- so the resolver never learns who is being
+## persuaded or why; the dialog layer owns that. Legal in any phase and spends
+## nothing, because a check is not an action.
+static func _resolve_skill_check(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
+	var actor: ActorState = state.actors[cmd.actor_id]
+	var conscious_rejection := CommandPhaseRulesScript.rejection_for_conscious(actor)
+	if conscious_rejection != &"":
+		return _rejected(result, cmd, conscious_rejection)
+	var ability := StringName(str(cmd.metadata.get("ability", "")))
+	if not AbilityCheckRules.is_ability_score(ability):
+		return _rejected(result, cmd, RejectionReasonRules.INVALID_ABILITY_SCORE)
+	var difficulty_class := int(cmd.metadata.get("dc", 0))
+	if difficulty_class < 1:
+		return _rejected(result, cmd, RejectionReasonRules.INVALID_DIFFICULTY_CLASS)
+	var proficient := bool(cmd.metadata.get("proficient", false))
+	var roll := AbilityCheckRules.resolve(state.rng_state, actor, ability, difficulty_class, proficient)
+	result.events.append(Event.create(&"skill_check_rolled", {
+		"actor_id": actor.id,
+		"target_id": cmd.target_id,
+		"ability": ability,
+		"skill": StringName(str(cmd.metadata.get("skill", ""))),
+		"difficulty_class": difficulty_class,
+		"modifier": int(roll["modifier"]),
+		"roll": int(roll["roll"]),
+		"rolls": roll["rolls"],
+		"total": int(roll["total"]),
+		"success": bool(roll["success"]),
+		"advantage": bool(roll["advantage"]),
+		"disadvantage": bool(roll["disadvantage"]),
+	}))
+	result.next_rng_state = int(roll["next_rng_state"])
+	return result
+
+
+## cmd.actor_id is the subject whose stance changes, so the shared
+## UNKNOWN_ACTOR guard already covers it. Exploration only: talking a fight
+## down mid-combat is out of scope for V1.
+static func _resolve_set_disposition(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
+	if state.phase != EncounterRules.EXPLORATION:
+		return _rejected(result, cmd, RejectionReasonRules.COMBAT_ALREADY_ACTIVE)
+	var disposition := StringName(str(cmd.metadata.get("disposition", "")))
+	if not DISPOSITIONS.has(disposition):
+		return _rejected(result, cmd, RejectionReasonRules.INVALID_DISPOSITION)
+	var actor: ActorState = state.actors[cmd.actor_id]
+	result.events.append(Event.create(&"disposition_changed", {
+		"actor_id": actor.id,
+		"previous_disposition": actor.disposition,
+		"disposition": disposition,
+	}))
+	return result
+
+
 static func _spend_ability_cost(result: ResolutionResult, actor: ActorState, ability: AbilityDefinition, include_action: bool = true, include_reaction: bool = true) -> void:
 	if include_action and ability.costs_action:
 		result.events.append(Event.create(&"action_spent", {"actor_id": actor.id, "action": ability.id}))
@@ -327,6 +403,11 @@ static func _apply_generic_effect(result: ResolutionResult, working: BattleState
 		EFFECT_ADD_BASE_MOVEMENT:
 			var amount := actor.movement_speed * effect.multiplier
 			result.events.append(Event.create(&"movement_gained", {"actor_id": actor.id, "amount": amount, "movement_remaining_before": actor.movement_remaining, "movement_remaining_after": actor.movement_remaining + amount}))
+		EFFECT_START_DIALOG:
+			# Opening a conversation changes no state; the dialog layer reads
+			# this event and drives the graph. dialog_id comes off the target's
+			# authoritative state, not off caller metadata.
+			result.events.append(Event.create(&"dialog_started", {"actor_id": actor.id, "target_id": recipient.id, "dialog_id": recipient.dialog_id}))
 		EFFECT_APPLY_DISENGAGE:
 			result.events.append(Event.create(&"disengage_applied", {"actor_id": actor.id}))
 		EFFECT_APPLY_CONDITION:
@@ -675,6 +756,7 @@ static func apply(state: BattleState, event: Event) -> void:
 		&"action_spent": (state.actors[event.data["actor_id"]] as ActorState).action_available = false
 		&"bonus_action_spent": (state.actors[event.data["actor_id"]] as ActorState).bonus_action_available = false
 		&"disengage_applied": (state.actors[event.data["actor_id"]] as ActorState).disengaged = true
+		&"disposition_changed": (state.actors[event.data["actor_id"]] as ActorState).disposition = StringName(str(event.data["disposition"]))
 		&"reaction_triggered": (state.actors[event.data["actor_id"]] as ActorState).reaction_available = false
 		&"attack_rolled":
 			var attacking_actor: ActorState = state.actors[event.data["actor_id"]]
