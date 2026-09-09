@@ -5,6 +5,7 @@ script = ExtResource("1")
 mouse_filter = 0
 toggle_mode = true
 custom_minimum_size = Vector2(56, 56)
+icon_alignment = 1
 theme_override_constants/icon_max_width = 28
 [node name="Hotkey" type="Label" parent="."]
 anchor_left = 1.0

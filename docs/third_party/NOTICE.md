@@ -75,9 +75,9 @@ adapted; see `reuse-audit.md` for the immutable source and decision.
 
 All icons below are CC BY 3.0 and are copied unmodified from the
 [`game-icons/icons`](https://github.com/game-icons/icons) repository. Required
-credit: “Icons made by Lorc, available on https://game-icons.net”. The
-view-side `IconSet` resource assigns them by stable UI id; no icon is gameplay
-authority.
+credit: “Icons made by Lorc, Delapouite, Felbrigg, Skoll, and Willdabeast,
+available on https://game-icons.net”. The view-side `IconSet` resource assigns
+them by stable UI id; no icon is gameplay authority.
 
 | Local file | Icon | Artist | Source |
 | --- | --- | --- | --- |
@@ -85,6 +85,15 @@ authority.
 | `godot/assets/game_icons/run.svg` | Run | Lorc | https://game-icons.net/1x1/lorc/run.html |
 | `godot/assets/game_icons/bordered-shield.svg` | Bordered Shield | Lorc | https://game-icons.net/1x1/lorc/bordered-shield.html |
 | `godot/assets/game_icons/return-arrow.svg` | Return Arrow | Lorc | https://game-icons.net/1x1/lorc/return-arrow.html |
+| `godot/assets/game_icons/bow-arrow.svg` | Bow Arrow | Delapouite | https://game-icons.net/1x1/delapouite/bow-arrow.html |
+| `godot/assets/game_icons/push.svg` | Push | Delapouite | https://game-icons.net/1x1/delapouite/push.html |
+| `godot/assets/game_icons/dodge.svg` | Dodge | Felbrigg | https://game-icons.net/1x1/felbrigg/dodge.html |
+| `godot/assets/game_icons/avoidance.svg` | Avoidance | Delapouite | https://game-icons.net/1x1/delapouite/avoidance.html |
+| `godot/assets/game_icons/health-potion.svg` | Health Potion | Delapouite | https://game-icons.net/1x1/delapouite/health-potion.html |
+| `godot/assets/game_icons/sword-hilt.svg` | Sword Hilt | Lorc | https://game-icons.net/1x1/lorc/sword-hilt.html |
+| `godot/assets/game_icons/bowie-knife.svg` | Bowie Knife | Skoll | https://game-icons.net/1x1/skoll/bowie-knife.html |
+| `godot/assets/game_icons/leather-armor.svg` | Leather Armor | Delapouite | https://game-icons.net/1x1/delapouite/leather-armor.html |
+| `godot/assets/game_icons/chain-mail.svg` | Chain Mail | Willdabeast | https://game-icons.net/1x1/willdabeast/chain-mail.html |
 
 ### KayKit Character Animations 1.1
 

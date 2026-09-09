@@ -152,22 +152,30 @@ theme_override_constants/v_separation = 4
 
 [node name="ItemSlot1" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
 custom_minimum_size = Vector2(56, 56)
+expand_icon = true
 disabled = true
+theme_override_constants/icon_max_width = 28
 tooltip_text = "Items — not yet implemented"
 
 [node name="ItemSlot2" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
 custom_minimum_size = Vector2(56, 56)
+expand_icon = true
 disabled = true
+theme_override_constants/icon_max_width = 28
 tooltip_text = "Items — not yet implemented"
 
 [node name="ItemSlot3" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
 custom_minimum_size = Vector2(56, 56)
+expand_icon = true
 disabled = true
+theme_override_constants/icon_max_width = 28
 tooltip_text = "Items — not yet implemented"
 
 [node name="ItemSlot4" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
 custom_minimum_size = Vector2(56, 56)
+expand_icon = true
 disabled = true
+theme_override_constants/icon_max_width = 28
 tooltip_text = "Items — not yet implemented"
 
 [node name="Tabs" type="HBoxContainer" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows"]
@@ -221,6 +229,7 @@ text = ""
 mouse_filter = 0
 custom_minimum_size = Vector2(64, 64)
 size_flags_vertical = 4
+icon_alignment = 1
 theme_override_constants/icon_max_width = 28
 tooltip_text = "End Turn (Space)"
 

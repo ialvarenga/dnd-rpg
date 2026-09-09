@@ -12,5 +12,6 @@ condition_id = &"dodging"
 script = ExtResource("1")
 id = &"dodge"
 display_name = "Dodge"
+description = "Focus on defense, imposing disadvantage on attacks against you until your next turn."
 costs_action = true
 effects = Array[ExtResource("2")]([SubResource("Effect_dodge")])

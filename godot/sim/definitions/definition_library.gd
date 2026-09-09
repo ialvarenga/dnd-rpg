@@ -19,7 +19,10 @@ extends RefCounted
 ## Bump 6: targeted abilities own reusable target-range metadata.
 ## Bump 8: per-encounter bandit stat blocks, chainmail, and the talk ability
 ## replace the single hardcoded raider block used by every map enemy.
-const CONTENT_VERSION: int = 8
+## Bump 9: abilities carry presentation descriptions used by HUD tooltips.
+## Bump 10: Talk is contextual to clicking a dialog-capable NPC, not a hotbar
+## ability carried by the player stat block.
+const CONTENT_VERSION: int = 10
 
 const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/basic_attack.tres",

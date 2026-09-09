@@ -14,6 +14,7 @@ attack_kind = &"ranged"
 script = ExtResource("1")
 id = &"ranged_attack"
 display_name = "Ranged Attack"
+description = "Make a ranged weapon attack against an enemy."
 costs_action = true
 targeting = &"actor"
 target_range_meters = 96.0

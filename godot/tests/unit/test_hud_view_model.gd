@@ -22,7 +22,63 @@ static func run() -> Dictionary:
 	for event_type in _event_narration_expectations():
 		var line := HudViewModel.narrate(Event.create(event_type, {"actor_id": 1, "target_id": 2, "amount": 2, "roll": 12, "hit": true, "condition": &"poisoned", "reason": &"not_current_actor", "skill": &"persuasion", "difficulty_class": 12, "total": 14, "success": true, "disposition": &"neutral", "dialog_id": &"emberwatch_toll"}), state, DefinitionLibrary.get_default())
 		_expect(line == _event_narration_expectations()[event_type], "narration did not match the supported %s event" % event_type, failures)
+	_test_action_tooltip_projection(failures)
+	_test_action_tooltip_fallback(failures)
 	return {"name": "unit/test_hud_view_model", "failures": failures}
+
+
+static func _test_action_tooltip_projection(failures: Array[String]) -> void:
+	var definitions := DefinitionLibrary.get_default()
+	var state := TestHelpers.make_battle()
+	var knight := ActorState.from_definition(definitions.get_actor(&"knight"), 1, &"heroes", Vector3.ZERO)
+	state.actors[1] = knight
+	var data := HudViewModel.for_actor(state, 1, definitions)
+
+	var attack := _action(data.action_availability, &"basic_attack")
+	_expect(attack.get("display_name") == "Basic Attack", "action projection did not expose the authored display name", failures)
+	_expect(String(attack.get("description", "")).contains("melee weapon attack"), "basic attack tooltip omitted its authored description", failures)
+	_expect(String(attack.get("tooltip", "")).contains("Action • Melee • Range 1.5 m • Attack +4 • Damage 1d8 + 2 slashing"), "basic attack tooltip did not use the knight's live longsword statistics", failures)
+
+	var dash := _action(data.action_availability, &"dash")
+	_expect(String(dash.get("tooltip", "")).contains("Action • Gain 9 m movement"), "dash tooltip did not calculate movement from the actor's speed", failures)
+	var shove := _action(data.action_availability, &"shove")
+	_expect(String(shove.get("tooltip", "")).contains("Save DC 12 • Strength or Dexterity"), "shove tooltip did not calculate its save DC and alternatives", failures)
+	_expect(String(shove.get("tooltip", "")).contains("Prone on failed save"), "shove tooltip omitted its failed-save result", failures)
+	var dodge := _action(data.action_availability, &"dodge")
+	_expect(String(dodge.get("tooltip", "")).contains("Dodging until next turn"), "dodge tooltip omitted its duration", failures)
+	_expect(_action(data.action_availability, &"talk").is_empty(), "contextual Talk action leaked into the persistent HUD action list", failures)
+	var talk_availability := ActionAvailability.evaluate(state, 1, &"talk", definitions)
+	var talk := HudViewModel.action_presentation(knight, talk_availability, definitions)
+	_expect(String(talk.get("tooltip", "")).contains("No action cost") and String(talk.get("tooltip", "")).contains("Range 3 m") and String(talk.get("tooltip", "")).contains("Exploration"), "talk tooltip omitted its cost, range, or phase", failures)
+
+	var potion_availability := ActionAvailability.evaluate(state, 1, &"quaff_healing_potion", definitions)
+	var potion := HudViewModel.action_presentation(knight, potion_availability, definitions)
+	_expect(String(potion.get("tooltip", "")).contains("Action • Self • Heal 2d4 + 2 HP"), "potion tooltip omitted its calculated healing roll", failures)
+
+	knight.action_available = false
+	data = HudViewModel.for_actor(state, 1, definitions)
+	attack = _action(data.action_availability, &"basic_attack")
+	var disabled_tooltip := String(attack.get("tooltip", ""))
+	_expect(disabled_tooltip.contains("Make a melee weapon attack") and disabled_tooltip.contains("Unavailable: Action already used this turn."), "disabled action tooltip did not preserve its description and append a readable reason", failures)
+
+	var archer := ActorState.from_definition(definitions.get_actor(&"archer"), 1, &"heroes", Vector3.ZERO)
+	state.actors[1] = archer
+	data = HudViewModel.for_actor(state, 1, definitions)
+	var ranged := _action(data.action_availability, &"ranged_attack")
+	_expect(String(ranged.get("tooltip", "")).contains("Ranged • Range 24 m / 96 m long • Attack +4 • Damage 1d6 + 2 piercing"), "ranged attack tooltip did not use the archer's live shortbow statistics", failures)
+
+
+static func _test_action_tooltip_fallback(failures: Array[String]) -> void:
+	var actor := ActorState.new()
+	var presentation := HudViewModel.action_presentation(actor, {"ability_id": &"missing_action", "available": true, "reason": &""}, DefinitionLibrary.new())
+	_expect(presentation.get("display_name") == "Missing Action" and presentation.get("description") == "" and presentation.get("tooltip") == "Missing Action", "missing action definition did not degrade to its generated name", failures)
+
+
+static func _action(actions: Array[Dictionary], ability_id: StringName) -> Dictionary:
+	for action in actions:
+		if action.get("ability_id") == ability_id:
+			return action
+	return {}
 
 static func _event_narration_expectations() -> Dictionary:
 	return {

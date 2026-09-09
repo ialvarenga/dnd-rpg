@@ -13,7 +13,7 @@ func configure(data: Dictionary, slot: int, icon_set: IconSet) -> void:
 	icon = icon_set.texture_for(ability_id) if icon_set != null else null
 	disabled = not data.get("available", false)
 	var display_name := String(ability_id).replace("_", " ").capitalize()
-	tooltip_text = String(data.get("reason", "")) if disabled else display_name
+	tooltip_text = String(data.get("tooltip", display_name))
 
 
 func set_selected(selected: bool) -> void:

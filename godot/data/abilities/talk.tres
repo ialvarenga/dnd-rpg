@@ -11,6 +11,7 @@ type = &"start_dialog"
 script = ExtResource("1")
 id = &"talk"
 display_name = "Talk"
+description = "Start a conversation with a nearby character."
 costs_action = false
 targeting = &"actor"
 target_range_meters = 3.0

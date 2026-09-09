@@ -26,14 +26,29 @@ func run() -> Dictionary:
 func _test_initial_binding(hud: HudRoot, failures: Array[String]) -> void:
 	var hp_label: Label = hud.get_node("Margin/Layout/ActorPortrait/Margin/Rows/HPText")
 	_expect(hp_label.text == "HP 30/30", "HUD bind did not project actor health", failures)
-	_expect(hud.hotbar.get_child_count() == 6, "HUD hotbar should contain the knight's six character actions, not inventory consumables", failures)
+	_expect(hud.hotbar.get_child_count() == 5, "HUD hotbar should contain the knight's five combat actions, without contextual Talk or inventory consumables", failures)
+	_expect(_ability_button(hud, &"talk") == null, "contextual Talk action appeared in the persistent hotbar", failures)
 	var end_turn: Button = hud.get_node("Margin/Layout/EndTurn")
 	_expect(hud.hotbar.mouse_filter == Control.MOUSE_FILTER_IGNORE, "empty hotbar space should remain pass-through", failures)
 	_expect(end_turn.mouse_filter == Control.MOUSE_FILTER_STOP, "end-turn button must consume pointer input", failures)
 	_expect(end_turn.get_theme_constant(&"icon_max_width") == 28, "end-turn icon size was not constrained", failures)
+	_expect(end_turn.icon_alignment == HORIZONTAL_ALIGNMENT_CENTER, "end-turn icon was not centered in its button", failures)
 	for button in hud.hotbar.get_children():
 		_expect((button as Control).mouse_filter == Control.MOUSE_FILTER_STOP, "hotbar button must consume pointer input", failures)
 		_expect((button as Button).get_theme_constant(&"icon_max_width") == 28, "hotbar icon size was not constrained", failures)
+		_expect((button as Button).icon_alignment == HORIZONTAL_ALIGNMENT_CENTER, "hotbar icon was not centered in its button", failures)
+	var attack_button := _ability_button(hud, &"basic_attack")
+	_expect(attack_button.tooltip_text.contains("Make a melee weapon attack") and attack_button.tooltip_text.contains("Damage 1d8 + 2 slashing"), "hotbar button did not receive the authored description and live equipment mechanics", failures)
+	var potion_slot: Button = hud.get_node("Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots/ItemSlot1")
+	_expect(potion_slot.icon == hud.hotbar.icon_set.texture_for(&"healing_potion"), "inventory slot did not receive the mapped item icon", failures)
+	_expect(potion_slot.expand_icon and potion_slot.get_theme_constant(&"icon_max_width") == 28, "inventory icon was not constrained to the 56 px item slot", failures)
+	_expect(potion_slot.size.x <= 96.0 and potion_slot.size.y <= 64.0, "inventory icon expanded its button beyond the compact item-slot area", failures)
+	_expect(potion_slot.text == "×1", "inventory slot should show only its compact stack count beside the icon", failures)
+	_expect(potion_slot.tooltip_text.contains("Drink a healing potion") and potion_slot.tooltip_text.contains("Heal 2d4 + 2 HP") and potion_slot.tooltip_text.contains("Double-click to use"), "inventory slot did not reuse the potion action tooltip", failures)
+	for button in hud.hotbar.get_children():
+		_expect((button as Button).icon != null, "visible hotbar action is missing its mapped icon", failures)
+	for item_id in hud.definitions.ordered_item_ids():
+		_expect(hud.hotbar.icon_set.texture_for(item_id) != null, "HUD icon set omitted item '%s'" % item_id, failures)
 	hud.set_selected_ability(&"basic_attack")
 	_expect((hud.hotbar.get_child(0) as AbilityButton).button_pressed and not (hud.hotbar.get_child(1) as AbilityButton).button_pressed, "HUD did not keep only the selected action visually pressed", failures)
 	hud.set_selected_ability(&"")
@@ -63,6 +78,7 @@ func _test_session_synchronization(session: EncounterSession, hud: HudRoot, stat
 	_expect(not (state.actors[1] as ActorState).action_available, "dash result was not applied before HUD synchronization", failures)
 	var dash_button := _ability_button(hud, &"dash")
 	_expect(dash_button.disabled, "HUD did not synchronize action availability after session state_changed", failures)
+	_expect(dash_button.tooltip_text.contains("Gain extra movement") and dash_button.tooltip_text.contains("Unavailable: Action already used this turn."), "disabled hotbar tooltip did not preserve the description and append a readable reason", failures)
 	_expect(hud.combat_log.get_parsed_text().contains("Knight uses an action."), "HUD did not narrate resolved events in the combat log", failures)
 
 

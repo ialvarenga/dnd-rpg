@@ -3,18 +3,32 @@
 [ext_resource type="Script" path="res://view/ui/icon_set.gd" id="1_icon_set"]
 [ext_resource type="Texture2D" path="res://assets/game_icons/broadsword.svg" id="2_attack"]
 [ext_resource type="Texture2D" path="res://assets/game_icons/run.svg" id="3_dash"]
-[ext_resource type="Texture2D" path="res://assets/game_icons/bordered-shield.svg" id="4_disengage"]
-[ext_resource type="Texture2D" path="res://assets/game_icons/return-arrow.svg" id="5_end_turn"]
+[ext_resource type="Texture2D" path="res://assets/game_icons/return-arrow.svg" id="4_end_turn"]
+[ext_resource type="Texture2D" path="res://assets/game_icons/bow-arrow.svg" id="5_ranged"]
+[ext_resource type="Texture2D" path="res://assets/game_icons/push.svg" id="6_shove"]
+[ext_resource type="Texture2D" path="res://assets/game_icons/dodge.svg" id="7_dodge"]
+[ext_resource type="Texture2D" path="res://assets/game_icons/avoidance.svg" id="8_disengage"]
+[ext_resource type="Texture2D" path="res://assets/game_icons/health-potion.svg" id="10_potion"]
+[ext_resource type="Texture2D" path="res://assets/game_icons/sword-hilt.svg" id="11_longsword"]
+[ext_resource type="Texture2D" path="res://assets/game_icons/bowie-knife.svg" id="12_dagger"]
+[ext_resource type="Texture2D" path="res://assets/game_icons/leather-armor.svg" id="13_leather"]
+[ext_resource type="Texture2D" path="res://assets/game_icons/chain-mail.svg" id="14_chainmail"]
 
 [resource]
 script = ExtResource("1_icon_set")
 textures = {
 &"basic_attack": ExtResource("2_attack"),
-&"ranged_attack": ExtResource("2_attack"),
-&"shove": ExtResource("2_attack"),
-&"dodge": ExtResource("4_disengage"),
+&"ranged_attack": ExtResource("5_ranged"),
+&"shove": ExtResource("6_shove"),
+&"dodge": ExtResource("7_dodge"),
 &"dash": ExtResource("3_dash"),
-&"disengage": ExtResource("4_disengage"),
-	&"quaff_healing_potion": ExtResource("5_end_turn"),
-	&"end_turn": ExtResource("5_end_turn")
+&"disengage": ExtResource("8_disengage"),
+&"quaff_healing_potion": ExtResource("10_potion"),
+&"end_turn": ExtResource("4_end_turn"),
+&"longsword": ExtResource("11_longsword"),
+&"shortbow": ExtResource("5_ranged"),
+&"dagger": ExtResource("12_dagger"),
+&"healing_potion": ExtResource("10_potion"),
+&"leather_armor": ExtResource("13_leather"),
+&"chainmail": ExtResource("14_chainmail")
 }

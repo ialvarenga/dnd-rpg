@@ -72,7 +72,8 @@ const REGISTERED_INTERACTABLE_KINDS: Array[StringName] = [&"chest", &"barrel"]
 const DEFAULT_ENEMY_STAT_BLOCK := &"raider"
 
 ## Ability that opens a conversation. Named here rather than inlined so the
-## click handler, the approach planner, and the hotbar all agree.
+## click handler and the approach planner agree. It is deliberately contextual
+## and never appears in the player's persistent hotbar.
 const TALK_ABILITY := &"talk"
 
 ## How long the rolled check stays on screen before the conversation moves on,

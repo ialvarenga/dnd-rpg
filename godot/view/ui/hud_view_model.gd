@@ -1,6 +1,22 @@
 class_name HudViewModel
 extends RefCounted
 
+const AbilityTargetingRules = preload("res://sim/ability_targeting.gd")
+const EquipmentRules = preload("res://sim/equipment.gd")
+
+const AVAILABILITY_REASON_TEXT := {
+	&"unknown_actor": "Unknown character.",
+	&"not_current_actor": "It is not this character's turn.",
+	&"not_in_combat": "Only available during combat.",
+	&"combat_already_active": "Not available during combat.",
+	&"actor_cannot_act": "This character cannot act.",
+	&"unknown_ability_definition": "Action definition is missing.",
+	&"action_unavailable": "Action already used this turn.",
+	&"bonus_action_unavailable": "Bonus action already used this turn.",
+	&"reaction_unavailable": "Reaction already used this round.",
+	&"insufficient_movement": "Not enough movement remaining.",
+}
+
 
 static func objective_prompt(state: BattleState) -> String:
 	if state == null:
@@ -49,8 +65,140 @@ static func for_actor(state: BattleState, actor_id: int, defs: DefinitionLibrary
 		"action_available": actor.action_available, "bonus_action_available": actor.bonus_action_available,
 		"reaction_available": actor.reaction_available, "conditions": actor.condition_ids(),
 		"is_current_turn": state.current_actor_id() == actor_id, "phase": state.phase,
-		"movement_budget_ignored": state.phase == &"exploration", "action_availability": actions.duplicate(true),
+		"movement_budget_ignored": state.phase == &"exploration", "action_availability": _present_actions(actor, actions, defs),
 	}
+
+
+## Adds presentation-only metadata to ActionAvailability's resolver-facing
+## evaluation. Live mechanics are projected from the same actor, equipment,
+## and ability resources the resolver reads, so tooltip numbers cannot drift
+## from combat resolution when a loadout changes.
+static func action_presentation(actor: ActorState, availability: Dictionary, defs: DefinitionLibrary) -> Dictionary:
+	var data := availability.duplicate(true)
+	var ability_id := StringName(str(data.get("ability_id", "")))
+	var generated_name := String(ability_id).replace("_", " ").capitalize()
+	var ability := defs.get_ability(ability_id) if defs != null else null
+	var display_name := ability.display_name if ability != null and not ability.display_name.is_empty() else generated_name
+	var description := ability.description if ability != null else ""
+	var mechanics: Array[String] = _action_mechanics(actor, ability, defs)
+	var sections: Array[String] = [display_name]
+	if not description.is_empty():
+		sections.append(description)
+	if not mechanics.is_empty():
+		sections.append(" • ".join(mechanics))
+	if not bool(data.get("available", false)):
+		sections.append("Unavailable: %s" % _availability_reason(StringName(str(data.get("reason", "")))))
+	data["display_name"] = display_name
+	data["description"] = description
+	data["tooltip"] = "\n\n".join(sections)
+	return data
+
+
+static func _present_actions(actor: ActorState, actions: Array[Dictionary], defs: DefinitionLibrary) -> Array[Dictionary]:
+	var presented: Array[Dictionary] = []
+	for action in actions:
+		presented.append(action_presentation(actor, action, defs))
+	return presented
+
+
+static func _action_mechanics(actor: ActorState, ability: AbilityDefinition, defs: DefinitionLibrary) -> Array[String]:
+	var mechanics: Array[String] = []
+	if ability == null:
+		return mechanics
+	if ability.costs_action:
+		mechanics.append("Action")
+	if ability.costs_bonus_action:
+		mechanics.append("Bonus action")
+	if ability.costs_reaction:
+		mechanics.append("Reaction")
+	if ability.movement_cost > 0.0:
+		mechanics.append("%s m movement" % _format_number(ability.movement_cost))
+	if mechanics.is_empty():
+		mechanics.append("No action cost")
+
+	var has_attack := false
+	var has_self_effect := false
+	for effect in ability.effects:
+		match effect.type:
+			&"perform_attack":
+				has_attack = true
+				_append_attack_mechanics(mechanics, actor, ability, effect, defs)
+			&"add_base_movement":
+				mechanics.append("Gain %s m movement" % _format_number(actor.movement_speed * effect.multiplier))
+			&"saving_throw":
+				var difficulty_class := effect.save_dc_base + actor.proficiency_bonus + actor.ability_modifier(effect.save_dc_ability)
+				mechanics.append("Save DC %d" % difficulty_class)
+				if not effect.save_abilities.is_empty():
+					var ability_names: Array[String] = []
+					for save_ability in effect.save_abilities:
+						ability_names.append(String(save_ability).capitalize())
+					mechanics.append(" or ".join(ability_names))
+			&"heal":
+				has_self_effect = true
+				mechanics.append("Heal %s HP" % _format_roll(effect.heal_dice_count, effect.heal_die, effect.heal_modifier))
+			&"apply_condition":
+				mechanics.append(_condition_mechanic(effect, defs))
+			&"apply_disengage":
+				mechanics.append("No opportunity attacks this turn")
+
+	if not has_attack and ability.targeting == &"actor" and ability.target_range_meters >= 0.0:
+		mechanics.append("Range %s m" % _format_number(AbilityTargetingRules.target_range(defs, ability.id)))
+	if has_self_effect and ability.targeting == &"none":
+		mechanics.insert(1, "Self")
+	if ability.usable_in_exploration:
+		mechanics.append("Exploration")
+	mechanics = mechanics.filter(func(entry: String): return not entry.is_empty())
+	return mechanics
+
+
+static func _append_attack_mechanics(mechanics: Array[String], actor: ActorState, ability: AbilityDefinition, effect: AbilityEffect, defs: DefinitionLibrary) -> void:
+	var maximum_range := AbilityTargetingRules.target_range(defs, ability.id)
+	var is_ranged := effect.is_ranged or EquipmentRules.is_ranged_weapon(actor, defs)
+	if is_ranged:
+		var normal_range := EquipmentRules.normal_range(actor, defs, maximum_range)
+		var long_range := EquipmentRules.long_range(actor, defs, maximum_range)
+		mechanics.append("Ranged")
+		mechanics.append("Range %s m / %s m long" % [_format_number(normal_range), _format_number(long_range)])
+	else:
+		mechanics.append("Melee")
+		mechanics.append("Range %s m" % _format_number(maximum_range))
+	mechanics.append("Attack %s" % _format_modifier(EquipmentRules.aggregate_attack_bonus(actor, defs)))
+	var damage := _format_roll(1, EquipmentRules.aggregate_damage_die(actor, defs), EquipmentRules.aggregate_damage_modifier(actor, defs))
+	var damage_type := String(EquipmentRules.aggregate_damage_type(actor, defs))
+	mechanics.append("Damage %s%s" % [damage, " " + damage_type if not damage_type.is_empty() else ""])
+
+
+static func _condition_mechanic(effect: AbilityEffect, defs: DefinitionLibrary) -> String:
+	var condition := defs.get_condition(effect.condition_id) if defs != null else null
+	var label := condition.display_name if condition != null and not condition.display_name.is_empty() else String(effect.condition_id).replace("_", " ").capitalize()
+	var suffix := ""
+	if effect.apply_when == &"failed_save":
+		suffix = " on failed save"
+	elif condition != null and condition.default_duration_triggers == 1 and condition.default_expiration_timing == &"turn_start":
+		suffix = " until next turn"
+	return label + suffix
+
+
+static func _format_roll(count: int, sides: int, modifier: int) -> String:
+	var roll := "%dd%d" % [count, sides]
+	if modifier != 0:
+		roll += " %s %d" % ["+" if modifier > 0 else "-", absi(modifier)]
+	return roll
+
+
+static func _format_modifier(modifier: int) -> String:
+	return "+%d" % modifier if modifier >= 0 else str(modifier)
+
+
+static func _format_number(value: float) -> String:
+	return str(roundi(value)) if is_equal_approx(value, roundf(value)) else "%.1f" % value
+
+
+static func _availability_reason(reason: StringName) -> String:
+	if AVAILABILITY_REASON_TEXT.has(reason):
+		return AVAILABILITY_REASON_TEXT[reason]
+	var fallback := String(reason).replace("_", " ").capitalize()
+	return fallback + "." if not fallback.is_empty() else "Not currently available."
 
 
 static func turn_order(state: BattleState, defs: DefinitionLibrary) -> Array[Dictionary]:

@@ -11,5 +11,6 @@ type = &"add_base_movement"
 script = ExtResource("2_qf1ot")
 id = &"dash"
 display_name = "Dash"
+description = "Gain extra movement equal to your movement speed for this turn."
 costs_action = true
 effects = Array[ExtResource("1_jolw2")]([SubResource("Resource_5ecbe")])

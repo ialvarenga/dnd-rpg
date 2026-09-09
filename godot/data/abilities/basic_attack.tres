@@ -12,6 +12,7 @@ range_meters = 1.5
 script = ExtResource("2_6issw")
 id = &"basic_attack"
 display_name = "Basic Attack"
+description = "Make a melee weapon attack against an enemy in close range."
 costs_action = true
 targeting = &"actor"
 target_range_meters = 1.5

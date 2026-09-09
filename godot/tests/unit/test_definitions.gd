@@ -17,6 +17,7 @@ static func run() -> Dictionary:
 	_test_unknown_condition_id_is_ignored_safely(failures)
 	_test_definition_library_ignores_definitions_with_missing_id(failures)
 	_test_content_version_round_trip(failures)
+	_test_ability_descriptions(failures)
 	_test_consumable_metadata_defaults_clone_and_resource_round_trip(failures)
 	_test_perform_attack_effect_checks_and_spends_full_ability_cost(failures)
 	_test_attack_targeting_range_uses_ability_data(failures)
@@ -117,6 +118,26 @@ static func _test_content_version_round_trip(failures: Array[String]) -> void:
 	var default_library := DefinitionLibrary.get_default()
 	_expect(default_library.is_compatible_content_version(state.content_version), "default library rejected its own content_version", failures)
 	_expect(not default_library.is_compatible_content_version(state.content_version + 1), "default library accepted a mismatched content_version", failures)
+
+
+static func _test_ability_descriptions(failures: Array[String]) -> void:
+	var definitions := DefinitionLibrary.get_default()
+	for ability_id in definitions.ordered_ability_ids():
+		var shipped := definitions.get_ability(ability_id)
+		_expect(shipped != null and not shipped.description.is_empty(), "shipped ability '%s' is missing its HUD description" % ability_id, failures)
+
+	var ability := AbilityDefinition.new()
+	_expect(ability.description.is_empty(), "ability description did not default to an empty string", failures)
+	ability.id = &"described_action"
+	ability.description = "A persisted action description."
+	var clone := ability.duplicate(true) as AbilityDefinition
+	_expect(clone != null and clone.description == ability.description, "ability description did not survive Resource cloning", failures)
+
+	var ability_path := "user://test_described_ability_definition.tres"
+	var save_error := ResourceSaver.save(ability, ability_path)
+	var restored := load(ability_path) as AbilityDefinition
+	_expect(save_error == OK and restored != null and restored.description == ability.description, "ability description did not survive resource serialization", failures)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(ability_path))
 
 
 static func _test_consumable_metadata_defaults_clone_and_resource_round_trip(failures: Array[String]) -> void:
@@ -278,7 +299,7 @@ static func _test_bandit_stat_blocks_and_chainmail_are_loadable(failures: Array[
 	_expect(chainmail != null and chainmail.slot == &"armor" and chainmail.armor_class_bonus == 5, "chainmail should be armor worth +5 AC", failures)
 	var knight := definitions.get_actor(&"knight")
 	_expect(knight != null and knight.equipment_slots.get(&"armor", &"") == &"chainmail", "the knight should be wearing the rebalanced armor", failures)
-	_expect(knight != null and knight.ability_ids.has(&"talk"), "the knight should be able to start a conversation", failures)
+	_expect(knight != null and not knight.ability_ids.has(&"talk"), "Talk should be contextual to clicking an NPC, not a persistent knight ability", failures)
 
 
 static func _expect(condition: bool, message: String, failures: Array[String]) -> void:

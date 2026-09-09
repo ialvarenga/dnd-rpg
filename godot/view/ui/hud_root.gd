@@ -73,8 +73,9 @@ func _sync_inventory(actor: ActorState) -> void:
 			break
 		var button := item_slots.get_child(index) as Button
 		button.disabled = false
-		button.text = "%s ×%d" % [String(item_id).replace("_", " ").capitalize(), counts[item_id]]
-		button.tooltip_text = "Double-click to use"
+		button.text = "×%d" % counts[item_id]
+		button.icon = hotbar.icon_set.texture_for(StringName(str(item_id))) if hotbar.icon_set != null else null
+		button.tooltip_text = _inventory_tooltip(actor, StringName(str(item_id)))
 		button.set_meta("item_id", item_id)
 		if not button.gui_input.is_connected(_on_item_slot_gui_input):
 			button.gui_input.connect(_on_item_slot_gui_input.bind(button))
@@ -83,8 +84,19 @@ func _sync_inventory(actor: ActorState) -> void:
 		var empty_button := item_slots.get_child(empty_index) as Button
 		empty_button.disabled = true
 		empty_button.text = ""
+		empty_button.icon = null
 		empty_button.tooltip_text = "No item"
 		empty_button.remove_meta("item_id")
+
+
+func _inventory_tooltip(actor: ActorState, item_id: StringName) -> String:
+	var instruction := "Double-click to use"
+	var item := definitions.get_item(item_id) if definitions != null else null
+	if item == null or item.use_ability_id == &"" or session == null or session.battle_state == null:
+		return instruction
+	var availability := ActionAvailability.evaluate(session.battle_state, actor.id, item.use_ability_id, definitions)
+	var presentation := HudViewModel.action_presentation(actor, availability, definitions)
+	return "%s\n\n%s" % [String(presentation.get("tooltip", "")), instruction]
 
 
 func _on_item_slot_gui_input(event: InputEvent, button: Button) -> void:
