@@ -19,6 +19,8 @@ var camera_rig: TacticalCameraRig
 var objective: Vector3
 var _path_line: MeshInstance3D
 var _line_mesh := ImmediateMesh.new()
+var _preview_path := PackedVector3Array()
+var _destination_marker: DestinationClickMarker
 var hud: HudRoot
 var hostile_views: Dictionary[int, CharacterView] = {}
 var detection_range := 8.0
@@ -44,6 +46,8 @@ const MapSpecSourceScript = preload("res://world/map_spec_source.gd")
 const ScreenPickerScript = preload("res://world/screen_picker.gd")
 const MusicDirectorScript = preload("res://view/music_director.gd")
 const WORLD_HEALTH_BAR_SCENE = preload("res://view/ui/world_health_bar.tscn")
+const PathPreviewRendererScript = preload("res://view/path_preview_renderer.gd")
+const DestinationClickMarkerScript = preload("res://view/destination_click_marker.gd")
 
 const INTERACTABLE_READY_COLOR := Color("76e887")
 const INTERACTABLE_APPROACH_COLOR := Color("f5d742")
@@ -76,6 +80,7 @@ func _ready() -> void:
 	_setup_camera()
 	_setup_light()
 	_setup_path_preview()
+	_setup_destination_marker()
 	nav_provider = GodotNavProvider.new(compilation.navigation.navigation_region)
 	los_provider = GodotLosProvider.new(get_world_3d(), 8)
 	session = EncounterSessionScript.new()
@@ -100,7 +105,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		_update_interactable_highlight(hovered_interactable_id)
 		if not hovered_interactable_id.is_empty():
-			_line_mesh.clear_surfaces()
+			_clear_path_preview()
 			return
 		var preview_target: Variant = ScreenPickerScript.terrain_point(camera, get_world_3d().direct_space_state, event.position)
 		if preview_target is Vector3:
@@ -131,6 +136,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		var target: Variant = ScreenPickerScript.terrain_point(camera, get_world_3d().direct_space_state, event.position)
 		if target is Vector3:
+			_show_exploration_destination(target)
 			_show_path_preview(target)
 			_move(target)
 		get_viewport().set_input_as_handled()
@@ -342,8 +348,12 @@ func _process(delta: float) -> void:
 	if music != null:
 		music.set_phase(battle_state.phase)
 	if battle_state.phase == &"exploration":
+		_clear_path_preview()
 		_check_hostile_detection()
 		return
+	if _destination_marker != null:
+		_destination_marker.hide_marker()
+	PathPreviewRendererScript.draw(_line_mesh, _preview_path, character.global_position)
 	if _end_combat_if_resolved():
 		return
 	_enemy_action_cooldown = maxf(0.0, _enemy_action_cooldown - delta)
@@ -539,6 +549,12 @@ func _setup_path_preview() -> void:
 	add_child(_path_line)
 
 
+func _setup_destination_marker() -> void:
+	_destination_marker = DestinationClickMarkerScript.new() as DestinationClickMarker
+	_destination_marker.name = "DestinationClickMarker"
+	add_child(_destination_marker)
+
+
 func _setup_hud() -> void:
 	hud = preload("res://scenes/ui/hud_root.tscn").instantiate() as HudRoot
 	add_child(hud)
@@ -571,7 +587,7 @@ func _on_hud_ability_requested(ability_id: StringName) -> void:
 		_clear_targeting()
 		_targeting_ability_id = ability_id
 		hud.set_selected_ability(ability_id)
-		_line_mesh.clear_surfaces()
+		_clear_path_preview()
 		return
 	_clear_targeting()
 	var result: ResolutionResult = session.submit_ability(character.actor_id, ability_id, -1, Vector3.INF)
@@ -603,7 +619,7 @@ func _on_hud_cancel_requested() -> void:
 	_clear_interactable_highlight()
 	_pending_targeted_action.clear()
 	_clear_targeting()
-	_line_mesh.clear_surfaces()
+	_clear_path_preview()
 
 
 func _update_target_highlight(hostile: CharacterView) -> void:
@@ -730,12 +746,19 @@ func _move(target: Vector3) -> ResolutionResult:
 func _show_path_preview(target: Vector3) -> void:
 	if character == null or _path_line == null:
 		return
-	var preview = session.preview_move(1, target)
-	var path: PackedVector3Array = preview.path
-	_line_mesh.clear_surfaces()
-	if path.size() < 2:
+	if battle_state.phase != &"combat":
+		_clear_path_preview()
 		return
-	_line_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-	for point in path:
-		_line_mesh.surface_add_vertex(point + Vector3.UP * 0.12)
-	_line_mesh.surface_end()
+	var preview = session.preview_move(1, target, character.global_position)
+	_preview_path = preview.path
+	PathPreviewRendererScript.draw(_line_mesh, _preview_path, character.global_position)
+
+
+func _show_exploration_destination(target: Vector3) -> void:
+	if battle_state.phase == &"exploration" and _destination_marker != null:
+		_destination_marker.show_at(target)
+
+
+func _clear_path_preview() -> void:
+	_preview_path = PackedVector3Array()
+	_line_mesh.clear_surfaces()

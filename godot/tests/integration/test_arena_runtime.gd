@@ -116,6 +116,8 @@ func _test_preview_and_clamped_combat_movement(controller: TestArenaController, 
 	_expect(preview.events.size() == 2 and preview.events[0].type == &"movement_segment", "combat preview did not resolve movement", failures)
 	_expect(JSON.stringify(controller.battle_state.stable_snapshot()).md5_text() == state_before_preview, "preview applied BattleState", failures)
 	_expect(player.global_position.distance_to(position_before_preview) < 0.001 and not player.is_moving(), "preview moved CharacterView", failures)
+	controller._update_debug_view()
+	_expect(controller._line_mesh.get_surface_count() == 1, "combat movement preview did not render its path", failures)
 
 	# Earlier phases of this suite already moved the actor, so the clamped
 	# endpoint is derived from where it actually stands rather than a literal.
@@ -133,11 +135,16 @@ func _test_preview_and_clamped_combat_movement(controller: TestArenaController, 
 
 	controller.battle_state.phase = &"exploration"
 	actor.movement_remaining = actor.movement_speed
+	controller._update_debug_view()
+	_expect(controller._line_mesh.get_surface_count() == 0, "movement path remained visible during exploration", failures)
 
 
 func _test_command_event_view_pipeline(controller: TestArenaController, player: CharacterView, event_player: EventPlayer, failures: Array[String]) -> void:
 	var start := player.global_position
-	controller.handle_terrain_click(Vector3(-9.0, 0.1, -2.0))
+	var clicked_position := Vector3(-9.0, 0.1, -2.0)
+	controller.handle_terrain_click(clicked_position)
+	_expect(controller.destination_marker.visible, "exploration click did not show a destination marker", failures)
+	_expect((controller.destination_marker.global_position - Vector3.UP * DestinationClickMarker.GROUND_LIFT).distance_to(clicked_position) < 0.001, "exploration marker was not placed at the clicked position", failures)
 	_expect(controller.last_command != null and controller.last_command.type == &"move", "terrain input did not create a move Command", failures)
 	_expect(controller.last_resolution != null and controller.last_resolution.events[0].type == &"movement_segment", "move Command did not resolve to movement event", failures)
 	_expect(event_player.last_played_events.size() > 0 and event_player.last_played_events[0].type == &"movement_segment", "accepted movement did not reach EventPlayer", failures)

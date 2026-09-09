@@ -33,6 +33,11 @@ static func run() -> Dictionary:
 	var presentation_path: PackedVector3Array = movement.data.get("presentation_path", PackedVector3Array())
 	_expect(presentation_path.size() == 2 and presentation_path[0] == view_position and presentation_path[1] == movement.data["to"], "session did not rebase the presentation path from the view position", failures)
 
+	var preview_view_position := Vector3(-4.0, 0.0, 0.0)
+	var preview = session.preview_move(1, Vector3(4.0, 0.0, 0.0), preview_view_position)
+	_expect(preview.accepted and preview.path[0] == preview_view_position, "movement preview started at the last authoritative destination instead of the live view", failures)
+	_expect((state.actors[1] as ActorState).position == Vector3(2.0, 0.0, 0.0), "view-rebased preview mutated BattleState", failures)
+
 	var rejected := session.end_turn(2)
 	_expect(rejected.events.size() == 1 and rejected.events[0].type == &"command_rejected", "rejected session submission did not expose the Resolver rejection event", failures)
 	_expect(rejections == [{"command_type": &"end_turn", "reason": &"not_current_actor"}], "session did not emit the authoritative rejection reason", failures)

@@ -22,19 +22,26 @@ func configure(state: BattleState, nav_provider: NavProvider, los_provider: LosP
 	los = los_provider
 
 
-func preview_move(actor_id: int, target: Vector3):
+func preview_move(actor_id: int, target: Vector3, view_position: Vector3 = Vector3.INF):
 	var preview = MovePreviewScript.new()
 	preview.ignores_budget = battle_state != null and battle_state.phase != &"combat"
 	var command := Command.create(&"move", actor_id)
 	command.target_pos = target
-	preview.resolution = Resolver.resolve(battle_state, command, nav, los)
+	# Accepted commands update BattleState before CharacterView finishes its
+	# presentation. Resolve previews on a clone rebased to the live view so a new
+	# pointer path starts at the character, not at the previous clicked target.
+	var preview_state := battle_state
+	if view_position != Vector3.INF and battle_state != null and battle_state.actors.has(actor_id):
+		preview_state = battle_state.clone()
+		(preview_state.actors[actor_id] as ActorState).position = view_position
+	preview.resolution = Resolver.resolve(preview_state, command, nav, los)
 	for event in preview.resolution.events:
 		if event.type == &"movement_segment":
 			preview.accepted = true
 			preview.path = (event.data["path"] as PackedVector3Array).duplicate()
 			preview.cost = float(event.data["path_cost"])
 			preview.destination = event.data["to"]
-			var actor: ActorState = battle_state.actors[actor_id]
+			var actor: ActorState = preview_state.actors[actor_id]
 			preview.remaining = maxf(0.0, actor.movement_remaining - preview.cost)
 		elif event.type == &"command_rejected":
 			preview.rejection_reason = event.data["reason"]

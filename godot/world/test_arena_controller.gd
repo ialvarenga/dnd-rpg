@@ -10,7 +10,7 @@ extends Node3D
 @onready var character: CharacterView = $PlayerCharacter
 @onready var navigation_region: NavigationRegion3D = $NavigationRegion3D
 @onready var event_player: EventPlayer = $EventPlayer
-@onready var destination_marker: MeshInstance3D = $Debug/DestinationMarker
+@onready var destination_marker: DestinationClickMarker = $Debug/DestinationMarker
 @onready var path_mesh: MeshInstance3D = $Debug/PathLine
 @onready var debug_label: Label = $DebugOverlay/Panel/Label
 @onready var hud: HudRoot = $HudRoot
@@ -31,6 +31,7 @@ var _line_mesh := ImmediateMesh.new()
 
 const EncounterSessionScript = preload("res://world/encounter_session.gd")
 const ScreenPickerScript = preload("res://world/screen_picker.gd")
+const PathPreviewRendererScript = preload("res://view/path_preview_renderer.gd")
 
 
 func _ready() -> void:
@@ -40,7 +41,6 @@ func _ready() -> void:
 	camera_rig.follow_target = character
 	camera_rig.follow_offset = camera_rig.global_position - character.global_position
 	path_mesh.mesh = _line_mesh
-	destination_marker.visible = false
 	_dress_arena_props()
 	nav_provider = GodotNavProvider.new(navigation_region)
 	los_provider = GodotLosProvider.new(get_world_3d(), 8)
@@ -70,6 +70,8 @@ func _dress_arena_props() -> void:
 func _process(_delta: float) -> void:
 	if music != null:
 		music.set_phase(battle_state.phase)
+	if battle_state.phase != &"exploration":
+		destination_marker.hide_marker()
 	_update_debug_view()
 
 
@@ -101,6 +103,8 @@ func handle_terrain_click(destination: Variant) -> void:
 		return
 	# The click confirms a fresh authoritative resolution; it never applies the
 	# hover result, which remains presentation-only.
+	if battle_state.phase == &"exploration":
+		destination_marker.show_at(destination)
 	preview_move_target(destination)
 	submit_move_target(destination)
 
@@ -109,11 +113,9 @@ func handle_terrain_click(destination: Variant) -> void:
 ## resolver and updates local debug state; BattleState and CharacterView remain
 ## untouched until submit_move_target confirms a command.
 func preview_move_target(target: Vector3) -> ResolutionResult:
-	_preview = session.preview_move(character.actor_id, target)
+	_preview = session.preview_move(character.actor_id, target, character.global_position)
 	last_preview = _preview.resolution
 	if _preview.accepted:
-		destination_marker.global_position = _preview.destination + Vector3.UP * 0.08
-		destination_marker.visible = true
 		last_input_status = &"preview"
 	elif _preview.rejection_reason != &"":
 		last_input_status = _preview.rejection_reason
@@ -128,9 +130,6 @@ func submit_move_target(target: Vector3) -> ResolutionResult:
 	for event in last_resolution.events:
 		if event.type == &"movement_segment":
 			accepted_movement = true
-			var resolved_target: Vector3 = event.data["to"]
-			destination_marker.global_position = resolved_target + Vector3.UP * 0.08
-			destination_marker.visible = true
 		elif event.type == &"command_rejected":
 			last_input_status = event.data["reason"]
 	if accepted_movement:
@@ -220,12 +219,10 @@ func _update_debug_view() -> void:
 	var path: PackedVector3Array = _preview.path if _preview != null else PackedVector3Array()
 	if path.is_empty():
 		path = event_player.get_resolved_path(character.actor_id)
-	_line_mesh.clear_surfaces()
-	if path.size() >= 2:
-		_line_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-		for point in path:
-			_line_mesh.surface_add_vertex(point + Vector3.UP * 0.12)
-		_line_mesh.surface_end()
+	if battle_state.phase == &"combat":
+		PathPreviewRendererScript.draw(_line_mesh, path, character.global_position)
+	else:
+		_line_mesh.clear_surfaces()
 	var preview_text := "Preview: --"
 	if _preview != null and not _preview.path.is_empty():
 		if _preview.ignores_budget:

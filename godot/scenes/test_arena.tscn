@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" path="res://scenes/world/tactical_sun.tscn" id="7_sun"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud_root.tscn" id="8_hud"]
 [ext_resource type="Script" path="res://view/music_director.gd" id="9_music"]
+[ext_resource type="Script" path="res://view/destination_click_marker.gd" id="10_click_marker"]
 
 [sub_resource type="StandardMaterial3D" id="FloorMaterial"]
 albedo_color = Color(0.18, 0.28, 0.2, 1)
@@ -63,17 +64,6 @@ size = Vector3(1.7, 1, 1.9)
 
 [sub_resource type="BoxShape3D" id="ChestShape"]
 size = Vector3(1.7, 1, 1.9)
-
-[sub_resource type="StandardMaterial3D" id="MarkerMaterial"]
-albedo_color = Color(1, 0.7, 0.08, 1)
-emission_enabled = true
-emission = Color(1, 0.38, 0.02, 1)
-
-[sub_resource type="CylinderMesh" id="MarkerMesh"]
-material = SubResource("MarkerMaterial")
-top_radius = 0.45
-bottom_radius = 0.45
-height = 0.08
 
 [sub_resource type="StandardMaterial3D" id="PathMaterial"]
 shading_mode = 0
@@ -184,7 +174,7 @@ script = ExtResource("9_music")
 [node name="Debug" type="Node3D" parent="." unique_id=40672315]
 
 [node name="DestinationMarker" type="MeshInstance3D" parent="Debug" unique_id=178154803]
-mesh = SubResource("MarkerMesh")
+script = ExtResource("10_click_marker")
 
 [node name="PathLine" type="MeshInstance3D" parent="Debug" unique_id=1654901769]
 material_override = SubResource("PathMaterial")

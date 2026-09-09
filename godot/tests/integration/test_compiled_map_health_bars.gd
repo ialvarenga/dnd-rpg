@@ -14,6 +14,7 @@ func run() -> Dictionary:
 		return {"name": "integration/test_compiled_map_health_bars", "failures": failures}
 
 	_test_health_bar_creation(map, failures)
+	_test_exploration_destination_marker(map, failures)
 	_test_state_changed_health_update(map, failures)
 	await _test_approach_then_attack(map, failures)
 	await _test_interactable_highlight_and_approach(map, failures)
@@ -30,6 +31,16 @@ func _test_health_bar_creation(map: CompiledMapController, failures: Array[Strin
 	_expect(map._interactable_highlights.size() == map.battle_state.interactables.size(), "not every pickup and container received an interaction highlight", failures)
 	for highlight in map._interactable_highlights.values():
 		_expect((highlight as MeshInstance3D).visible == false, "interaction highlight was visible before hover or selection", failures)
+
+
+func _test_exploration_destination_marker(map: CompiledMapController, failures: Array[String]) -> void:
+	var target := map.character.global_position + Vector3(1.0, -1.0, 0.0)
+	map._show_exploration_destination(target)
+	_expect(map._destination_marker != null and map._destination_marker.visible, "compiled map did not show an exploration destination marker", failures)
+	map.battle_state.phase = &"combat"
+	map._process(0.0)
+	_expect(not map._destination_marker.visible, "exploration destination marker remained visible in combat", failures)
+	map.battle_state.phase = &"exploration"
 
 
 func _test_state_changed_health_update(map: CompiledMapController, failures: Array[String]) -> void:
