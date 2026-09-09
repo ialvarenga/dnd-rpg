@@ -95,7 +95,7 @@
           "additionalProperties": false,
           "required": ["profile"],
           "properties": {
-            "profile": { "enum": ["temperate_sparse", "temperate_dense", "none"] },
+            "profile": { "enum": ["temperate_sparse", "temperate_dense", "old_growth", "meadow", "rocky_scrub", "thicket", "none"] },
             "density": { "type": "number", "minimum": 0, "maximum": 1 }
           }
         }

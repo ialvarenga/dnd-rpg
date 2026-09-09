@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="VegetationProfileSettings" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://world/vegetation_profile_settings.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+family_weights = {"bush": 0.25, "grass": 0.37, "rock": 0.08, "tree": 0.30}
+size_lambda = 1.8
+canopy_overlap = 0.25
+min_spacing_m = 0.9
+density_noise_frequency = 0.035
+density_contrast = 1.6
+cluster_children = 3
+cluster_sigma_m = 1.4
+max_instances = 700

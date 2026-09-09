@@ -16,6 +16,11 @@ extends Resource
 ## their conservative cylindrical blocker.
 @export_enum("cylinder", "box") var collision_shape: String = "cylinder"
 @export var collision_size := Vector3.ZERO
+## Cylinder collision measured at torso height by the catalog generator, so a
+## tree blocks on its trunk rather than its canopy. Zero means "not measured"
+## and falls back to the conservative authoring footprint.
+@export_range(0.0, 100.0, 0.01, "suffix:m") var collision_radius := 0.0
+@export_range(0.0, 100.0, 0.01, "suffix:m") var collision_height := 0.0
 @export var display_offset := Vector3.ZERO
 @export var display_rotation_y := 0.0
 ## The KayKit forest atlas exposes eight palette columns. Palette 1 is the
@@ -40,3 +45,13 @@ func permits_slope(slope_deg: float) -> bool:
 
 func has_box_collision() -> bool:
 	return collision_shape == "box" and collision_size.x > 0.0 and collision_size.y > 0.0 and collision_size.z > 0.0
+
+
+## Physics and navigation share one radius so the navmesh never disagrees with
+## what the player's body actually hits.
+func blocking_radius() -> float:
+	return collision_radius if collision_radius > 0.0 else footprint_radius
+
+
+func blocking_height() -> float:
+	return collision_height if collision_height > 0.0 else 2.0

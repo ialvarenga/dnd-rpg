@@ -33,7 +33,7 @@ func analyze(terrain: TerrainProvider, placements: Array[Dictionary], navigation
 	for placement in placements:
 		var definition := AssetCatalog.get_definition(placement.asset)
 		if definition != null and definition.blocks_navigation:
-			cover_area += PI * placement.radius * placement.radius
+			cover_area += PI * pow(definition.blocking_radius(), 2.0)
 	var map_area := terrain.bounds.x * terrain.bounds.y
 	var cover_fraction := clampf(cover_area / maxf(map_area, 0.001), 0.0, 1.0)
 	var scorecard := {

@@ -38,11 +38,14 @@ static func _test_id_lookup_never_accepts_a_resource_path(failures: Array[String
 
 static func _test_tagged_type_query_is_deterministic(failures: Array[String]) -> void:
 	var trees := AssetCatalog.find_matching(&"vegetation", PackedStringArray(["temperate", "tree"]))
-	var tree_ids: Array[StringName] = []
+	# Compared as text, not as StringName: StringName orders by interned
+	# pointer, so sorting both sides that way would agree with any order at all
+	# and assert nothing about determinism across processes.
+	var tree_ids: Array[String] = []
 	for tree in trees:
-		tree_ids.append(tree.id)
+		tree_ids.append(String(tree.id))
 	_expect(not tree_ids.is_empty(), "tree query returned no definitions", failures)
-	_expect(tree_ids.has(&"tree_oak_01") and tree_ids.has(&"tree_oak_02"), "tree query omitted legacy definitions: %s" % str(tree_ids), failures)
+	_expect(tree_ids.has("tree_oak_01") and tree_ids.has("tree_oak_02"), "tree query omitted legacy definitions: %s" % str(tree_ids), failures)
 	var sorted_ids := tree_ids.duplicate()
 	sorted_ids.sort()
 	_expect(tree_ids == sorted_ids, "tree query was not stable and sorted: %s" % str(tree_ids), failures)

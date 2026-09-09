@@ -15,9 +15,9 @@ static func create(id: StringName, point: Vector3, definition: AssetDefinition, 
 		blocker.rotation.y = rotation_y
 	else:
 		var cylinder := CylinderShape3D.new()
-		cylinder.radius = definition.footprint_radius
-		cylinder.height = 2.0
+		cylinder.radius = definition.blocking_radius()
+		cylinder.height = definition.blocking_height()
 		collision.shape = cylinder
-		blocker.position = point + Vector3.UP * 1.0
+		blocker.position = point + Vector3.UP * (cylinder.height * 0.5)
 	blocker.add_child(collision)
 	return blocker

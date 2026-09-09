@@ -5,6 +5,10 @@ extends RefCounted
 ## this layer owns critical engine, spatial, and reachability sanity checks.
 
 const ID_PATTERN := "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
+## Floor kept clear around a spawn or an actor so procedural scatter never grows
+## on top of a character. Validating this after the fact instead made a dense
+## region impossible to author.
+const CHARACTER_CLEARANCE_M := 0.75
 
 var terrain_factory: Callable = func() -> TerrainProvider: return ProceduralTerrainProvider.new()
 
@@ -37,11 +41,21 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 	_compile_actor_visuals(spec.get("actors", []), terrain, bounds, result)
 	if not result.errors.is_empty():
 		return result
+	# Character footprints reserve space from the scatter generator only. They
+	# stay out of `occupied` so _validate_spawns does not read a spawn's own
+	# reservation as the structure it is standing in.
+	var scatter_reserved: Array[Dictionary] = occupied.duplicate(true)
+	for spawn in spec.get("spawn_points", []):
+		scatter_reserved.append({"point": _point(spawn.get("position", [])), "radius": CHARACTER_CLEARANCE_M, "id": StringName(spawn.get("id", "spawn"))})
+	for actor in spec.get("actors", []):
+		scatter_reserved.append({"point": _point(actor.get("position", [])), "radius": CHARACTER_CLEARANCE_M, "id": StringName(actor.get("id", "actor"))})
 	var generator := VegetationGenerator.new()
 	for region in spec.get("regions", []):
-		var generated := generator.generate(region, int(map["seed"]), terrain, occupied)
+		var generated := generator.generate(region, int(map["seed"]), terrain, scatter_reserved)
 		for placement in generated:
-			occupied.append({"point": Vector2(placement.position.x, placement.position.z), "radius": placement.radius, "id": placement.id})
+			var entry := {"point": Vector2(placement.position.x, placement.position.z), "radius": placement.radius, "id": placement.id}
+			scatter_reserved.append(entry)
+			occupied.append(entry)
 			result.placements.append(placement)
 	_validate_spawns(spec.get("spawn_points", []), bounds, occupied, result.errors)
 	if not result.errors.is_empty():
@@ -74,7 +88,11 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 		# characters are visual anchors that the composition root replaces with
 		# CharacterView instances; leaving a static blocker at the same position
 		# would make every line-of-sight ray hit the target's hidden anchor.
-		if definition != null and definition.asset_type not in [&"terrain_feature", &"character"]:
+		# Scatter that a character walks through or steps over gets no physics
+		# body at all: a grass tuft must not stop the player or eat a
+		# line-of-sight ray. Props and structures stay solid regardless, since
+		# blocks_navigation is off for chests and barrels that are still objects.
+		if definition != null and definition.asset_type not in [&"terrain_feature", &"character"] and (definition.asset_type != &"vegetation" or definition.blocks_navigation):
 			result.root.add_child(MapRuntimeBlocker.create(placement.id, placement.position, definition, placement.rotation_y, placement.get("collision_size", Vector3.ZERO)))
 	if not result.errors.is_empty():
 		result.root.queue_free()
@@ -353,7 +371,7 @@ func _navigation_blockers(placements: Array[Dictionary], paths: Array[Dictionary
 	for placement in placements:
 		var definition := AssetCatalog.get_definition(placement.asset)
 		if definition != null and definition.blocks_navigation:
-			var blocker := {"point": Vector2(placement.position.x, placement.position.z), "radius": placement.radius, "id": placement.id}
+			var blocker := {"point": Vector2(placement.position.x, placement.position.z), "radius": definition.blocking_radius(), "id": placement.id}
 			if definition.has_box_collision():
 				blocker["kind"] = &"box"
 				blocker["size"] = placement.get("collision_size", definition.collision_size)

@@ -12,5 +12,7 @@ footprint_radius = 0.51
 placement_max_slope_deg = 40.0
 blocks_navigation = true
 collision_shape = "cylinder"
+collision_radius = 0.51
+collision_height = 2.97
 display_offset = Vector3(0, -2.9116641599102877e-05, 0)
 palette_index = 1

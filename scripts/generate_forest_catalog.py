@@ -8,6 +8,7 @@ import csv
 import json
 import math
 import re
+import struct
 import zlib
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,7 +20,17 @@ CATALOG_PATH = ROOT / "godot/world/asset_catalog.gd"
 JS_PATH = ROOT / "map_builder/js/asset-catalog.js"
 CSV_PATH = ROOT / "docs/third_party/assets.csv"
 FOREST_DIR = ROOT / "godot/data/assets/forest"
-FAMILIES = {"trees": ("tree", 27, True), "bushes": ("bush", 35, False), "grass": ("grass", 45, False), "rocks": ("rock", 40, True)}
+FAMILIES = {"trees": ("tree", 27), "bushes": ("bush", 35), "grass": ("grass", 45), "rocks": ("rock", 40)}
+# Blocking is measured from the mesh rather than declared per family. Foliage
+# is pushed through, and anything a character can step over stays out of the
+# physics and navigation worlds entirely.
+FOLIAGE_FAMILIES = frozenset({"bush", "grass"})
+STEP_OVER_M = 1.0
+# Collision is sized at torso height, not from the mesh's full extent: a tree's
+# canopy is several times wider than the trunk a walking character can hit.
+# footprint_radius stays the canopy circle, which is what authoring spacing and
+# overlap validation care about.
+WALK_SLICE_M = 1.2
 # Atlas palette columns each family may use, from scripts/generate_forest_palettes.py.
 # Autumn (6 gold, 7 rust, 8 dry) stays out of the automatic rotation so a
 # temperate region does not sprout autumn trees; author it per asset instead.
@@ -57,6 +68,10 @@ class Model:
     # (width_m, depth_m) footprint for hills, so the map builder can draw a
     # to-scale rectangle instead of the generic circular footprint.
     nominal_size: tuple[float, float] | None = None
+    # Cylinder collision measured from the mesh; None leaves the runtime on its
+    # footprint_radius / 2m fallback (hand-authored assets, box-collision hills).
+    collision_radius: float | None = None
+    collision_height: float | None = None
 
     @property
     def scene_path(self) -> str:
@@ -74,6 +89,26 @@ def gltf_bounds(path: Path) -> tuple[list[float], list[float]]:
     return accessor["min"], accessor["max"]
 
 
+def gltf_positions(path: Path) -> list[tuple[float, float, float]]:
+    """Vertex positions of the first primitive, read from the sidecar .bin."""
+    doc = json.loads(path.read_text())
+    accessor = doc["accessors"][doc["meshes"][0]["primitives"][0]["attributes"]["POSITION"]]
+    view = doc["bufferViews"][accessor["bufferView"]]
+    blob = (path.parent / doc["buffers"][view["buffer"]]["uri"]).read_bytes()
+    start = view.get("byteOffset", 0) + accessor.get("byteOffset", 0)
+    stride = view.get("byteStride") or 12
+    return [struct.unpack_from("<3f", blob, start + index * stride) for index in range(accessor["count"])]
+
+
+def walk_slice_radius(path: Path, ground: float) -> float:
+    """Widest horizontal reach below WALK_SLICE_M, i.e. what a walking
+    character can collide with. A canopy overhead is not an obstacle."""
+    low = [p for p in gltf_positions(path) if p[1] - ground <= WALK_SLICE_M]
+    if not low:
+        return 0.05
+    return max(0.05, round(max(math.hypot(p[0], p[2]) for p in low), 2))
+
+
 def stable_id(path: Path) -> str:
     return "forest_" + path.stem.removesuffix("_Color1").lower()
 
@@ -86,17 +121,22 @@ def palette_for(asset_id: str, family: str) -> int:
 
 def models() -> list[Model]:
     result: list[Model] = []
-    for folder, (family, slope, blocks) in FAMILIES.items():
+    for folder, (family, slope) in FAMILIES.items():
         for path in sorted((ASSET_ROOT / folder).glob("*.gltf")):
             minimum, maximum = gltf_bounds(path)
             radius = max(abs(minimum[0]), abs(maximum[0]), abs(minimum[2]), abs(maximum[2]))
+            height = round(maximum[1] - minimum[1], 2)
             tags = ["temperate", "forest", family]
             if path.name.startswith("Tree_Bare_"):
                 tags.append("bare")
             if "Singlesided" in path.name:
                 tags.append("singlesided")
             asset_id = stable_id(path)
-            result.append(Model(path, folder, asset_id, family, tags, max(0.05, round(radius, 2)), -minimum[1], slope, blocks, palette_for(asset_id, family)))
+            blocks = family not in FOLIAGE_FAMILIES and height >= STEP_OVER_M
+            result.append(Model(
+                path, folder, asset_id, family, tags, max(0.05, round(radius, 2)), -minimum[1], slope, blocks, palette_for(asset_id, family),
+                collision_radius=walk_slice_radius(path, minimum[1]), collision_height=height,
+            ))
     result.extend(hill_models())
     return result
 
@@ -128,6 +168,8 @@ def hill_models() -> list[Model]:
 def tres(model: Model) -> str:
     tags = ", ".join('"%s"' % tag for tag in model.tags)
     collision_size_line = "\ncollision_size = Vector3(%s, %s, %s)" % model.collision_size if model.collision_size is not None else ""
+    if model.collision_radius is not None:
+        collision_size_line += "\ncollision_radius = %s\ncollision_height = %s" % (model.collision_radius, model.collision_height)
     return '''[gd_resource type="Resource" script_class="AssetDefinition" load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://world/asset_definition.gd" id="1"]

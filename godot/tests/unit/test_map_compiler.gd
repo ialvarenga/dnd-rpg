@@ -24,6 +24,11 @@ static func run() -> Dictionary:
 	_test_hills_are_compiled_and_present_in_navmesh(failures)
 	_test_hill_excludes_generated_vegetation(failures)
 	_test_hill_rejects_overlapping_placement(failures)
+	_test_walkover_scatter_has_no_blocker(failures)
+	_test_collision_is_measured_at_walk_height(failures)
+	_test_dense_forest_stays_walkable(failures)
+	_test_scatter_respects_poisson_spacing(failures)
+	_test_scatter_density_is_patchy(failures)
 	return {"name": "unit/test_map_compiler", "failures": failures}
 
 
@@ -88,11 +93,15 @@ static func _test_terrain_surface_materials(failures: Array[String]) -> void:
 static func _test_vegetation_is_deterministic_and_respects_clearance(failures: Array[String]) -> void:
 	var terrain := TerrainScript.new()
 	terrain.generate(&"flat", 7, Vector2(32, 32))
-	var region := {"id": "grove", "polygon": [[0, 0], [32, 0], [32, 32], [0, 32]], "vegetation": {"profile": "temperate_sparse", "density": 0.4}}
 	var generator := VegetationScript.new()
-	var first := generator.generate(region, 99, terrain, [{"point": Vector2(16, 16), "radius": 10.0}])
-	var second := generator.generate(region, 99, terrain, [{"point": Vector2(16, 16), "radius": 10.0}])
-	_expect(first == second and not first.is_empty(), "vegetation placement is not deterministic", failures)
+	var first: Array[Dictionary] = []
+	for profile in ["temperate_sparse", "temperate_dense", "old_growth", "meadow", "rocky_scrub", "thicket"]:
+		var region := {"id": "grove", "polygon": [[0, 0], [32, 0], [32, 32], [0, 32]], "vegetation": {"profile": profile, "density": 0.4}}
+		var run_a := generator.generate(region, 99, terrain, [{"point": Vector2(16, 16), "radius": 10.0}])
+		var run_b := generator.generate(region, 99, terrain, [{"point": Vector2(16, 16), "radius": 10.0}])
+		_expect(run_a == run_b and not run_a.is_empty(), "vegetation placement is not deterministic for profile %s" % profile, failures)
+		if profile == "temperate_sparse":
+			first = run_a
 	for placement in first:
 		_expect(placement.position.x >= 0 and placement.position.x <= 32 and placement.position.z >= 0 and placement.position.z <= 32, "vegetation escaped bounds", failures)
 		_expect(Vector2(placement.position.x, placement.position.z).distance_to(Vector2(16, 16)) >= 10.0 + placement.radius, "vegetation ignored clearance", failures)
@@ -269,6 +278,105 @@ static func _test_hill_rejects_overlapping_placement(failures: Array[String]) ->
 	var spec := {"map": {"id": "hill_overlap_map", "seed": 1, "bounds": {"width_m": 32, "height_m": 32}}, "terrain": {"profile": "flat"}, "hills": [{"id": "mound", "asset": "forest_hill_4x4x4", "position": [16, 16]}], "vegetation": [{"id": "too_close", "asset": "tree_oak_01", "position": [17, 16]}]}
 	var result := compiler.compile(spec)
 	_expect(not result.is_valid() and not result.errors.is_empty() and result.errors[0].code == &"OVERLAP", "vegetation placed inside a hill's footprint was not rejected", failures)
+
+
+## Grass and low rocks must leave no physics body behind: a walk-over prop that
+## still owns a layer-8 cylinder stops the player and eats line-of-sight rays.
+static func _test_walkover_scatter_has_no_blocker(failures: Array[String]) -> void:
+	var compiler := CompilerScript.new()
+	var spec := {
+		"map": {"id": "walkover_map", "seed": 11, "bounds": {"width_m": 48, "height_m": 48}},
+		"terrain": {"profile": "flat"},
+		"regions": [{"id": "grove", "polygon": [[0, 0], [48, 0], [48, 48], [0, 48]], "vegetation": {"profile": "temperate_dense", "density": 0.9}}],
+	}
+	var result := compiler.compile(spec)
+	_expect(result.is_valid(), "walk-over fixture did not compile", failures)
+	if not result.is_valid():
+		return
+	var walkover := 0
+	for placement in result.placements:
+		var definition := AssetCatalog.get_definition(placement.asset)
+		if definition == null or definition.asset_type != &"vegetation" or definition.blocks_navigation:
+			continue
+		walkover += 1
+		_expect(result.root.get_node_or_null("%s_Blocker" % placement.id) == null, "walk-over scatter '%s' still owns a physics blocker" % placement.id, failures)
+	_expect(walkover > 0, "dense fixture generated no walk-over scatter to check", failures)
+	result.root.free()
+
+
+static func _test_collision_is_measured_at_walk_height(failures: Array[String]) -> void:
+	var canopy := AssetCatalog.get_definition(&"forest_tree_1_c")
+	_expect(canopy != null and canopy.blocking_radius() < canopy.footprint_radius * 0.25, "tree collision still uses the canopy footprint instead of the trunk", failures)
+	var pebble := AssetCatalog.get_definition(&"forest_rock_5_a")
+	_expect(pebble != null and not pebble.blocks_navigation, "a 9cm pebble is still a navigation obstacle", failures)
+	for definition in AssetCatalog.find_matching(&"vegetation", PackedStringArray(["forest"])):
+		_expect(definition.collision_radius > 0.0 and definition.collision_height > 0.0, "catalog asset '%s' has no measured collision" % definition.id, failures)
+		if definition.tags.has("grass") or definition.tags.has("bush"):
+			_expect(not definition.blocks_navigation, "foliage '%s' blocks navigation" % definition.id, failures)
+
+
+## The regression test for the original complaint: a dense stand has to stay
+## crossable now that trunks, not canopies, carve the navmesh.
+static func _test_dense_forest_stays_walkable(failures: Array[String]) -> void:
+	var compiler := CompilerScript.new()
+	var spec := {
+		"map": {"id": "dense_walk_map", "seed": 5, "bounds": {"width_m": 48, "height_m": 48}},
+		"terrain": {"profile": "flat"},
+		"regions": [{"id": "grove", "polygon": [[0, 0], [48, 0], [48, 48], [0, 48]], "vegetation": {"profile": "temperate_dense", "density": 1.0}}],
+		"spawn_points": [{"id": "start", "position": [2, 2]}],
+	}
+	var result := compiler.compile(spec)
+	_expect(result.is_valid(), "dense forest fixture did not compile", failures)
+	if not result.is_valid():
+		return
+	_expect(result.navigation.is_reachable(Vector2(2, 2), Vector2(46, 46)), "a dense forest is not crossable", failures)
+	result.root.free()
+
+
+static func _test_scatter_respects_poisson_spacing(failures: Array[String]) -> void:
+	var terrain := TerrainScript.new()
+	terrain.generate(&"flat", 21, Vector2(64, 64))
+	var region := {"id": "grove", "polygon": [[0, 0], [64, 0], [64, 64], [0, 64]], "vegetation": {"profile": "temperate_sparse", "density": 0.6}}
+	var placements := VegetationScript.new().generate(region, 21, terrain, [])
+	_expect(placements.size() > 20, "sparse scatter produced too few samples to test spacing", failures)
+	var settings := VegetationScript.load_profile("temperate_sparse")
+	var scale := lerpf(1.6, 0.75, 0.6) * (1.0 - settings.canopy_overlap)
+	for index in placements.size():
+		var here: Dictionary = placements[index]
+		var here_gap := maxf(settings.min_spacing_m, float(here.radius) * scale)
+		for other_index in range(index + 1, placements.size()):
+			var other: Dictionary = placements[other_index]
+			var gap := here_gap + maxf(settings.min_spacing_m, float(other.radius) * scale)
+			if Vector2(here.position.x, here.position.z).distance_to(Vector2(other.position.x, other.position.z)) < gap - 0.001:
+				_expect(false, "Poisson-disk minimum spacing was violated between '%s' and '%s'" % [here.id, other.id], failures)
+				return
+
+
+## The density field has to carve real clearings, and the stand still has to
+## cover the whole region. Variance-to-mean is the wrong statistic here: a
+## Poisson-disk process is under-dispersed, so blue noise alone would push it
+## below 1 and mask the field entirely. The low tail of cell occupancy is the
+## property that actually distinguishes a stand with clearings from a flat one.
+static func _test_scatter_density_is_patchy(failures: Array[String]) -> void:
+	var terrain := TerrainScript.new()
+	terrain.generate(&"flat", 33, Vector2(96, 96))
+	var region := {"id": "grove", "polygon": [[0, 0], [96, 0], [96, 96], [0, 96]], "vegetation": {"profile": "temperate_dense", "density": 0.8}}
+	var placements := VegetationScript.new().generate(region, 33, terrain, [])
+	_expect(placements.size() > 100, "dense scatter produced too few samples to measure patchiness", failures)
+	var buckets := {}
+	for placement in placements:
+		buckets[Vector2i(floori(placement.position.x / 12.0), floori(placement.position.z / 12.0))] = 0
+	for placement in placements:
+		var key := Vector2i(floori(placement.position.x / 12.0), floori(placement.position.z / 12.0))
+		buckets[key] = int(buckets[key]) + 1
+	var counts: Array[int] = []
+	for x_index in 8:
+		for z_index in 8:
+			counts.append(int(buckets.get(Vector2i(x_index, z_index), 0)))
+	counts.sort()
+	_expect(counts[0] > 0, "the stand left whole cells bare; the instance cap is truncating instead of coarsening", failures)
+	var median := float(counts[counts.size() / 2])
+	_expect(float(counts[counts.size() / 10]) < median * 0.8, "scatter density is flat; the noise field is not carving clearings", failures)
 
 
 static func _expect(condition: bool, message: String, failures: Array[String]) -> void:

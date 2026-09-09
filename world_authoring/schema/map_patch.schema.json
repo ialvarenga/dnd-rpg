@@ -103,7 +103,7 @@
       "properties": {
         "op": { "const": "CHANGE_PROFILE" },
         "target": { "$ref": "#/$defs/entityTarget" },
-        "profile": { "enum": ["flat", "rolling_hills", "valley", "temperate_sparse", "temperate_dense", "none"] }
+        "profile": { "enum": ["flat", "rolling_hills", "valley", "temperate_sparse", "temperate_dense", "old_growth", "meadow", "rocky_scrub", "thicket", "none"] }
       }
     },
     "operation": { "oneOf": [ { "$ref": "#/$defs/add" }, { "$ref": "#/$defs/remove" }, { "$ref": "#/$defs/move" }, { "$ref": "#/$defs/rotate" }, { "$ref": "#/$defs/resize" }, { "$ref": "#/$defs/changeDensity" }, { "$ref": "#/$defs/changeProfile" } ] }

@@ -204,7 +204,11 @@ static func find_matching(asset_type: StringName = &"", required_tags := PackedS
 			continue
 		if definition.supports_tags(required_tags):
 			matches.append(definition)
-	matches.sort_custom(func(left: AssetDefinition, right: AssetDefinition) -> bool: return left.id < right.id)
+	# StringName comparison orders by interned pointer, not by text, so sorting
+	# on `id` directly is a no-op that leaves the order dependent on which names
+	# the process happened to intern first. Every caller downstream of this is
+	# meant to be deterministic, so compare the text.
+	matches.sort_custom(func(left: AssetDefinition, right: AssetDefinition) -> bool: return String(left.id) < String(right.id))
 	return matches
 
 
