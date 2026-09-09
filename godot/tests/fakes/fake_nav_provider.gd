@@ -3,6 +3,7 @@ extends NavProvider
 
 var blocked_destinations: Array[Vector3] = []
 var paths: Dictionary = {}
+var snapped_destinations: Dictionary = {}
 
 
 func find_path(from: Vector3, to: Vector3) -> PackedVector3Array:
@@ -27,10 +28,13 @@ func is_reachable(_from: Vector3, to: Vector3) -> bool:
 	return not blocked_destinations.has(to)
 
 
+func snap_to_navmesh(pos: Vector3) -> Vector3:
+	return snapped_destinations.get(pos, pos)
+
+
 func set_path(from: Vector3, to: Vector3, path: PackedVector3Array) -> void:
 	paths[_key(from, to)] = path.duplicate()
 
 
 func _key(from: Vector3, to: Vector3) -> String:
 	return "%s>%s" % [from, to]
-

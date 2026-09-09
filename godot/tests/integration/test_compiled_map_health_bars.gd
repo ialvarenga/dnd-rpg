@@ -16,6 +16,7 @@ func run() -> Dictionary:
 	_test_health_bar_creation(map, failures)
 	_test_state_changed_health_update(map, failures)
 	await _test_approach_then_attack(map, failures)
+	await _test_interactable_highlight_and_approach(map, failures)
 	map.queue_free()
 	return {"name": "integration/test_compiled_map_health_bars", "failures": failures}
 
@@ -26,6 +27,9 @@ func _test_health_bar_creation(map: CompiledMapController, failures: Array[Strin
 	for hostile in map.hostile_views.values():
 		var view := hostile as CharacterView
 		_expect(view != null and view.get_node_or_null("WorldHealthBar") is WorldHealthBar, "spawned hostile CharacterView has no WorldHealthBar", failures)
+	_expect(map._interactable_highlights.size() == map.battle_state.interactables.size(), "not every pickup and container received an interaction highlight", failures)
+	for highlight in map._interactable_highlights.values():
+		_expect((highlight as MeshInstance3D).visible == false, "interaction highlight was visible before hover or selection", failures)
 
 
 func _test_state_changed_health_update(map: CompiledMapController, failures: Array[String]) -> void:
@@ -81,6 +85,44 @@ func _test_approach_then_attack(map: CompiledMapController, failures: Array[Stri
 		await get_tree().physics_frame
 	_expect(map._pending_targeted_action.is_empty(), "queued targeted action did not complete after movement", failures)
 	_expect(not player.action_available and target.hp < hp_before, "queued targeted action was not performed after movement", failures)
+
+
+func _test_interactable_highlight_and_approach(map: CompiledMapController, failures: Array[String]) -> void:
+	var pickup: InteractableState
+	for interactable in map.battle_state.interactables.values():
+		if (interactable as InteractableState).type == &"pickup":
+			pickup = interactable as InteractableState
+			break
+	if pickup == null:
+		failures.append("compiled map spawned no pickup to test")
+		return
+	var player := map.battle_state.actors[map.character.actor_id] as ActorState
+	var enemy_id: int = map.hostile_views.keys()[0]
+	var requested_start := pickup.position + Vector3(4.0, 1.0, 0.0)
+	var start := map.nav_provider.snap_to_navmesh(requested_start)
+	player.position = start
+	player.movement_remaining = player.movement_speed
+	player.action_available = true
+	player.conditions.clear()
+	map.character.synchronize_to_authoritative_position(start)
+	map.battle_state.phase = &"combat"
+	map.battle_state.initiative_order = [player.id, enemy_id]
+	map.battle_state.current_turn_index = 0
+	var inventory_before := player.inventory.size()
+	map._approach_interactable(pickup.id)
+	var highlight := map._interactable_highlights.get(pickup.id) as MeshInstance3D
+	_expect(highlight != null and highlight.visible, "clicked pickup did not show its interaction highlight", failures)
+	_expect(not map._pending_interactable_id.is_empty(), "out-of-range pickup click did not queue its interaction", failures)
+	_expect(player.action_available and player.inventory.size() == inventory_before, "pickup interaction executed before approach movement completed", failures)
+	_expect(player.position.distance_to(pickup.position) <= pickup.interact_range + 0.001, "pickup approach did not end inside interaction range", failures)
+	for _frame in range(240):
+		if not map.character.is_moving():
+			break
+		await get_tree().physics_frame
+	_expect(map._pending_interactable_id.is_empty(), "queued pickup interaction did not complete after movement", failures)
+	_expect(not player.action_available and player.inventory.size() == inventory_before + 1, "queued pickup was not collected after movement", failures)
+	_expect(pickup.state == &"collected", "collected pickup did not update authoritative interactable state", failures)
+	_expect(not map._interactable_highlights.has(pickup.id), "collected pickup retained a stale highlight", failures)
 
 
 func _expect(condition: bool, message: String, failures: Array[String]) -> void:

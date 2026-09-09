@@ -9,6 +9,7 @@ signal command_rejected(command_type: StringName, reason: StringName)
 
 const MovePreviewScript = preload("res://world/move_preview.gd")
 const TargetedActionPlannerScript = preload("res://sim/targeted_action_planner.gd")
+const InteractableActionPlannerScript = preload("res://sim/interactable_action_planner.gd")
 
 var battle_state: BattleState
 var nav: NavProvider
@@ -64,6 +65,12 @@ func submit_ability(actor_id: int, ability_id: StringName, target_id: int, targe
 ## submit the actual ability afterward.
 func plan_targeted_ability(actor_id: int, ability_id: StringName, target_id: int):
 	return TargetedActionPlannerScript.plan(battle_state, actor_id, ability_id, target_id, nav, los)
+
+
+## Non-mutating plan for clicking an out-of-range world item. The plan stops
+## at interaction range instead of trying to walk onto the item's blocker.
+func plan_interaction(actor_id: int, interactable_id: String):
+	return InteractableActionPlannerScript.plan(battle_state, actor_id, interactable_id, nav, los)
 
 
 func end_turn(actor_id: int) -> ResolutionResult:

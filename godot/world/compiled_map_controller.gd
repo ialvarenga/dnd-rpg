@@ -25,8 +25,11 @@ var detection_range := 8.0
 var _enemy_action_cooldown := 0.0
 var _targeting_ability_id: StringName = &""
 var _highlighted_target_id := -1
+var _highlighted_interactable_id := ""
+var _interactable_highlights: Dictionary[String, MeshInstance3D] = {}
 var _pending_interactable_id := ""
 var _pending_targeted_action: Dictionary = {}
+var _interactable_highlight_time := 0.0
 var music
 
 const EnemyAIScript = preload("res://ai/enemy_ai.gd")
@@ -41,6 +44,10 @@ const MapSpecSourceScript = preload("res://world/map_spec_source.gd")
 const ScreenPickerScript = preload("res://world/screen_picker.gd")
 const MusicDirectorScript = preload("res://view/music_director.gd")
 const WORLD_HEALTH_BAR_SCENE = preload("res://view/ui/world_health_bar.tscn")
+
+const INTERACTABLE_READY_COLOR := Color("76e887")
+const INTERACTABLE_APPROACH_COLOR := Color("f5d742")
+const INTERACTABLE_BLOCKED_COLOR := Color("ef625d")
 
 ## MapSpec interactable kinds this map runtime owns. Every other kind is
 ## authored as scenery: compiled and collision-checked, never registered.
@@ -85,7 +92,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion:
 		if _targeting_ability_id != &"":
+			_clear_interactable_highlight()
 			_update_target_highlight(_hostile_at_screen_position(event.position))
+			return
+		var hovered_interactable_id := ScreenPickerScript.interactable_id(camera, get_world_3d().direct_space_state, event.position)
+		if not _pending_interactable_id.is_empty():
+			return
+		_update_interactable_highlight(hovered_interactable_id)
+		if not hovered_interactable_id.is_empty():
+			_line_mesh.clear_surfaces()
 			return
 		var preview_target: Variant = ScreenPickerScript.terrain_point(camera, get_world_3d().direct_space_state, event.position)
 		if preview_target is Vector3:
@@ -94,9 +109,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		var interactable_id := ScreenPickerScript.interactable_id(camera, get_world_3d().direct_space_state, event.position)
 		if interactable_id != "":
+			_pending_targeted_action.clear()
+			_clear_targeting()
 			_approach_interactable(interactable_id)
 			get_viewport().set_input_as_handled()
 			return
+		_cancel_pending_interaction()
+		_pending_targeted_action.clear()
+		_clear_interactable_highlight()
 		var hostile := _hostile_at_screen_position(event.position)
 		if _targeting_ability_id != &"":
 			if hostile != null:
@@ -167,6 +187,8 @@ func _setup_pickups(spec: Dictionary) -> void:
 		var pickup_view := compilation.root.get_node_or_null(NodePath(pickup_id))
 		if pickup_view != null:
 			pickup_view.set_meta("interactable_id", pickup.id)
+			var asset_id := StringName(str(raw_pickup.get("asset", "")))
+			_register_interactable_highlight(pickup.id, pickup_view as Node3D, asset_id)
 
 
 ## Authored containers become runtime interactables here, mirroring
@@ -188,7 +210,10 @@ func _setup_interactables(spec: Dictionary) -> void:
 		for item_id in raw_interactable.get("contents", []):
 			interactable.contents.append(StringName(str(item_id)))
 		battle_state.interactables[interactable.id] = interactable
-		_attach_pick_collider(compilation.root.get_node_or_null(NodePath(interactable_id)) as Node3D, interactable_id, StringName(str(raw_interactable.get("asset", ""))))
+		var asset_id := StringName(str(raw_interactable.get("asset", "")))
+		var interactable_view := compilation.root.get_node_or_null(NodePath(interactable_id)) as Node3D
+		_attach_pick_collider(interactable_view, interactable_id, asset_id)
+		_register_interactable_highlight(interactable.id, interactable_view, asset_id)
 
 
 ## Compiled props are bare catalog art -- AssetCatalog.instantiate() returns the
@@ -212,6 +237,34 @@ func _attach_pick_collider(view: Node3D, interactable_id: String, asset_id: Stri
 	collision.position = Vector3.UP * (cylinder.height * 0.5)
 	body.add_child(collision)
 	view.add_child(body)
+
+
+## Interactables use the same ground-marker language as actor targeting. The
+## marker is presentation-only and stays attached to the item while it is
+## hovered, approached, and acted upon.
+func _register_interactable_highlight(interactable_id: String, view: Node3D, asset_id: StringName) -> void:
+	if view == null:
+		return
+	var definition := AssetCatalog.get_definition(asset_id)
+	var radius := maxf(0.55, definition.footprint_radius if definition != null else 0.55)
+	var highlight := MeshInstance3D.new()
+	highlight.name = "InteractableHighlight"
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius + 0.22
+	mesh.bottom_radius = radius + 0.22
+	mesh.height = 0.035
+	mesh.radial_segments = 32
+	highlight.mesh = mesh
+	highlight.position = Vector3.UP * 0.08
+	highlight.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.emission_enabled = true
+	highlight.material_override = material
+	highlight.visible = false
+	view.add_child(highlight)
+	_interactable_highlights[interactable_id] = highlight
 
 
 ## Actors are visual map data until this composition root turns hostile ones
@@ -285,6 +338,7 @@ func _update_world_health_bar(view: CharacterView) -> void:
 func _process(delta: float) -> void:
 	if session == null or character == null:
 		return
+	_animate_interactable_highlight(delta)
 	if music != null:
 		music.set_phase(battle_state.phase)
 	if battle_state.phase == &"exploration":
@@ -368,20 +422,34 @@ func _synchronize_completed_movement(actor_id: int) -> void:
 func _approach_interactable(interactable_id: String) -> void:
 	if not battle_state.interactables.has(interactable_id):
 		return
-	var interactable: InteractableState = battle_state.interactables[interactable_id]
-	var actor: ActorState = battle_state.actors[character.actor_id]
-	if actor.position.distance_to(interactable.position) <= interactable.interact_range:
+	_cancel_pending_interaction()
+	_pending_targeted_action.clear()
+	var plan = session.plan_interaction(character.actor_id, interactable_id)
+	if not plan.can_execute:
+		_set_interactable_highlight(interactable_id, &"blocked")
 		_resolve_interaction(interactable_id)
 		return
+	if not plan.requires_movement:
+		_set_interactable_highlight(interactable_id, &"ready")
+		_resolve_interaction(interactable_id)
+		return
+	_set_interactable_highlight(interactable_id, &"approaching")
 	_pending_interactable_id = interactable_id
-	var result := _move(interactable.position)
-	if not result.events.is_empty() and result.events[0].type == &"command_rejected":
+	_show_path_preview(plan.movement_target)
+	var result := _move(plan.movement_target)
+	if result.events.any(func(event: Event): return event.type == &"command_rejected"):
 		_pending_interactable_id = ""
+		_set_interactable_highlight(interactable_id, &"blocked")
+	elif not character.is_moving() and not _pending_interactable_id.is_empty():
+		# As with queued attacks, a presentation path can collapse even though
+		# the authoritative move advanced. Do not leave the interaction waiting.
+		_synchronize_completed_movement(character.actor_id)
 
 
 func _complete_pending_interaction() -> void:
 	var interactable_id := _pending_interactable_id
 	_pending_interactable_id = ""
+	_set_interactable_highlight(interactable_id, &"ready")
 	_resolve_interaction(interactable_id)
 
 
@@ -400,6 +468,8 @@ func _complete_pending_targeted_action() -> void:
 func _resolve_interaction(interactable_id: String) -> void:
 	var result: ResolutionResult = session.submit_interact(character.actor_id, interactable_id)
 	event_player.play_events(result.events)
+	if result.events.any(func(event: Event): return event.type == &"command_rejected"):
+		_set_interactable_highlight(interactable_id, &"blocked")
 	for resolved_event in result.events:
 		if resolved_event.type != &"items_looted":
 			continue
@@ -412,6 +482,9 @@ func _resolve_interaction(interactable_id: String) -> void:
 		var pickup_view := compilation.root.get_node_or_null(NodePath(looted_id))
 		if pickup_view != null:
 			pickup_view.queue_free()
+		_interactable_highlights.erase(looted_id)
+		if _highlighted_interactable_id == looted_id:
+			_highlighted_interactable_id = ""
 
 
 func _dress_player(player: CharacterView, player_data: Dictionary) -> void:
@@ -489,6 +562,9 @@ func _setup_music(settings: Dictionary) -> void:
 
 
 func _on_hud_ability_requested(ability_id: StringName) -> void:
+	_cancel_pending_interaction()
+	_pending_targeted_action.clear()
+	_clear_interactable_highlight()
 	var definitions := DefinitionLibrary.get_default()
 	var ability := definitions.get_ability(ability_id)
 	if ability != null and ability.targeting == &"actor" and AbilityTargetingRules.target_range(definitions, ability_id) >= 0.0:
@@ -503,6 +579,9 @@ func _on_hud_ability_requested(ability_id: StringName) -> void:
 
 
 func _on_inventory_item_requested(item_id: StringName) -> void:
+	_cancel_pending_interaction()
+	_pending_targeted_action.clear()
+	_clear_interactable_highlight()
 	var item := DefinitionLibrary.get_default().get_item(item_id)
 	if item == null or item.use_ability_id == &"":
 		return
@@ -511,6 +590,8 @@ func _on_inventory_item_requested(item_id: StringName) -> void:
 
 
 func _on_hud_end_turn_requested() -> void:
+	_cancel_pending_interaction()
+	_clear_interactable_highlight()
 	_pending_targeted_action.clear()
 	_clear_targeting()
 	var result: ResolutionResult = session.end_turn(character.actor_id)
@@ -518,6 +599,8 @@ func _on_hud_end_turn_requested() -> void:
 
 
 func _on_hud_cancel_requested() -> void:
+	_cancel_pending_interaction()
+	_clear_interactable_highlight()
 	_pending_targeted_action.clear()
 	_clear_targeting()
 	_line_mesh.clear_surfaces()
@@ -539,6 +622,8 @@ func _update_target_highlight(hostile: CharacterView) -> void:
 func _submit_targeted_ability(target_id: int) -> void:
 	if not battle_state.actors.has(character.actor_id) or not battle_state.actors.has(target_id):
 		return
+	_cancel_pending_interaction()
+	_clear_interactable_highlight()
 	var ability_id := _targeting_ability_id
 	var plan = session.plan_targeted_ability(character.actor_id, ability_id, target_id)
 	if not plan.can_execute or not plan.requires_movement:
@@ -569,6 +654,56 @@ func _clear_targeting() -> void:
 	_targeting_ability_id = &""
 	if hud != null:
 		hud.set_selected_ability(&"")
+
+
+func _update_interactable_highlight(interactable_id: String) -> void:
+	if interactable_id.is_empty() or not battle_state.interactables.has(interactable_id):
+		_clear_interactable_highlight()
+		return
+	var actor := battle_state.actors.get(character.actor_id) as ActorState
+	var interactable := battle_state.interactables.get(interactable_id) as InteractableState
+	var status := &"ready" if actor != null and interactable != null and actor.position.distance_to(interactable.position) <= interactable.interact_range else &"approaching"
+	_set_interactable_highlight(interactable_id, status)
+
+
+func _set_interactable_highlight(interactable_id: String, status: StringName) -> void:
+	if _highlighted_interactable_id != interactable_id and _interactable_highlights.has(_highlighted_interactable_id):
+		_interactable_highlights[_highlighted_interactable_id].visible = false
+	_highlighted_interactable_id = interactable_id
+	var highlight := _interactable_highlights.get(interactable_id) as MeshInstance3D
+	if highlight == null or not is_instance_valid(highlight):
+		return
+	var color := INTERACTABLE_READY_COLOR
+	if status == &"approaching":
+		color = INTERACTABLE_APPROACH_COLOR
+	elif status == &"blocked":
+		color = INTERACTABLE_BLOCKED_COLOR
+	var material := highlight.material_override as StandardMaterial3D
+	material.albedo_color = Color(color.r, color.g, color.b, 0.58)
+	material.emission = color
+	highlight.visible = true
+	_interactable_highlight_time = 0.0
+
+
+func _clear_interactable_highlight() -> void:
+	var highlight := _interactable_highlights.get(_highlighted_interactable_id) as MeshInstance3D
+	if highlight != null and is_instance_valid(highlight):
+		highlight.visible = false
+		highlight.scale = Vector3.ONE
+	_highlighted_interactable_id = ""
+
+
+func _cancel_pending_interaction() -> void:
+	_pending_interactable_id = ""
+
+
+func _animate_interactable_highlight(delta: float) -> void:
+	var highlight := _interactable_highlights.get(_highlighted_interactable_id) as MeshInstance3D
+	if highlight == null or not is_instance_valid(highlight) or not highlight.visible:
+		return
+	_interactable_highlight_time += delta
+	var pulse := 1.0 + sin(_interactable_highlight_time * 5.0) * 0.055
+	highlight.scale = Vector3(pulse, 1.0, pulse)
 
 
 func _show_compile_errors() -> void:
