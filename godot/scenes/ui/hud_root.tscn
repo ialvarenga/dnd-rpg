@@ -240,11 +240,50 @@ tooltip_text = "End Turn (Space)"
 
 [node name="Settings" type="Button" parent="Margin/Layout"]
 theme_type_variation = &"CircleButton"
-text = ""
-disabled = true
+text = "MENU"
 custom_minimum_size = Vector2(48, 48)
 size_flags_vertical = 4
-tooltip_text = "Settings — coming soon"
+tooltip_text = "Pause menu"
+
+[node name="PauseMenu" type="Control" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+visible = false
+
+[node name="Panel" type="PanelContainer" parent="PauseMenu"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -112.0
+offset_top = -96.0
+offset_right = 112.0
+offset_bottom = 96.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBox_hud_panel")
+
+[node name="Rows" type="VBoxContainer" parent="PauseMenu/Panel"]
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="PauseMenu/Panel/Rows"]
+text = "PAUSED"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 20
+
+[node name="QuickSave" type="Button" parent="PauseMenu/Panel/Rows"]
+text = "Quick Save (F5)"
+
+[node name="QuickLoad" type="Button" parent="PauseMenu/Panel/Rows"]
+text = "Quick Load (F9)"
+
+[node name="Resume" type="Button" parent="PauseMenu/Panel/Rows"]
+text = "Resume"
 
 [node name="DialogPanel" parent="." instance=ExtResource("13_dialog")]
 

@@ -12,6 +12,8 @@ signal cancel_requested
 signal inventory_item_requested(item_id: StringName)
 signal retry_requested
 signal restart_requested
+signal quicksave_requested
+signal quickload_requested
 
 ## DefinitionLibrary is a RefCounted catalog, not an inspector Resource.
 ## Controllers may inject it at runtime; otherwise _ready() uses the default.
@@ -31,12 +33,18 @@ var actor_id := -1
 @onready var objective_label: Label = $Margin/TopBar/ObjectiveLabel
 @onready var coins_label: Label = $Margin/TopBar/CoinsLabel
 @onready var dialog_panel: DialogPanelScript = $DialogPanel
+@onready var pause_menu: Control = $PauseMenu
 
 func _ready() -> void:
 	definitions = definitions if definitions != null else DefinitionLibrary.get_default()
 	hotbar.ability_requested.connect(func(id): ability_requested.emit(id))
 	$Margin/Layout/EndTurn.icon = hotbar.icon_set.texture_for(&"end_turn") if hotbar.icon_set != null else null
 	$Margin/Layout/EndTurn.pressed.connect(func(): end_turn_requested.emit())
+	$Margin/Layout/Settings.disabled = false
+	$Margin/Layout/Settings.pressed.connect(_toggle_pause_menu)
+	$PauseMenu/Panel/Rows/Resume.pressed.connect(func(): _set_pause_menu_visible(false))
+	$PauseMenu/Panel/Rows/QuickSave.pressed.connect(func(): quicksave_requested.emit())
+	$PauseMenu/Panel/Rows/QuickLoad.pressed.connect(func(): quickload_requested.emit())
 	outcome_overlay.retry_requested.connect(func(): retry_requested.emit())
 	outcome_overlay.restart_requested.connect(func(): restart_requested.emit())
 
@@ -130,8 +138,31 @@ func reset_outcome() -> void:
 	outcome_overlay.reset()
 	sync()
 
+
+func is_pause_menu_open() -> bool:
+	return pause_menu.visible
+
+
+func _toggle_pause_menu() -> void:
+	_set_pause_menu_visible(not pause_menu.visible)
+
+
+func _set_pause_menu_visible(visible: bool) -> void:
+	pause_menu.visible = visible
+	if visible:
+		combat_log.append_line("Game paused.")
+
 func _unhandled_input(event: InputEvent) -> void:
-	if outcome_overlay.visible or dialog_panel.visible:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_F5:
+			quicksave_requested.emit()
+			get_viewport().set_input_as_handled()
+			return
+		if event.keycode == KEY_F9:
+			quickload_requested.emit()
+			get_viewport().set_input_as_handled()
+			return
+	if outcome_overlay.visible or dialog_panel.visible or pause_menu.visible:
 		return
 	for slot in range(6):
 		if event.is_action_pressed(StringName("hotbar_%d" % (slot + 1))):

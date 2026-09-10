@@ -5,6 +5,7 @@ static func run() -> Dictionary:
 	var failures: Array[String] = []
 	_test_legal_command_enumeration(failures)
 	_test_choice_is_deterministic_and_replayable(failures)
+	_test_choice_does_not_depend_on_future_rolls(failures)
 	_test_query_budget_enforcement(failures)
 	_test_attack_selection(failures)
 	_test_approach_selection(failures)
@@ -36,6 +37,30 @@ static func _test_choice_is_deterministic_and_replayable(failures: Array[String]
 	var first := _run_ai_turn(42)
 	var second := _run_ai_turn(42)
 	_expect(first == second, "same snapshot and budget produced a different AI replay", failures)
+
+
+## Candidate resolution still uses the authoritative Resolver for legality, but
+## scoring must not read the speculative attack result. Changing only the next
+## RNG state therefore cannot change the selected command.
+static func _test_choice_does_not_depend_on_future_rolls(failures: Array[String]) -> void:
+	var first := _enemy_turn_state(1.0)
+	var second := first.clone()
+	var alternate_target := ActorState.new()
+	alternate_target.id = 3
+	alternate_target.side = &"heroes"
+	alternate_target.position = Vector3(1.2, 0.0, 0.0)
+	alternate_target.hp = 20
+	alternate_target.max_hp = 20
+	first.actors[alternate_target.id] = alternate_target
+	second.actors[alternate_target.id] = alternate_target.clone()
+	first.rng_state = 1
+	second.rng_state = 987654321
+	var ai := EnemyAI.new()
+	var first_command := ai.choose_command(first, 2, FakeNavProvider.new(), FakeLosProvider.new(), AIQueryBudget.new())
+	var second_command := ai.choose_command(second, 2, FakeNavProvider.new(), FakeLosProvider.new(), AIQueryBudget.new())
+	_expect(first_command != null and second_command != null, "AI did not produce commands for RNG-independence fixture", failures)
+	if first_command != null and second_command != null:
+		_expect(first_command.to_dict() == second_command.to_dict(), "AI selected a different command when only the future RNG state changed", failures)
 
 
 static func _test_query_budget_enforcement(failures: Array[String]) -> void:

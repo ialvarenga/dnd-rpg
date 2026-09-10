@@ -41,6 +41,9 @@ var _encounter_checkpoint: BattleState
 var _encounter_start_command: Command
 var _pending_victory_overlay := false
 
+const QUICKSAVE_SLOT := "quicksave"
+const AUTOSAVE_SLOT := "autosave"
+
 const EnemyAIScript = preload("res://ai/enemy_ai.gd")
 const AbilityTargetingRules = preload("res://sim/ability_targeting.gd")
 const ObjectiveStateScript = preload("res://sim/objective_state.gd")
@@ -121,6 +124,9 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if camera == null or nav_provider == null:
+		return
+	if hud != null and hud.is_pause_menu_open():
+		get_viewport().set_input_as_handled()
 		return
 	if battle_state.phase == &"game_over":
 		get_viewport().set_input_as_handled()
@@ -447,6 +453,8 @@ func _update_world_health_bar(view: CharacterView) -> void:
 func _process(delta: float) -> void:
 	if session == null or character == null:
 		return
+	if hud != null and hud.is_pause_menu_open():
+		return
 	_animate_interactable_highlight(delta)
 	if music != null:
 		music.set_phase(battle_state.phase)
@@ -520,6 +528,8 @@ func _start_encounter(start: Command, capture_checkpoint: bool) -> void:
 	var result: ResolutionResult = session.submit_command(start)
 	event_player.play_events(result.events)
 	_enemy_action_cooldown = 0.4
+	if capture_checkpoint:
+		_save_game(AUTOSAVE_SLOT, "Autosaved at encounter start.")
 
 
 func _hostile_at_screen_position(screen_position: Vector2) -> CharacterView:
@@ -604,13 +614,14 @@ func _resolve_interaction(interactable_id: String) -> void:
 		# in the world with its state flipped to "open".
 		var looted_id := str(resolved_event.data["interactable_id"])
 		var looted := battle_state.interactables.get(looted_id) as InteractableState
-		if looted == null or looted.type != &"pickup":
+		if looted == null:
 			continue
-		var pickup_view := compilation.root.get_node_or_null(NodePath(looted_id))
-		if pickup_view != null:
-			_set_interactable_view_active(pickup_view, false)
+		if looted.type == &"pickup":
+			var pickup_view := compilation.root.get_node_or_null(NodePath(looted_id))
+			if pickup_view != null:
+				_set_interactable_view_active(pickup_view, false)
 		var collected_highlight := _interactable_highlights.get(looted_id) as MeshInstance3D
-		if collected_highlight != null:
+		if collected_highlight != null and looted.contents.is_empty():
 			collected_highlight.visible = false
 		if _highlighted_interactable_id == looted_id:
 			_highlighted_interactable_id = ""
@@ -720,6 +731,8 @@ func _setup_hud() -> void:
 	hud.cancel_requested.connect(_on_hud_cancel_requested)
 	hud.retry_requested.connect(_on_retry_requested)
 	hud.restart_requested.connect(_on_restart_requested)
+	hud.quicksave_requested.connect(_on_hud_quicksave_requested)
+	hud.quickload_requested.connect(_on_hud_quickload_requested)
 
 
 func _setup_music(settings: Dictionary) -> void:
@@ -817,6 +830,48 @@ func _on_outcome_events_resolved(events: Array[Event]) -> void:
 
 func _on_restart_requested() -> void:
 	get_tree().reload_current_scene()
+
+
+func _on_hud_quicksave_requested() -> void:
+	_save_game(QUICKSAVE_SLOT, "Quicksaved.")
+
+
+func _on_hud_quickload_requested() -> void:
+	_load_game(QUICKSAVE_SLOT)
+
+
+func _save_game(slot: String, success_message: String) -> void:
+	if battle_state == null:
+		return
+	var error := SaveLoadService.save(slot, SaveGame.create(battle_state.clone(), map_spec_path))
+	if hud == null:
+		return
+	hud.combat_log.append_line(success_message if error == OK else "Save failed (error %d)." % error)
+
+
+func _load_game(slot: String) -> void:
+	var save := SaveLoadService.load_save(slot)
+	if hud == null:
+		return
+	if save == null:
+		hud.combat_log.append_line("No compatible %s save found." % slot)
+		return
+	if save.map_id != map_spec_path:
+		hud.combat_log.append_line("That save belongs to another map.")
+		return
+	battle_state = save.battle_state
+	session.replace_state(battle_state)
+	event_player.reset_views(battle_state)
+	hud.reset_outcome()
+	_pending_victory_overlay = false
+	_cancel_pending_interaction()
+	_pending_targeted_action.clear()
+	_clear_targeting()
+	_clear_interactable_highlight()
+	_clear_path_preview()
+	_sync_interactable_views()
+	_update_world_health_bars()
+	hud.combat_log.append_line("Quickload complete.")
 
 
 ## `ability_id` defaults to whatever the hotbar has selected. Hovering a

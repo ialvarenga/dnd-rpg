@@ -3702,93 +3702,98 @@ vulnerability, and shipping-scene doors/levers.
 
 ---
 
-# MARCO E — AI WORLD AUTHORING
+# MARCOS E–G — COMBAT DEPTH, PARTY, AND ADVENTURE
 
----
+These milestones now take priority over LLM world authoring. The deferred LLM
+scope is preserved in [docs/deferred_llm_world_authoring.md](docs/deferred_llm_world_authoring.md).
 
-# Fase E1 — Natural language → MapSpec
+## Marco E — Combat depth
 
-Input:
+### E0 — Fairness and attack correctness
 
-```text
-Quero uma floresta densa no norte...
-```
+- [x] Score AI attacks, healing, and opportunity risk from expected outcomes,
+  never speculative dice. Pin the invariant with snapshots that differ only in
+  `rng_state`.
+- [x] Add full d20/attack breakdowns to the combat log, including modifier,
+  target AC/DC, advantage/disadvantage rolls, and cover.
+- Derive attack and damage from ability scores, proficiency, weapon category,
+  finesse, and magic bonus. Derive armor class from armor category and Dexterity.
+- Extract one pure `attack_math.gd` consumed by Resolver, AI, and HUD; it owns
+  modifier, AC, cover, advantage/disadvantage sources, and hit probability.
+- Bump rule/content/save compatibility versions when the derived-stat contract
+  lands, with migration rejection rather than silent reinterpretation.
 
-Agent context:
+### E1 — D&D action vocabulary
 
-- JSON Schema;
-- Asset Catalog;
-- terrain profiles;
-- vegetation profiles;
-- map bounds;
-- generator capabilities.
+- Add `AbilityDefinition.target_filter` (`hostile`, `ally`, `self`, `any`) to
+  Resolver, targeting rules, and planners.
+- Add Help and reusable “next attack against” condition expiration. Use it for
+  Help, Vex, and Sap.
+- Add data-defined weapon mastery effects: longsword Sap, shortbow Vex, dagger
+  Nick, plus Graze and Topple for enemy weapons. Record open content and
+  adaptations in the rules ledger and third-party notice.
+- Expand Shove to choose Push or Prone. Add forced movement, wall blocking,
+  fall damage, a `NavProvider.project_push()` query, and fakes/tests.
 
-Output:
+### E2 — Battlefield geometry
 
-```text
-structured MapSpec
-```
+- Add original/deviation high-ground attack modifiers (+2 at least 2.5m above,
+  -2 below) through shared attack math.
+- Add terrain regions with weighted path cost and `NavProvider.path_cost()` for
+  river, thicket, and rubble; mirror the field through every MapSpec schema and
+  map-builder validation surface.
+- Add point targeting, radius, DEX save for half, and explosive barrels as the
+  first area-effect capability.
 
-No prose parsing.
+### E3 — Stealth, perception, and surprise
 
----
+- Move hostile detection into a simulation rule. Add passive Perception and a
+  Sneak toggle resolved as Stealth versus nearby passive Perception.
+- Permit exploration attacks to begin the relevant encounter and resolve as
+  the opening action.
+- Add surprise initiative disadvantage and hidden-attacker first-hit advantage;
+  offer “skip round 1” only as an explicit map variant.
 
-# Fase E2 — Validation repair
+### E4 — Tactical AI
 
-```text
-MapSpec
-↓
-validator
-↓
-structured errors
-↓
-repair model
-↓
-MapPatch
-↓
-validation
-```
+- Replace content-id checks with `AbilityDefinition.ai_tags` such as
+  `defensive`, `mobility`, `escape`, and `control`.
+- Add focus-fire/kill-probability target selection, leader protection, and
+  ranged cover seeking.
+- Add morale-driven flee/surrender, reusing disposition and encounter clearing.
 
-Limit:
+## Marco F — Party and progression
 
-```text
-3 iterations
-```
+- Split `compiled_map_controller.gd` into input/targeting, dialogue, and
+  interactable coordinators before adding party state. Remove actor-1
+  assumptions; add MapSpec party data in every schema mirror; bind the HUD to
+  the selected hero and use exploration follow-the-leader.
+- Add death saves, stabilization by Help/potion, and correct 0-HP damage rules.
+- Add SRD level 1–5 Fighter, Rogue, Cleric, and Wizard capabilities, including
+  spell slots and concentration resources.
+- Use milestone leveling per cleared encounter/objective, then add short rests
+  with Hit Dice and long rests at camp. Remove the per-encounter pool refill.
 
-Then return errors.
+## Marco G — Adventure and world
 
----
+- Persist world flags in `BattleState`; add dialogue requirements/effects for
+  flags, items, and coins plus an objective journal in the HUD.
+- Add doors, levers, locks, and traps with thieves’ tools, Athletics, passive
+  Perception, and disarm rules.
+- Put skill proficiencies on actors; dialogue names only the skill and the
+  simulation derives proficiency.
+- Add drops, merchant coins, and equip/unequip.
+- Add a map quality encounter-budget/potion validator and author three to four
+  varied road encounters.
 
-# Fase E3 — Conversational MapPatch
+## Verification for Marcos E–G
 
-Operations:
-
-```text
-ADD
-REMOVE
-MOVE
-ROTATE
-RESIZE
-CHANGE_DENSITY
-CHANGE_PROFILE
-```
-
-MapPatch is preferred over full regeneration.
-
----
-
-# Fase E4 — Versioning
-
-Map identity:
-
-```text
-map_spec_version
-asset_catalog_version
-generator_version
-seed
-```
-
-Generation must be reproducible within the same version set.
+- Unit suites: AI RNG independence, equipment/derived math, Help/masteries/
+  push/fall/high-ground rules, replay, and save compatibility.
+- Gates: `godot --headless --path godot --script res://tests/test_runner.gd`
+  and `python3 scripts/check_gdscript_style.py`.
+- Manual map pass: fair enemy choices, matching tooltip/log math, cliff shove,
+  and quicksave/quit/quickload mid-combat.
 
 ---
 
@@ -4093,17 +4098,17 @@ B10 Validation
   MAP COMPILER
 ===================
       ↓
-C1 NL → MapSpec
+Marco D: live-world feedback ✅
       ↓
-C2 Repair
+Marco E: combat depth
       ↓
-C3 MapPatch
+Marco F: party + progression
       ↓
-C4 Versioning
+Marco G: adventure + world
       ↓
 ===================
-    MARCO C
- AI AUTHORING
+  DEFERRED AFTERWARD
+  LLM WORLD AUTHORING
 ===================
 ```
 
@@ -4128,7 +4133,8 @@ Não implementar:
 - complex inventory;
 - crafting;
 - quest generator;
-- LLM integration;
+- LLM integration (deferred to `docs/deferred_llm_world_authoring.md` until
+  combat, party, and world contracts are stable);
 - realistic terrain erosion.
 
 ---

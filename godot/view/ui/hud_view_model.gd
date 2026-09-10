@@ -245,11 +245,11 @@ static func narrate(event: Event, state: BattleState, defs: DefinitionLibrary) -
 		&"ability_use_spent": return ""
 		&"reaction_triggered": return "%s reacts." % actor_name
 		&"disengage_applied": return "%s disengages." % actor_name
-		&"attack_rolled": return "%s %s %s (roll %d)." % [actor_name, "hits" if d.get("hit", false) else "misses", target_name, int(d.get("roll", 0))]
+		&"attack_rolled": return _attack_roll_narration(actor_name, target_name, d)
 		&"damage_taken":
 			var damage_type := String(d.get("damage_type", ""))
 			return "%s takes %d%s damage." % [actor_name, int(d.get("amount", 0)), " " + damage_type if not damage_type.is_empty() else ""]
-		&"d20_test_rolled": return "%s %s a %s save (%d vs DC %d)." % [actor_name, "passes" if d.get("success", false) else "fails", String(d.get("ability", "ability")), int(d.get("total", 0)), int(d.get("difficulty_class", 0))]
+		&"d20_test_rolled": return _d20_test_narration(actor_name, d)
 		&"healing_received": return "%s recovers %d HP." % [actor_name, int(d.get("amount", 0))]
 		&"item_consumed": return "%s consumes %s." % [actor_name, String(d.get("item_id", "an item")).replace("_", " ")]
 		&"coins_transferred": return "%s pays %d coins to %s." % [actor_name, int(d.get("amount", 0)), target_name]
@@ -270,6 +270,50 @@ static func narrate(event: Event, state: BattleState, defs: DefinitionLibrary) -
 		&"turn_started": return "%s's turn." % actor_name
 		&"command_rejected": return "%s rejected: %s." % [String(d.get("command_type", "Command")), String(d.get("reason", "unavailable"))]
 		_: return "Combat event: %s." % String(event.type)
+
+
+static func _attack_roll_narration(actor_name: String, target_name: String, data: Dictionary) -> String:
+	var roll := int(data.get("roll", 0))
+	var total := int(data.get("total", roll))
+	var modifier := int(data.get("attack_bonus", total - roll))
+	var breakdown := "%d %+d = %d" % [roll, modifier, total]
+	if data.has("armor_class"):
+		breakdown += " vs AC %d" % int(data["armor_class"])
+	var sources := _roll_sources(data)
+	if not sources.is_empty():
+		breakdown += "; " + ", ".join(sources)
+	return "%s %s %s (%s)." % [actor_name, "hits" if data.get("hit", false) else "misses", target_name, breakdown]
+
+
+static func _d20_test_narration(actor_name: String, data: Dictionary) -> String:
+	var roll := int(data.get("roll", 0))
+	var total := int(data.get("total", roll))
+	var modifier := int(data.get("modifier", total - roll))
+	var breakdown := "%d %+d = %d vs DC %d" % [roll, modifier, total, int(data.get("difficulty_class", 0))]
+	var sources := _roll_sources(data)
+	if not sources.is_empty():
+		breakdown += "; " + ", ".join(sources)
+	return "%s %s a %s save (%s)." % [actor_name, "passes" if data.get("success", false) else "fails", String(data.get("ability", "ability")), breakdown]
+
+
+static func _roll_sources(data: Dictionary) -> PackedStringArray:
+	var sources := PackedStringArray()
+	var roll_values := PackedStringArray()
+	var rolls: Variant = data.get("rolls", [])
+	if rolls is Array:
+		for value in rolls:
+			roll_values.append(str(value))
+	var roll_detail := " [%s]" % ", ".join(roll_values) if roll_values.size() > 1 else ""
+	if bool(data.get("advantage", false)):
+		sources.append("advantage" + roll_detail)
+	elif bool(data.get("disadvantage", false)):
+		sources.append("disadvantage" + roll_detail)
+	var cover := StringName(data.get("cover", LosProvider.COVER_NONE))
+	var cover_bonus := int(data.get("cover_bonus", 0))
+	if cover_bonus > 0:
+		var label := "half cover" if cover == LosProvider.COVER_HALF else "three-quarters cover"
+		sources.append("%s +%d AC" % [label, cover_bonus])
+	return sources
 
 
 static func _actor_name(state: BattleState, actor_id: int, defs: DefinitionLibrary) -> String:

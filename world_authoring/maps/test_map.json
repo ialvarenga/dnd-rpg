@@ -696,7 +696,7 @@
       "id": "camp_raider",
       "archetype": "character_ranger_01",
       "side": "enemies",
-      "stat_block": "bandit_raider",
+      "stat_block": "archer",
       "initial_disposition": "neutral",
       "dialog": "emberwatch_grunt",
       "position": [
@@ -742,7 +742,6 @@
       ],
       "rotation_deg": 200,
       "contents": [
-        "healing_potion",
         "healing_potion"
       ]
     },
@@ -788,44 +787,7 @@
       "rotation_deg": 20
     }
   ],
-  "pickups": [
-    {
-      "id": "wayfarer_cache",
-      "asset": "healing_potion_pickup_01",
-      "item_id": "healing_potion",
-      "position": [
-        26,
-        83
-      ]
-    },
-    {
-      "id": "narrows_cache",
-      "asset": "healing_potion_pickup_01",
-      "item_id": "healing_potion",
-      "position": [
-        58,
-        19
-      ]
-    },
-    {
-      "id": "ford_cache",
-      "asset": "healing_potion_pickup_01",
-      "item_id": "healing_potion",
-      "position": [
-        107,
-        109
-      ]
-    },
-    {
-      "id": "approach_cache",
-      "asset": "healing_potion_pickup_01",
-      "item_id": "healing_potion",
-      "position": [
-        146,
-        74
-      ]
-    }
-  ],
+  "pickups": [],
   "objectives": [
     {
       "id": "emberwatch_camp",

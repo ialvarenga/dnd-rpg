@@ -24,9 +24,25 @@ static func run() -> Dictionary:
 	for event_type in _event_narration_expectations():
 		var line := HudViewModel.narrate(Event.create(event_type, {"actor_id": 1, "target_id": 2, "amount": 2, "roll": 12, "hit": true, "condition": &"poisoned", "reason": &"not_current_actor", "skill": &"persuasion", "difficulty_class": 12, "total": 14, "success": true, "disposition": &"neutral", "dialog_id": &"emberwatch_toll", "encounter_id": &"emberwatch_ambush"}), state, DefinitionLibrary.get_default())
 		_expect(line == _event_narration_expectations()[event_type], "narration did not match the supported %s event" % event_type, failures)
+	_test_roll_breakdown_narration(state, failures)
 	_test_action_tooltip_projection(failures)
 	_test_action_tooltip_fallback(failures)
 	return {"name": "unit/test_hud_view_model", "failures": failures}
+
+
+static func _test_roll_breakdown_narration(state: BattleState, failures: Array[String]) -> void:
+	var attack := Event.create(&"attack_rolled", {
+		"actor_id": 1, "target_id": 2, "roll": 14, "attack_bonus": 4, "total": 18,
+		"armor_class": 15, "hit": true, "advantage": true, "rolls": [7, 14],
+		"cover": LosProvider.COVER_HALF, "cover_bonus": 2,
+	})
+	_expect(HudViewModel.narrate(attack, state, DefinitionLibrary.get_default()) == "Knight hits Actor 2 (14 +4 = 18 vs AC 15; advantage [7, 14], half cover +2 AC).", "attack narration omitted its full roll breakdown", failures)
+	var save := Event.create(&"d20_test_rolled", {
+		"actor_id": 1, "ability": &"dexterity", "roll": 6, "modifier": 3,
+		"total": 9, "difficulty_class": 12, "success": false, "disadvantage": true,
+		"rolls": [6, 17],
+	})
+	_expect(HudViewModel.narrate(save, state, DefinitionLibrary.get_default()) == "Knight fails a dexterity save (6 +3 = 9 vs DC 12; disadvantage [6, 17]).", "d20 narration omitted its roll modifier or disadvantage source", failures)
 
 
 static func _test_action_tooltip_projection(failures: Array[String]) -> void:
@@ -95,7 +111,7 @@ static func _event_narration_expectations() -> Dictionary:
 		&"bonus_action_spent": "Knight uses a bonus action.",
 		&"reaction_triggered": "Knight reacts.",
 		&"disengage_applied": "Knight disengages.",
-		&"attack_rolled": "Knight hits Actor 2 (roll 12).",
+		&"attack_rolled": "Knight hits Actor 2 (12 +2 = 14).",
 		&"damage_taken": "Knight takes 2 damage.",
 		&"healing_received": "Knight recovers 2 HP.",
 		&"item_consumed": "Knight consumes an item.",

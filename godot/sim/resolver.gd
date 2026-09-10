@@ -21,7 +21,9 @@ extends RefCounted
 ## a condition may block reactions (no opportunity attacks while prone).
 ## Bump 7: actors have wallets and can transfer coins during exploration.
 ## Bump 8: peaceful social resolutions can clear an authored encounter.
-const RULES_VERSION: int = 8
+## Bump 9: attack events carry their complete, already-resolved roll breakdown
+## for combat-log narration and replay inspection.
+const RULES_VERSION: int = 9
 
 const ATTACK_RANGE_METERS := 1.5
 const THREAT_RANGE_METERS := 1.5
@@ -566,7 +568,8 @@ static func _resolve_attack_between(working: BattleState, attacker: ActorState, 
 	var hit := roll != 1 and (critical or (roll + attack_bonus >= armor_class))
 	_append_and_apply(result, working, Event.create(&"attack_rolled", {
 		"actor_id": attacker.id, "target_id": target.id, "attack_kind": attack_kind,
-		"roll": roll, "rolls": roll_result["rolls"], "total": roll + attack_bonus,
+		"roll": roll, "rolls": roll_result["rolls"], "attack_bonus": attack_bonus, "total": roll + attack_bonus,
+		"armor_class": armor_class,
 		"critical": critical, "hit": hit, "advantage": roll_result["advantage"], "disadvantage": roll_result["disadvantage"], "is_ranged": is_ranged,
 		"cover": cover, "cover_bonus": cover_bonus,
 		"action_spent": spends_action, "reaction_spent": spends_reaction,

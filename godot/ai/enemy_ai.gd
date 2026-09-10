@@ -57,12 +57,13 @@ func _evaluate_candidates(snapshot: BattleState, actor_id: int, nav: NavProvider
 			continue
 		if not _is_accepted(result):
 			continue
-		var resulting_state := snapshot.clone()
-		_apply_result(resulting_state, result)
 		evaluations.append({
 			"command": command,
 			"result": result,
-			"score": _score(snapshot, resulting_state, actor, command, result),
+			# Resolution above establishes legality only. Its dice events must never
+			# influence scoring: otherwise the AI can select the action that happens
+			# to succeed against the current RNG state before it commits to it.
+			"score": _score(snapshot, actor, command, result),
 		})
 	return evaluations
 
@@ -221,28 +222,34 @@ func _planar_distance(a: Vector3, b: Vector3) -> float:
 	return Vector2(a.x, a.z).distance_to(Vector2(b.x, b.z))
 
 
-func _score(before: BattleState, after: BattleState, actor: ActorState, command: Command, result: ResolutionResult) -> float:
+func _score(before: BattleState, actor: ActorState, command: Command, result: ResolutionResult) -> float:
 	var score := 0.0
 	var ability := DefinitionLibrary.get_default().get_ability(command.type)
 	if ability != null and _has_attack_effect(ability):
 		var target: ActorState = before.actors[command.target_id]
-		score += 1000.0 + _expected_damage(actor, target) * 10.0
-		var resulting_target: ActorState = after.actors[command.target_id]
-		score += float(target.hp - resulting_target.hp) * 10.0
-		if not resulting_target.is_alive():
-			score += 10000.0
+		var attack := _attack_outcome(actor, target)
+		score += 1000.0 + float(attack.expected_damage) * 10.0
+		score += float(attack.kill_probability) * 10000.0
 		if EquipmentRules.is_ranged_weapon(actor, DefinitionLibrary.get_default()) and _has_adjacent_enemy(before, actor):
 			score -= 1000.0
+	elif ability != null and _has_heal_effect(ability):
+		var restored := _expected_healing(ability, actor)
+		if restored <= 0.0:
+			score = -10.0
+		else:
+			var missing_hp: int = max(0, actor.max_hp - actor.hp)
+			# The same heal becomes increasingly valuable nearer to being downed.
+			score += restored * (20.0 + 180.0 * float(missing_hp) / maxf(1.0, actor.max_hp))
 	else:
 		match command.type:
 			&"move":
 				var before_distance := _nearest_enemy_distance(before, actor)
-				var after_distance := _nearest_enemy_distance(after, after.actors[actor.id])
+				var after_distance := _nearest_enemy_distance_from(before, actor, command.target_pos)
 				if EquipmentRules.is_ranged_weapon(actor, DefinitionLibrary.get_default()) and before_distance < MINIMUM_RANGED_STANDOFF_METERS:
 					score += (after_distance - before_distance) * 100.0
 				else:
 					score += (before_distance - after_distance) * 100.0
-				if (after.actors[actor.id] as ActorState).action_available:
+				if actor.action_available:
 					score += 25.0
 			&"dodge":
 				# Dodge is a defensive fallback, not a default idle action. It is
@@ -253,30 +260,18 @@ func _score(before: BattleState, after: BattleState, actor: ActorState, command:
 			&"disengage": score = 300.0 if _has_adjacent_enemy(before, actor) else -10.0
 			&"dash": score = 100.0 if _nearest_enemy_distance(before, actor) > actor.movement_remaining else -10.0
 			&"end_turn": score = 0.0
-			_:
-				for event in result.events:
-					if event.type == &"healing_received" and int(event.data.get("actor_id", -1)) == actor.id:
-						# `amount` is HP actually restored, already clamped to max_hp,
-						# so a heal at full HP is worth exactly nothing. Score it like
-						# the other unhelpful fallbacks above instead of leaving it at
-						# 0.0, where it would tie with end_turn and win on candidate
-						# order -- burning a potion for no gain. Only reachable since
-						# the potion became a Bonus Action and stopped being hidden
-						# behind an already-spent action.
-						var restored := float(event.data.get("amount", 0))
-						if restored <= 0.0:
-							score = -10.0
-							break
-						var missing_hp: int = max(0, actor.max_hp - actor.hp)
-						# The same heal becomes increasingly valuable nearer to being downed.
-						score += restored * (20.0 + 180.0 * float(missing_hp) / maxf(1.0, actor.max_hp))
+	# Opportunity attacks are deterministic to detect but stochastic to resolve.
+	# Penalize their expected harm, never the damage emitted by the speculative
+	# resolver call above.
 	for event in result.events:
-		if event.type == &"reaction_triggered" and int(event.data.get("target_id", -1)) == actor.id:
-			score -= 10000.0
-		elif event.type == &"damage_taken" and int(event.data.get("actor_id", -1)) == actor.id:
-			score -= float(event.data["amount"]) * 200.0
-		elif (event.type == &"actor_downed" or event.type == &"actor_died") and int(event.data.get("actor_id", -1)) == actor.id:
-			score -= 1000000.0
+		if event.type != &"reaction_triggered" or int(event.data.get("target_id", -1)) != actor.id:
+			continue
+		var reactor := before.actors.get(int(event.data.get("actor_id", -1))) as ActorState
+		if reactor == null:
+			continue
+		var reaction := _attack_outcome(reactor, actor)
+		score -= float(reaction.expected_damage) * 200.0
+		score -= float(reaction.kill_probability) * 1000000.0
 	return score
 
 
@@ -295,25 +290,59 @@ func _has_adjacent_enemy(state: BattleState, actor: ActorState) -> bool:
 ## armor instead of only their unarmed/unarmored base stats. An actor with no
 ## equipment aggregates back to exactly its base fields.
 func _expected_damage(attacker: ActorState, target: ActorState) -> float:
+	return float(_attack_outcome(attacker, target).expected_damage)
+
+
+func _attack_outcome(attacker: ActorState, target: ActorState) -> Dictionary:
 	var definitions := DefinitionLibrary.get_default()
 	var attack_bonus := EquipmentRules.aggregate_attack_bonus(attacker, definitions)
 	var armor_class := EquipmentRules.aggregate_armor_class(target, definitions)
 	var damage_die := EquipmentRules.aggregate_damage_die(attacker, definitions)
 	var damage_modifier := EquipmentRules.aggregate_damage_modifier(attacker, definitions)
-	var hit_faces := clampi(21 - armor_class + attack_bonus, 1, 19)
-	var hit_chance := float(hit_faces) / 20.0
-	var average_damage := (float(damage_die) + 1.0) * 0.5 + damage_modifier
-	return maxf(1.0, average_damage) * hit_chance
+	var normal_hits := 0
+	for roll in range(2, 20):
+		if roll + attack_bonus >= armor_class:
+			normal_hits += 1
+	var normal_average := maxf(1.0, (float(damage_die) + 1.0) * 0.5 + damage_modifier)
+	var critical_average := maxf(1.0, float(damage_die) + 1.0 + damage_modifier)
+	var expected_damage := (float(normal_hits) * normal_average + critical_average) / 20.0
+	var normal_kill_faces := 0
+	for damage_roll in range(1, damage_die + 1):
+		if max(1, damage_roll + damage_modifier) >= target.hp:
+			normal_kill_faces += 1
+	var critical_kill_faces := 0
+	for first_roll in range(1, damage_die + 1):
+		for second_roll in range(1, damage_die + 1):
+			if max(1, first_roll + second_roll + damage_modifier) >= target.hp:
+				critical_kill_faces += 1
+	var normal_kill_probability := float(normal_kill_faces) / float(damage_die)
+	var critical_kill_probability := float(critical_kill_faces) / float(damage_die * damage_die)
+	return {
+		"expected_damage": expected_damage,
+		"kill_probability": (float(normal_hits) * normal_kill_probability + critical_kill_probability) / 20.0,
+	}
+
+
+func _expected_healing(ability: AbilityDefinition, actor: ActorState) -> float:
+	var average := 0.0
+	for effect in ability.effects:
+		if effect.type == &"heal":
+			average += (float(effect.heal_die) + 1.0) * 0.5 * float(effect.heal_dice_count) + effect.heal_modifier
+	return minf(maxf(0.0, average), float(maxi(0, actor.max_hp - actor.hp)))
 
 
 func _nearest_enemy_distance(state: BattleState, actor: ActorState) -> float:
+	return _nearest_enemy_distance_from(state, actor, actor.position)
+
+
+func _nearest_enemy_distance_from(state: BattleState, actor: ActorState, position: Vector3) -> float:
 	var nearest := INF
 	for actor_id_variant in state.actors.keys():
 		if not state.active_combatant_ids.is_empty() and not state.active_combatant_ids.has(int(actor_id_variant)):
 			continue
 		var other: ActorState = state.actors[actor_id_variant]
 		if other.side != actor.side and other.is_alive():
-			nearest = minf(nearest, actor.position.distance_to(other.position))
+			nearest = minf(nearest, position.distance_to(other.position))
 	return 0.0 if is_inf(nearest) else nearest
 
 
