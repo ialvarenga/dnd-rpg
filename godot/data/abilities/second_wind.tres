@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/ability_definition.gd" id="1"]
+[ext_resource type="Script" path="res://sim/definitions/ability_effect.gd" id="2"]
+
+[sub_resource type="Resource" id="Effect_second_wind"]
+script = ExtResource("2")
+type = &"heal"
+heal_die = 10
+heal_dice_count = 1
+heal_modifier = 2
+
+[resource]
+script = ExtResource("1")
+id = &"second_wind"
+display_name = "Second Wind"
+description = "Draw on your reserves of stamina to regain hit points."
+costs_bonus_action = true
+targeting = &"none"
+max_uses = 2
+uses_recharge = &"encounter"
+effects = Array[ExtResource("2")]([SubResource("Effect_second_wind")])

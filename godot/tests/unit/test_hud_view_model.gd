@@ -53,7 +53,7 @@ static func _test_action_tooltip_projection(failures: Array[String]) -> void:
 
 	var potion_availability := ActionAvailability.evaluate(state, 1, &"quaff_healing_potion", definitions)
 	var potion := HudViewModel.action_presentation(knight, potion_availability, definitions)
-	_expect(String(potion.get("tooltip", "")).contains("Action • Self • Heal 2d4 + 2 HP"), "potion tooltip omitted its calculated healing roll", failures)
+	_expect(String(potion.get("tooltip", "")).contains("Bonus action • Self • Heal 2d4 + 2 HP"), "potion tooltip omitted its calculated healing roll", failures)
 
 	knight.action_available = false
 	data = HudViewModel.for_actor(state, 1, definitions)

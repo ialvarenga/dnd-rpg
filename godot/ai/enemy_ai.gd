@@ -256,9 +256,20 @@ func _score(before: BattleState, after: BattleState, actor: ActorState, command:
 			_:
 				for event in result.events:
 					if event.type == &"healing_received" and int(event.data.get("actor_id", -1)) == actor.id:
+						# `amount` is HP actually restored, already clamped to max_hp,
+						# so a heal at full HP is worth exactly nothing. Score it like
+						# the other unhelpful fallbacks above instead of leaving it at
+						# 0.0, where it would tie with end_turn and win on candidate
+						# order -- burning a potion for no gain. Only reachable since
+						# the potion became a Bonus Action and stopped being hidden
+						# behind an already-spent action.
+						var restored := float(event.data.get("amount", 0))
+						if restored <= 0.0:
+							score = -10.0
+							break
 						var missing_hp: int = max(0, actor.max_hp - actor.hp)
 						# The same heal becomes increasingly valuable nearer to being downed.
-						score += float(event.data.get("amount", 0)) * (20.0 + 180.0 * float(missing_hp) / maxf(1.0, actor.max_hp))
+						score += restored * (20.0 + 180.0 * float(missing_hp) / maxf(1.0, actor.max_hp))
 	for event in result.events:
 		if event.type == &"reaction_triggered" and int(event.data.get("target_id", -1)) == actor.id:
 			score -= 10000.0

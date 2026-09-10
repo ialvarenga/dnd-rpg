@@ -7,6 +7,7 @@ static func run() -> Dictionary:
 	_test_from_dict_defaults_missing_fields(failures)
 	_test_is_compatible_detects_version_drift(failures)
 	_test_disposition_and_dialog_round_trip(failures)
+	_test_ability_uses_round_trip(failures)
 	return {"name": "unit/test_save_game", "failures": failures}
 
 
@@ -31,6 +32,7 @@ static func _mid_combat_state() -> BattleState:
 	hero.bonus_action_available = false
 	hero.reaction_available = false
 	hero.disengaged = true
+	hero.ability_uses_spent[&"second_wind"] = 1
 	hero.add_condition(&"poisoned", 2, 2, &"turn_start")
 
 	var enemy: ActorState = state.actors[2]
@@ -126,6 +128,26 @@ static func _test_disposition_and_dialog_round_trip(failures: Array[String]) -> 
 	var legacy := ActorState.from_dict({"id": 5})
 	_expect(legacy.disposition == &"hostile", "an actor with no stored disposition should default to hostile", failures)
 	_expect(legacy.dialog_id == &"", "an actor with no stored dialog should default to silent", failures)
+
+
+## Ability use pools outlive the turn, so unlike the action/bonus-action flags
+## they have to survive a save. JSON turns the StringName keys into Strings, so
+## this also pins that from_dict converts them back.
+static func _test_ability_uses_round_trip(failures: Array[String]) -> void:
+	var actor := ActorState.new()
+	actor.id = 6
+	actor.ability_uses_spent[&"second_wind"] = 2
+	var round_tripped: Variant = JSON.parse_string(JSON.stringify(actor.to_dict()))
+	var restored := ActorState.from_dict(round_tripped as Dictionary)
+	_expect(restored.ability_uses_spent.get(&"second_wind", 0) == 2, "ability_uses_spent did not survive a JSON save round-trip", failures)
+	_expect(restored.ability_uses_spent.has(&"second_wind"), "ability_uses_spent keys did not restore as StringNames", failures)
+
+	var cloned := actor.clone()
+	cloned.ability_uses_spent[&"second_wind"] = 99
+	_expect(int(actor.ability_uses_spent[&"second_wind"]) == 2, "clone() shared its ability_uses_spent dictionary with the original", failures)
+
+	var legacy := ActorState.from_dict({"id": 7})
+	_expect(legacy.ability_uses_spent.is_empty(), "an actor saved before use pools existed should load with an empty pool", failures)
 
 
 static func _expect(condition: bool, message: String, failures: Array[String]) -> void:

@@ -26,6 +26,11 @@ var reaction_available: bool = true
 var condition_states: Array[ConditionState] = []
 var disengaged: bool = false
 
+## Ability id -> activations already spent from that ability's `max_uses` pool.
+## Absent keys mean nothing spent. Unlike the per-turn flags above this survives
+## the turn, so it is part of the stable snapshot and the save round-trip.
+var ability_uses_spent: Dictionary = {}
+
 # Spike A-0 combat fields. These are the actor's own base stats; Resolver
 # reads through Equipment (sim/equipment.gd) to combine them with whatever is
 # in equipment_slots, so they stay meaningful even for an unequipped actor.
@@ -125,6 +130,7 @@ func clone() -> ActorState:
 	copy.ability_ids = ability_ids.duplicate()
 	copy.equipment_slots = equipment_slots.duplicate()
 	copy.inventory = inventory.duplicate()
+	copy.ability_uses_spent = ability_uses_spent.duplicate()
 	copy.definition_id = definition_id
 	copy.disposition = disposition
 	copy.dialog_id = dialog_id
@@ -239,10 +245,20 @@ func to_dict() -> Dictionary:
 		"ability_ids": SimulationSerialization.value_to_data(ability_ids),
 		"equipment_slots": _equipment_slots_to_data(equipment_slots),
 		"inventory": SimulationSerialization.value_to_data(inventory),
+		"ability_uses_spent": _ability_uses_to_data(ability_uses_spent),
 		"definition_id": String(definition_id),
 		"disposition": String(disposition),
 		"dialog_id": String(dialog_id),
 	}
+
+
+## Keys are StringName ability ids; JSON needs plain String keys, exactly like
+## _equipment_slots_to_data below.
+static func _ability_uses_to_data(uses: Dictionary) -> Dictionary:
+	var data := {}
+	for ability_id in uses.keys():
+		data[String(ability_id)] = int(uses[ability_id])
+	return data
 
 
 static func _equipment_slots_to_data(slots: Dictionary) -> Dictionary:
@@ -302,6 +318,10 @@ static func from_dict(data: Dictionary) -> ActorState:
 	if restored_inventory is Array:
 		for item_id in restored_inventory:
 			actor.inventory.append(StringName(str(item_id)))
+	var restored_uses: Variant = data.get("ability_uses_spent", {})
+	if restored_uses is Dictionary:
+		for ability_id in (restored_uses as Dictionary).keys():
+			actor.ability_uses_spent[StringName(str(ability_id))] = int((restored_uses as Dictionary)[ability_id])
 	actor.definition_id = StringName(str(data.get("definition_id", "")))
 	actor.disposition = StringName(str(data.get("disposition", "hostile")))
 	actor.dialog_id = StringName(str(data.get("dialog_id", "")))

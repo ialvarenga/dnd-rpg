@@ -26,7 +26,9 @@ func run() -> Dictionary:
 func _test_initial_binding(hud: HudRoot, failures: Array[String]) -> void:
 	var hp_label: Label = hud.get_node("Margin/Layout/ActorPortrait/Margin/Rows/HPText")
 	_expect(hp_label.text == "HP 30/30", "HUD bind did not project actor health", failures)
-	_expect(hud.hotbar.get_child_count() == 5, "HUD hotbar should contain the knight's five combat actions, without contextual Talk or inventory consumables", failures)
+	# Six is also the hotbar's hard cap (AbilityHotbar._actions is clamped to 6),
+	# so this doubles as the guard against a loadout that would silently truncate.
+	_expect(hud.hotbar.get_child_count() == 6, "HUD hotbar should contain the knight's six combat actions, without contextual Talk or inventory consumables", failures)
 	_expect(_ability_button(hud, &"talk") == null, "contextual Talk action appeared in the persistent hotbar", failures)
 	var end_turn: Button = hud.get_node("Margin/Layout/EndTurn")
 	_expect(hud.hotbar.mouse_filter == Control.MOUSE_FILTER_IGNORE, "empty hotbar space should remain pass-through", failures)

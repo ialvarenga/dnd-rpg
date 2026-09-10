@@ -19,6 +19,8 @@ jobs:
         run: python3 scripts/generate_forest_palettes.py --check
       - name: Check generated forest catalog
         run: python3 scripts/generate_forest_catalog.py --check
+      - name: Test Map Builder modules
+        run: npm test --prefix map_builder
       - name: Import and validate project
         run: godot --headless --path godot --editor --quit
       - name: Run headless simulation tests

@@ -3,6 +3,7 @@ extends RefCounted
 
 const AbilityTargetingRules = preload("res://sim/ability_targeting.gd")
 const EquipmentRules = preload("res://sim/equipment.gd")
+const AbilityCostRules = preload("res://sim/rules/ability_cost_rules.gd")
 
 const AVAILABILITY_REASON_TEXT := {
 	&"unknown_actor": "Unknown character.",
@@ -13,6 +14,7 @@ const AVAILABILITY_REASON_TEXT := {
 	&"unknown_ability_definition": "Action definition is missing.",
 	&"action_unavailable": "Action already used this turn.",
 	&"bonus_action_unavailable": "Bonus action already used this turn.",
+	&"ability_uses_exhausted": "No uses remaining until the next encounter.",
 	&"reaction_unavailable": "Reaction already used this round.",
 	&"insufficient_movement": "Not enough movement remaining.",
 }
@@ -147,6 +149,8 @@ static func _action_mechanics(actor: ActorState, ability: AbilityDefinition, def
 		mechanics.insert(1, "Self")
 	if ability.usable_in_exploration:
 		mechanics.append("Exploration")
+	if ability.max_uses >= 0:
+		mechanics.append("Uses %d/%d" % [AbilityCostRules.remaining_uses(actor, ability), ability.max_uses])
 	mechanics = mechanics.filter(func(entry: String): return not entry.is_empty())
 	return mechanics
 
@@ -235,6 +239,9 @@ static func narrate(event: Event, state: BattleState, defs: DefinitionLibrary) -
 		&"movement_gained": return "%s gains %.1f movement." % [actor_name, float(d.get("amount", 0.0))]
 		&"action_spent": return "%s uses an action." % actor_name
 		&"bonus_action_spent": return "%s uses a bonus action." % actor_name
+		# The ability's own narration already names what happened; this would only
+		# repeat it, so the accounting stays silent in the log.
+		&"ability_use_spent": return ""
 		&"reaction_triggered": return "%s reacts." % actor_name
 		&"disengage_applied": return "%s disengages." % actor_name
 		&"attack_rolled": return "%s %s %s (roll %d)." % [actor_name, "hits" if d.get("hit", false) else "misses", target_name, int(d.get("roll", 0))]

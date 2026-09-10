@@ -1,6 +1,330 @@
-import {getState,addEntity,updateEntity,removeEntity} from '../state.js';import {ENUMS} from '../schema-constants.js';import {nextId} from '../id-generator.js';import {families,firstId,search} from '../asset-catalog.js';import {CONFIGS} from './entity-type-configs.js';
-const esc=x=>String(x??'').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');const pos=(v=[0,0])=>`<div class="row"><label>East (m)<input data-field="position.0" type="number" value="${v[0]??0}"></label><label>North (m)<input data-field="position.1" type="number" value="${v[1]??0}"></label></div>`;const select=(field,value,items)=>`<label>${field}<select data-field="${field}">${items.map(x=>`<option value="${x}" ${x===value?'selected':''}>${x}</option>`).join('')}</select></label>`;const points=(field,items=[])=>`<div class="points"><strong>${field==='polygon'?'Polygon points':'Path points'}</strong><small> Add at least ${field==='polygon'?3:2} X/Y points.</small>${items.map((p,i)=>`<div class="point-row"><span>${i+1}</span><label>X<input type="number" data-point="${field}.${i}.0" value="${p[0]??0}"></label><label>Y<input type="number" data-point="${field}.${i}.1" value="${p[1]??0}"></label><button type="button" data-remove-point="${field}.${i}">×</button></div>`).join('')}<button type="button" data-add-point="${field}">Add point</button><label>Raw ${field} JSON <small>(optional precision edit)</small><textarea data-field="${field}">${esc(JSON.stringify(items))}</textarea></label></div>`;
-const assetOptions=(type,value,q='')=>families(type).map(f=>{const o=search(type,q).filter(a=>a.family===f).map(a=>`<option value="${a.id}" ${a.id===value?'selected':''}>${esc(a.label)} — ${a.footprint_radius.toFixed(2)} m</option>`).join('');return o?`<optgroup label="${esc(f)}">${o}</optgroup>`:''}).join('');const assetPicker=(field,value,type)=>`<label>${field}<input class="asset-filter" data-asset-filter="${type}" type="search" placeholder="Filter assets…"><select data-field="${field}" data-asset-type="${type}">${assetOptions(type,value)}</select></label>`;
-export function defaultEntity(key,position=[32,32]){const c=CONFIGS[key],x={id:nextId(key)};if(c.shape==='polygon')return {...x,polygon:[]};if(c.shape==='path')return {...x,control_points:[],width_m:3};if(c.shape==='wall')return {...x,asset:c.defaultAsset||'wall_dungeon_01',control_points:[]};if(c.assetType)x[c.assetField||'asset']=c.defaultAsset||firstId(c.assetType);if(c.kind)x.kind='chest';if(c.side)x.side='enemies';if(c.item)x.item_id='healing_potion';if(c.bridge)Object.assign(x,{position,river_id:'river_1',road_id:'road_1'});else if(c.door)Object.assign(x,{position,initial_state:'closed',required_state:'open'});else if(c.encounter)Object.assign(x,{position,actor_ids:[]});else if(c.dialog)Object.assign(x,{root:'greeting',nodes:[{id:'greeting',text:'They block the road.',options:[{text:'Leave.',outcome:{effect:'end'}}]}]});else Object.assign(x,{position});return x}
-function editor(key,x,i){const c=CONFIGS[key];let h=`<div class="entity" data-entity="${key}" data-index="${i}"><div class="entity-head"><strong>${esc(x.id||`#${i+1}`)}</strong><button data-delete>Delete</button></div><label>ID<input data-field="id" value="${esc(x.id)}"></label>`;if(c.assetType)h+=assetPicker(c.assetField||'asset',x[c.assetField||'asset'],c.assetType);if(c.kind)h+=select('kind',x.kind,['chest','door','lever','barrel']);if(c.side)h+=select('side',x.side??'enemies',['enemies','heroes'])+select('initial_disposition',x.initial_disposition??'hostile',ENUMS.disposition)+`<label>Stat block <small>(ActorDefinition id, optional)</small><input data-field="stat_block" value="${esc(x.stat_block??'')}"></label><label>Dialog <small>(dialogs id, optional)</small><input data-field="dialog" value="${esc(x.dialog??'')}"></label>`;if(c.item)h+=`<label>Item ID<input data-field="item_id" value="${esc(x.item_id)}"></label>`;if(c.shape){const f=c.shape==='polygon'?'polygon':'control_points';h+=points(f,x[f]||[])+(c.shape==='path'?`<label>Width (m)<input data-field="width_m" type="number" value="${x.width_m??''}"></label>`:c.shape==='wall'?'<small>Use exactly two points: start and end of the wall.</small>':'')}else if(!c.dialog)h+=pos(x.position);if(c.dialog)h+=`<label>Root node ID<input data-field="root" value="${esc(x.root)}"></label><label>Nodes JSON <small>(id, text, options[] with outcome/failure_outcome; a check needs a failure_outcome)</small><textarea data-field="nodes" rows="14">${esc(JSON.stringify(x.nodes??[],null,2))}</textarea></label>`;if(['vegetation','structures','hills','actors','interactables','pickups'].includes(key))h+=`<label>Rotation (degrees, optional)<input data-field="rotation_deg" type="number" value="${x.rotation_deg??''}"></label>`;if(c.bridge)h+=`<label>River ID<input data-field="river_id" value="${esc(x.river_id)}"></label><label>Road ID<input data-field="road_id" value="${esc(x.road_id)}"></label>`;if(c.encounter)h+=`<label>Actor IDs <small>(comma-separated)</small><input data-field="actor_ids" value="${esc((x.actor_ids||[]).join(','))}"></label><label>Trigger radius (m, optional)<input data-field="trigger_radius_m" type="number" value="${x.trigger_radius_m??''}"></label>`;if(key==='objectives')h+=`<label>Radius (m, optional)<input data-field="radius_m" type="number" value="${x.radius_m??''}"></label><label>Requires encounter IDs <small>(comma-separated)</small><input data-field="requires_encounter_ids" value="${esc((x.requires_encounter_ids||[]).join(','))}"></label>`;if(c.door)h+=select('initial_state',x.initial_state,['open','closed'])+select('required_state',x.required_state,['open','closed']);if(key==='regions')h+=`<label>Vegetation profile<select data-field="vegetation.profile"><option value="">— none —</option>${ENUMS.vegetationProfile.map(v=>`<option ${x.vegetation?.profile===v?'selected':''}>${v}</option>`).join('')}</select></label><label>Vegetation density<input data-field="vegetation.density" type="number" min="0" max="1" value="${x.vegetation?.density??''}"></label>`;return h+'</div>'}
-export function listPanel(key,selected){const c=CONFIGS[key],e=getState()[key]||[];return `<fieldset><legend>${c.label}</legend>${e.map((x,i)=>editor(key,x,i)).join('')||'<small>No entries yet.</small>'}<button class="add" data-add="${key}">Add ${c.label.slice(0,-1)}</button></fieldset>`}function setNested(o,path,value){const p=path.split('.');let z=o;for(let i=0;i<p.length-1;i++)z=z[p[i]]??={};z[p.at(-1)]=value}export function bindList(root,key,selected){root.querySelector(`[data-add="${key}"]`)?.addEventListener('click',()=>addEntity(key,defaultEntity(key)));root.querySelectorAll(`[data-entity="${key}"]`).forEach(el=>{const i=Number(el.dataset.index);if(selected?.key===key&&selected.index===i)el.classList.add('selected');el.querySelector('[data-delete]').onclick=()=>removeEntity(key,i);const save=(f,value)=>{const v=structuredClone(getState()[key][i]);setNested(v,f,value);updateEntity(key,i,v)};el.querySelectorAll('[data-asset-filter]').forEach(input=>input.oninput=()=>{const field=el.querySelector('[data-field][data-asset-type]'),value=field.value;field.innerHTML=assetOptions(input.dataset.assetFilter,value,input.value);if(!field.value&&field.options.length)field.value=field.options[0].value});el.querySelectorAll('[data-point]').forEach(input=>input.onchange=()=>save(input.dataset.point,Number(input.value)));el.querySelectorAll('[data-add-point]').forEach(b=>b.onclick=()=>{const f=b.dataset.addPoint,v=structuredClone(getState()[key][i]);v[f]??=[];v[f].push([0,0]);updateEntity(key,i,v)});el.querySelectorAll('[data-remove-point]').forEach(b=>b.onclick=()=>{const [f,n]=b.dataset.removePoint.split('.'),v=structuredClone(getState()[key][i]);v[f].splice(Number(n),1);updateEntity(key,i,v)});el.querySelectorAll('[data-field]').forEach(input=>input.onchange=()=>{const old=getState()[key][i],v=structuredClone(old),f=input.dataset.field;let value=input.value;if(input.type==='number')value=value===''?undefined:Number(value);if(f==='polygon'||f==='control_points'||f==='nodes'){try{value=JSON.parse(value)}catch{input.classList.add('error');return}}if(f==='actor_ids'||f==='requires_encounter_ids')value=value.split(',').map(x=>x.trim()).filter(Boolean);setNested(v,f,value);if(value===undefined){const p=f.split('.');let z=v;for(let n=0;n<p.length-1;n++)z=z[p[n]];delete z[p.at(-1)]}updateEntity(key,i,v)})})}
+import {getState, findEntity, updateEntity, removeEntity} from '../state.js';
+import {ENUMS} from '../schema-constants.js';
+import {nextId} from '../id-generator.js';
+import {families, firstId, search} from '../asset-catalog.js';
+import {CONFIGS} from './entity-type-configs.js';
+
+const esc = value => String(value ?? '')
+  .replaceAll('&', '&amp;')
+  .replaceAll('"', '&quot;')
+  .replaceAll('<', '&lt;');
+
+const positionFields = (value = [0, 0]) =>
+  `<div class="row">
+    <label>East (m)<input data-field="position.0" type="number" value="${value[0] ?? 0}"></label>
+    <label>North (m)<input data-field="position.1" type="number" value="${value[1] ?? 0}"></label>
+  </div>`;
+
+const select = (label, field, value, items, optional = false) =>
+  `<label>${label}<select data-field="${field}" ${optional ? 'data-optional' : ''}>
+    ${optional ? '<option value="">— none —</option>' : ''}
+    ${items.map(item => `<option value="${esc(item)}" ${item === value ? 'selected' : ''}>${esc(item)}</option>`).join('')}
+  </select></label>`;
+
+function referenceOptions(items, selected, optional) {
+  const values = [...items];
+  if (selected && !values.includes(selected)) values.push(selected);
+  return `${optional ? '<option value="">— none —</option>' : ''}
+    ${values.map(value => `<option value="${esc(value)}" ${value === selected ? 'selected' : ''}>
+      ${esc(value)}${!items.includes(value) ? ' (missing)' : ''}
+    </option>`).join('')}`;
+}
+
+function referenceSelect(label, field, selected, items, optional = false) {
+  return `<label>${label}<select data-field="${field}" ${optional ? 'data-optional' : ''}>
+    ${referenceOptions(items, selected, optional)}
+  </select></label>`;
+}
+
+function multiReferenceSelect(label, field, selected = [], items = []) {
+  const values = [...items];
+  for (const value of selected) if (!values.includes(value)) values.push(value);
+  const size = Math.min(7, Math.max(3, values.length));
+  return `<label>${label}<select data-array-field="${field}" multiple size="${size}">
+    ${values.map(value => `<option value="${esc(value)}" ${selected.includes(value) ? 'selected' : ''}>
+      ${esc(value)}${!items.includes(value) ? ' (missing)' : ''}
+    </option>`).join('')}
+  </select><small>Use Ctrl/Cmd to select more than one.</small></label>`;
+}
+
+const points = (field, items = []) =>
+  `<div class="points">
+    <strong>${field === 'polygon' ? 'Polygon points' : 'Path points'}</strong>
+    <small>Add at least ${field === 'polygon' ? 3 : 2} east/north points.</small>
+    ${items.map((point, index) => `<div class="point-row">
+      <span>${index + 1}</span>
+      <label>X<input type="number" data-point="${field}.${index}.0" value="${point[0] ?? 0}"></label>
+      <label>Y<input type="number" data-point="${field}.${index}.1" value="${point[1] ?? 0}"></label>
+      <button type="button" class="icon-button" data-remove-point="${field}.${index}" aria-label="Remove point ${index + 1}">×</button>
+    </div>`).join('')}
+    <button type="button" class="secondary" data-add-point="${field}">Add point</button>
+    <details class="advanced-fields"><summary>Raw coordinate JSON</summary>
+      <textarea data-field="${field}" rows="5">${esc(JSON.stringify(items))}</textarea>
+    </details>
+  </div>`;
+
+function assetOptions(type, value, query = '') {
+  const matches = search(type, query);
+  return families(type).map(family => {
+    const options = matches.filter(asset => asset.family === family).map(asset =>
+      `<option value="${asset.id}" ${asset.id === value ? 'selected' : ''}>
+        ${esc(asset.label)} — ${asset.footprint_radius.toFixed(2)} m
+      </option>`
+    ).join('');
+    return options ? `<optgroup label="${esc(family)}">${options}</optgroup>` : '';
+  }).join('');
+}
+
+const assetPicker = (field, value, type) =>
+  `<label>${field === 'archetype' ? 'Archetype' : 'Asset'}
+    <input class="asset-filter" data-asset-filter="${type}" type="search" placeholder="Filter assets…">
+    <select data-field="${field}" data-asset-type="${type}">${assetOptions(type, value)}</select>
+  </label>`;
+
+export function defaultEntity(key, position = [32, 32]) {
+  const config = CONFIGS[key];
+  const entity = {id: nextId(key)};
+  if (config.shape === 'polygon') return {...entity, polygon: []};
+  if (config.shape === 'path') return {...entity, control_points: [], width_m: 3};
+  if (config.shape === 'wall') {
+    return {...entity, asset: config.defaultAsset || 'wall_dungeon_01', control_points: []};
+  }
+  if (config.assetType) entity[config.assetField || 'asset'] = config.defaultAsset || firstId(config.assetType);
+  if (config.kind) entity.kind = 'chest';
+  if (config.side) {
+    entity.side = 'enemies';
+    entity.initial_disposition = 'hostile';
+  }
+  if (config.item) entity.item_id = 'healing_potion';
+  if (config.bridge) Object.assign(entity, {position, river_id: 'river_1', road_id: 'road_1'});
+  else if (config.door) Object.assign(entity, {position, initial_state: 'closed', required_state: 'open'});
+  else if (config.encounter) Object.assign(entity, {position, actor_ids: []});
+  else if (config.dialog) {
+    Object.assign(entity, {
+      root: 'greeting',
+      nodes: [{id: 'greeting', text: 'They block the road.', options: [{text: 'Leave.', outcome: {effect: 'end'}}]}],
+    });
+  } else Object.assign(entity, {position});
+  return entity;
+}
+
+function editableFields(key, entity, {identity = true, spatial = true} = {}) {
+  const config = CONFIGS[key];
+  const state = getState();
+  let html = '';
+
+  if (identity) html += `<label>ID<input data-field="id" value="${esc(entity.id)}"></label>`;
+  if (config.assetType) {
+    const assetField = config.assetField || 'asset';
+    html += assetPicker(assetField, entity[assetField], config.assetType);
+  }
+  if (config.kind) html += select('Kind', 'kind', entity.kind, ENUMS.kind);
+  if (config.side) {
+    html += select('Side', 'side', entity.side ?? 'enemies', ENUMS.side);
+    html += select('Initial disposition', 'initial_disposition', entity.initial_disposition ?? 'hostile', ENUMS.disposition);
+    html += `<label>Stat block <small>ActorDefinition ID, optional</small><input data-field="stat_block" data-optional value="${esc(entity.stat_block ?? '')}"></label>`;
+    html += referenceSelect('Dialog', 'dialog', entity.dialog, (state.dialogs || []).map(value => value.id), true);
+  }
+  if (config.item) html += `<label>Item ID<input data-field="item_id" value="${esc(entity.item_id)}"></label>`;
+
+  if (spatial) {
+    if (config.shape) {
+      const field = config.shape === 'polygon' ? 'polygon' : 'control_points';
+      html += points(field, entity[field] || []);
+      if (config.shape === 'wall') html += '<p class="help">A wall uses exactly two points.</p>';
+    } else if (!config.dialog) html += positionFields(entity.position);
+  }
+
+  if (config.dialog) {
+    html += `<label>Root node ID<input data-field="root" value="${esc(entity.root)}"></label>
+      <label>Nodes JSON <small>A check requires a failure_outcome.</small>
+        <textarea data-field="nodes" rows="16">${esc(JSON.stringify(entity.nodes ?? [], null, 2))}</textarea>
+      </label>`;
+  }
+
+  if (['vegetation', 'structures', 'hills', 'actors', 'interactables', 'pickups'].includes(key)) {
+    html += `<label>Rotation (degrees, optional)<input data-field="rotation_deg" data-optional type="number" value="${entity.rotation_deg ?? ''}"></label>`;
+  }
+  if (config.bridge) {
+    html += referenceSelect('River', 'river_id', entity.river_id, (state.rivers || []).map(value => value.id));
+    html += referenceSelect('Road', 'road_id', entity.road_id, (state.roads || []).map(value => value.id));
+  }
+  if (config.encounter) {
+    html += multiReferenceSelect('Actors', 'actor_ids', entity.actor_ids || [], (state.actors || []).map(value => value.id));
+    html += `<label>Trigger radius (m, optional)<input data-field="trigger_radius_m" data-optional type="number" value="${entity.trigger_radius_m ?? ''}"></label>`;
+  }
+  if (key === 'objectives') {
+    html += `<label>Radius (m, optional)<input data-field="radius_m" data-optional type="number" value="${entity.radius_m ?? ''}"></label>`;
+    html += multiReferenceSelect('Required encounters', 'requires_encounter_ids', entity.requires_encounter_ids || [], (state.encounters || []).map(value => value.id));
+  }
+  if (key === 'interactables') {
+    html += `<label>Contents <small>Comma-separated item IDs</small><input data-list-field="contents" value="${esc((entity.contents || []).join(', '))}"></label>`;
+  }
+  if (config.door) {
+    html += select('Initial state', 'initial_state', entity.initial_state, ENUMS.doorState);
+    html += select('Required state', 'required_state', entity.required_state, ENUMS.doorState);
+  }
+  if (key === 'regions') {
+    html += select('Vegetation profile', 'vegetation.profile', entity.vegetation?.profile, ENUMS.vegetationProfile, true);
+    html += `<label>Vegetation density<input data-field="vegetation.density" data-optional type="number" min="0" max="1" step="0.05" value="${entity.vegetation?.density ?? ''}"></label>`;
+  }
+  if ((key === 'rivers' || key === 'roads')) {
+    html += `<label>Width (m)<input data-field="width_m" type="number" min="0.1" max="24" value="${entity.width_m ?? 3}"></label>`;
+  }
+  return html;
+}
+
+export function collectionInspector(key) {
+  const config = CONFIGS[key];
+  const count = (getState()[key] || []).length;
+  return `<div class="inspector-heading"><p class="eyebrow">${config.section}</p><h2>${config.label}</h2></div>
+    <p class="help">${count} ${count === 1 ? config.singular.toLowerCase() : config.label.toLowerCase()} in this map. Choose an item in the navigator or use its creation controls.</p>`;
+}
+
+export function entityInspector(key, id) {
+  const config = CONFIGS[key];
+  const entity = findEntity(key, id);
+  if (!entity) return collectionInspector(key);
+  return `<div class="inspector-heading">
+      <p class="eyebrow">${config.label}</p>
+      <h2>${esc(entity.id)}</h2>
+    </div>
+    ${editableFields(key, entity)}
+    <div class="danger-zone"><button type="button" class="danger" data-delete-entity>Delete ${config.singular}</button></div>`;
+}
+
+export function toolInspector(key, template) {
+  const config = CONFIGS[key];
+  const verb = config.creationMode === 'point' ? 'Place' : 'Draw';
+  const help = config.creationMode === 'point'
+    ? 'These settings are reused for every placement. Click the map repeatedly; press Escape when finished.'
+    : 'Click the map to add points. Finish the shape with the canvas control or double-click the last point.';
+  return `<div class="inspector-heading"><p class="eyebrow">Active tool</p><h2>${verb} ${config.singular}</h2></div>
+    <p class="help">${help}</p>
+    ${editableFields(key, template, {identity: false, spatial: false})}`;
+}
+
+function setNested(object, path, value) {
+  const parts = path.split('.');
+  let target = object;
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    target = target[parts[index]] ??= {};
+  }
+  target[parts.at(-1)] = value;
+}
+
+function deleteNested(object, path) {
+  const parts = path.split('.');
+  const parents = [];
+  let target = object;
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    if (!target?.[parts[index]]) return;
+    parents.push([target, parts[index]]);
+    target = target[parts[index]];
+  }
+  delete target[parts.at(-1)];
+  for (let index = parents.length - 1; index >= 0; index -= 1) {
+    const [parent, key] = parents[index];
+    if (Object.keys(parent[key]).length === 0) delete parent[key];
+  }
+}
+
+function bindEditor(root, key, getValue, saveValue, {onRename, onDelete} = {}) {
+  const save = (field, value) => {
+    const current = getValue();
+    if (!current) return;
+    const next = structuredClone(current);
+    if (value === undefined) deleteNested(next, field);
+    else setNested(next, field, value);
+    saveValue(next);
+  };
+
+  root.querySelectorAll('[data-asset-filter]').forEach(input => {
+    input.oninput = () => {
+      const field = root.querySelector('[data-field][data-asset-type]');
+      const value = field.value;
+      field.innerHTML = assetOptions(input.dataset.assetFilter, value, input.value);
+      if (!field.value && field.options.length) field.value = field.options[0].value;
+    };
+  });
+  root.querySelectorAll('[data-point]').forEach(input => {
+    input.onchange = () => save(input.dataset.point, Number(input.value));
+  });
+  root.querySelectorAll('[data-add-point]').forEach(button => {
+    button.onclick = () => {
+      const field = button.dataset.addPoint;
+      const next = structuredClone(getValue());
+      next[field] ??= [];
+      next[field].push([0, 0]);
+      saveValue(next);
+    };
+  });
+  root.querySelectorAll('[data-remove-point]').forEach(button => {
+    button.onclick = () => {
+      const [field, index] = button.dataset.removePoint.split('.');
+      const next = structuredClone(getValue());
+      next[field].splice(Number(index), 1);
+      saveValue(next);
+    };
+  });
+  root.querySelectorAll('[data-array-field]').forEach(input => {
+    input.onchange = () => save(input.dataset.arrayField, [...input.selectedOptions].map(option => option.value));
+  });
+  root.querySelectorAll('[data-list-field]').forEach(input => {
+    input.onchange = () => save(
+      input.dataset.listField,
+      input.value.split(',').map(value => value.trim()).filter(Boolean),
+    );
+  });
+  root.querySelectorAll('[data-field]').forEach(input => {
+    input.onchange = () => {
+      const field = input.dataset.field;
+      let value = input.value;
+      if (input.type === 'number') value = value === '' ? undefined : Number(value);
+      if (input.dataset.optional !== undefined && value === '') value = undefined;
+      if (field === 'polygon' || field === 'control_points' || field === 'nodes') {
+        try {
+          value = JSON.parse(value);
+        } catch {
+          input.setAttribute('aria-invalid', 'true');
+          return;
+        }
+      }
+      if (field === 'vegetation.profile' && value === undefined) {
+        const next = structuredClone(getValue());
+        delete next.vegetation;
+        saveValue(next);
+        return;
+      }
+      if (field === 'id' && value !== getValue().id) onRename?.(value);
+      save(field, value);
+    };
+  });
+  const deleteButton = root.querySelector('[data-delete-entity]');
+  if (deleteButton) {
+    deleteButton.onclick = () => {
+      const entity = getValue();
+      if (entity && window.confirm(`Delete ${entity.id}? This cannot be undone.`)) onDelete?.();
+    };
+  }
+}
+
+export function bindEntityInspector(root, key, id, callbacks = {}) {
+  bindEditor(
+    root,
+    key,
+    () => findEntity(key, id),
+    next => updateEntity(key, id, next),
+    {
+      onRename: callbacks.onRename,
+      onDelete: () => {
+        removeEntity(key, id);
+        callbacks.onDelete?.();
+      },
+    },
+  );
+}
+
+export function bindToolInspector(root, key, getTemplate, setTemplate) {
+  bindEditor(root, key, getTemplate, setTemplate);
+}

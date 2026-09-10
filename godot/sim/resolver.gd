@@ -381,6 +381,15 @@ static func _resolve_set_disposition(state: BattleState, cmd: Command, result: R
 
 
 static func _spend_ability_cost(result: ResolutionResult, actor: ActorState, ability: AbilityDefinition, include_action: bool = true, include_reaction: bool = true) -> void:
+	# Unlike the action/bonus-action flags this is emitted for attacks too: the
+	# attack_rolled event carries only the action/reaction spend flags, so a
+	# limited-use attack would otherwise never decrement its pool.
+	if ability.max_uses >= 0:
+		var spent := int(actor.ability_uses_spent.get(ability.id, 0)) + 1
+		result.events.append(Event.create(&"ability_use_spent", {
+			"actor_id": actor.id, "ability_id": ability.id,
+			"uses_spent": spent, "uses_remaining": maxi(0, ability.max_uses - spent),
+		}))
 	if include_action and ability.costs_action:
 		result.events.append(Event.create(&"action_spent", {"actor_id": actor.id, "action": ability.id}))
 	if ability.costs_bonus_action:
@@ -765,6 +774,7 @@ static func apply(state: BattleState, event: Event) -> void:
 		&"damage_taken": (state.actors[event.data["actor_id"]] as ActorState).hp = max(0, (state.actors[event.data["actor_id"]] as ActorState).hp - event.data["amount"])
 		&"healing_received": (state.actors[event.data["actor_id"]] as ActorState).hp = mini((state.actors[event.data["actor_id"]] as ActorState).max_hp, (state.actors[event.data["actor_id"]] as ActorState).hp + int(event.data["amount"]))
 		&"item_consumed": (state.actors[event.data["actor_id"]] as ActorState).inventory.erase(StringName(str(event.data["item_id"])))
+		&"ability_use_spent": (state.actors[event.data["actor_id"]] as ActorState).ability_uses_spent[StringName(str(event.data["ability_id"]))] = int(event.data["uses_spent"])
 		&"actor_downed":
 			var downed_actor: ActorState = state.actors[event.data["actor_id"]]
 			downed_actor.add_condition(&"unconscious")
@@ -800,6 +810,12 @@ static func apply(state: BattleState, event: Event) -> void:
 			state.active_encounter_id = str(event.data.get("encounter_id", ""))
 			state.active_combatant_ids = _actor_ids(event.data.get("combatant_ids", []))
 			state.last_encounter_outcome = EncounterRules.OUTCOME_NONE
+			# There is no rest system, so entering an encounter stands in for the
+			# SRD short rest and refills every per-encounter pool. Recorded as a
+			# deviation in docs/third_party/NOTICE.md.
+			for combatant_id in state.active_combatant_ids:
+				if state.actors.has(combatant_id):
+					(state.actors[combatant_id] as ActorState).ability_uses_spent.clear()
 		&"combat_ending": state.phase = event.data["phase"]
 		&"encounter_resolved":
 			state.last_encounter_outcome = StringName(str(event.data["outcome"]))
@@ -835,6 +851,20 @@ static func apply(state: BattleState, event: Event) -> void:
 			turn_actor.bonus_action_available = event.data["bonus_action_available"]
 			turn_actor.reaction_available = event.data["reaction_available"]
 			turn_actor.disengaged = event.data["disengaged"]
+			_recharge_per_turn_uses(turn_actor)
+
+
+## Drops the spent entries for abilities whose pool refills every turn, leaving
+## per-encounter pools alone. Reads definitions the same way ActorState does for
+## condition flags, so the apply path stays free of a definitions parameter.
+static func _recharge_per_turn_uses(actor: ActorState) -> void:
+	if actor.ability_uses_spent.is_empty():
+		return
+	var definitions := DefinitionLibrary.get_default()
+	for ability_id in actor.ability_uses_spent.keys():
+		var ability := definitions.get_ability(ability_id)
+		if ability != null and ability.uses_recharge == &"turn":
+			actor.ability_uses_spent.erase(ability_id)
 
 
 static func _actor_ids(data: Array) -> Array[int]:

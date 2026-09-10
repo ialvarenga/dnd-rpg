@@ -1,8 +1,155 @@
-import {footprint,sizeOf} from './asset-catalog.js';
-const REGION_TINT={temperate_sparse:'#6b9d4e',temperate_dense:'#1e642e',old_growth:'#14512c',meadow:'#9cb551',rocky_scrub:'#7d7f5e',thicket:'#2f7a3a'};
-const ns='http://www.w3.org/2000/svg';const el=(tag,attrs={})=>{const node=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([key,value])=>node.setAttribute(key,value));return node};const colors={grass:'#557b43',sand:'#b89a5a',dirt:'#8a6747',stone:'#717470'};const point=(p,b,scale)=>`${p[0]*scale},${(b.height_m-p[1])*scale}`;
-export function render(svg,s,ui){const b=s.map.bounds,scale=ui.pxPerMeter;svg.replaceChildren();svg.setAttribute('viewBox',`0 0 ${b.width_m*scale} ${b.height_m*scale}`);svg.setAttribute('width',b.width_m*scale);svg.setAttribute('height',b.height_m*scale);svg.append(el('rect',{width:b.width_m*scale,height:b.height_m*scale,fill:colors[s.terrain?.surface]||colors.grass}));const add=(node,key,id,index)=>{node.classList.add('point');node.dataset.arrayKey=key;node.dataset.entityId=id;node.dataset.index=index;if(ui.selectedEntity?.key===key&&ui.selectedEntity?.index===index)node.classList.add('selected-shape');svg.append(node)};
- (s.regions||[]).forEach((region,index)=>{const color=REGION_TINT[region.vegetation?.profile]||'#92935c';add(el('polygon',{points:(region.polygon||[]).map(p=>point(p,b,scale)).join(' '),fill:color,'fill-opacity':'.35',stroke:color}),'regions',region.id,index);(region.polygon||[]).forEach((p,n)=>{const X=p[0]*scale,Y=(b.height_m-p[1])*scale;svg.append(el('circle',{cx:X,cy:Y,r:5,fill:'#fff',stroke:color,'stroke-width':2}));const label=el('text',{x:X+7,y:Y-7,fill:'#fff','font-size':12,'font-weight':'bold','paint-order':'stroke',stroke:'#1a251b','stroke-width':3});label.textContent=String(n+1);svg.append(label)})});
- for(const [key,color]of [['rivers','#49a9df'],['roads','#c7a35e'],['walls','#646464']])(s[key]||[]).forEach((path,index)=>add(el('polyline',{points:(path.control_points||[]).map(p=>point(p,b,scale)).join(' '),fill:'none',stroke:color,'stroke-width':(path.width_m||1)*scale,'stroke-linecap':key==='walls'?'square':'round','stroke-linejoin':'round'}),key,path.id,index));
- const dots={vegetation:['circle','#216b2d'],structures:['rect','#646464'],hills:['rect','#8a7357'],actors:['circle','#cf5151'],spawn_points:['polygon','#3e9ee8'],interactables:['circle','#ba78dc'],pickups:['circle','#4fd18a'],bridges:['rect','#d6b160'],objectives:['path','#f4e05b'],doors:['rect','#87573b'],encounters:['circle','none']};Object.entries(dots).forEach(([key,[tag,color]])=>(s[key]||[]).forEach((item,index)=>{const X=item.position?.[0]*scale,Y=(b.height_m-item.position?.[1])*scale,radius=footprint(item.asset||item.archetype)*scale,size=key==='hills'?sizeOf(item.asset):null,attrs={fill:color,stroke:key==='encounters'?'#ffd05a':'#171717','stroke-width':2};if(size)svg.append(el('rect',{x:X-size[0]*scale/2,y:Y-size[1]*scale/2,width:size[0]*scale,height:size[1]*scale,class:'asset-footprint',transform:`rotate(${-(item.rotation_deg||0)} ${X} ${Y})`}));else if(radius>0)svg.append(el('circle',{cx:X,cy:Y,r:radius,class:'asset-footprint'}));if(tag==='circle')Object.assign(attrs,{cx:X,cy:Y,r:key==='encounters'?10:6});if(tag==='rect')Object.assign(attrs,{x:X-6,y:Y-6,width:12,height:12});if(tag==='polygon')attrs.points=`${X},${Y-7} ${X-7},${Y+6} ${X+7},${Y+6}`;if(tag==='path')attrs.d=`M ${X} ${Y-8} L ${X+7} ${Y-4} L ${X+3} ${Y+7} L ${X-5} ${Y+7} L ${X-7} ${Y-4} Z`;if(key==='encounters')attrs['stroke-dasharray']='4 3';add(el(tag,attrs),key,item.id,index)}));if(s.player?.character_asset){const star=el('text',{x:10,y:b.height_m*scale-10,fill:'#ffe274','font-size':18});star.textContent='★';svg.append(star)}if(ui.draftShapePoints.length)svg.append(el('polyline',{points:ui.draftShapePoints.map(p=>point(p,b,scale)).join(' '),class:'draft'}))}
-export function screenToWorld(svg,event,b){const rect=svg.getBoundingClientRect();return[Math.max(0,Math.min(b.width_m,(event.clientX-rect.left)/rect.width*b.width_m)),Math.max(0,Math.min(b.height_m,b.height_m-(event.clientY-rect.top)/rect.height*b.height_m))]}
+import {footprint, sizeOf} from './asset-catalog.js';
+
+const REGION_TINT = {
+  temperate_sparse: '#6b9d4e',
+  temperate_dense: '#1e642e',
+  old_growth: '#14512c',
+  meadow: '#9cb551',
+  rocky_scrub: '#7d7f5e',
+  thicket: '#2f7a3a',
+};
+
+const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+const SURFACE_COLORS = {grass: '#557b43', sand: '#b89a5a', dirt: '#8a6747', stone: '#717470'};
+
+function element(tag, attributes = {}) {
+  const node = document.createElementNS(SVG_NAMESPACE, tag);
+  Object.entries(attributes).forEach(([key, value]) => node.setAttribute(key, value));
+  return node;
+}
+
+const point = (value, bounds, scale) => `${value[0] * scale},${(bounds.height_m - value[1]) * scale}`;
+
+export function render(svg, state, ui) {
+  const bounds = state.map.bounds;
+  const scale = ui.pxPerMeter || 9;
+  svg.replaceChildren();
+  svg.setAttribute('viewBox', `0 0 ${bounds.width_m * scale} ${bounds.height_m * scale}`);
+  svg.setAttribute('width', bounds.width_m * scale);
+  svg.setAttribute('height', bounds.height_m * scale);
+  svg.append(element('rect', {
+    width: bounds.width_m * scale,
+    height: bounds.height_m * scale,
+    fill: SURFACE_COLORS[state.terrain?.surface] || SURFACE_COLORS.grass,
+  }));
+
+  const addSelectable = (node, key, id, index) => {
+    node.classList.add('point');
+    node.dataset.arrayKey = key;
+    node.dataset.entityId = id;
+    node.dataset.index = index;
+    if (ui.selection?.kind === 'entity' && ui.selection.key === key && ui.selection.id === id) {
+      node.classList.add('selected-shape');
+    }
+    svg.append(node);
+  };
+
+  (state.regions || []).forEach((region, index) => {
+    const color = REGION_TINT[region.vegetation?.profile] || '#92935c';
+    addSelectable(element('polygon', {
+      points: (region.polygon || []).map(value => point(value, bounds, scale)).join(' '),
+      fill: color,
+      'fill-opacity': '.35',
+      stroke: color,
+    }), 'regions', region.id, index);
+    (region.polygon || []).forEach((value, pointIndex) => {
+      const x = value[0] * scale;
+      const y = (bounds.height_m - value[1]) * scale;
+      svg.append(element('circle', {cx: x, cy: y, r: 5, fill: '#fff', stroke: color, 'stroke-width': 2}));
+      const label = element('text', {
+        x: x + 7,
+        y: y - 7,
+        fill: '#fff',
+        'font-size': 12,
+        'font-weight': 'bold',
+        'paint-order': 'stroke',
+        stroke: '#1a251b',
+        'stroke-width': 3,
+      });
+      label.textContent = String(pointIndex + 1);
+      svg.append(label);
+    });
+  });
+
+  for (const [key, color] of [['rivers', '#49a9df'], ['roads', '#c7a35e'], ['walls', '#646464']]) {
+    (state[key] || []).forEach((path, index) => {
+      addSelectable(element('polyline', {
+        points: (path.control_points || []).map(value => point(value, bounds, scale)).join(' '),
+        fill: 'none',
+        stroke: color,
+        'stroke-width': (path.width_m || 1) * scale,
+        'stroke-linecap': key === 'walls' ? 'square' : 'round',
+        'stroke-linejoin': 'round',
+      }), key, path.id, index);
+    });
+  }
+
+  const markers = {
+    vegetation: ['circle', '#216b2d'],
+    structures: ['rect', '#646464'],
+    hills: ['rect', '#8a7357'],
+    actors: ['circle', '#cf5151'],
+    spawn_points: ['polygon', '#3e9ee8'],
+    interactables: ['circle', '#ba78dc'],
+    pickups: ['circle', '#4fd18a'],
+    bridges: ['rect', '#d6b160'],
+    objectives: ['path', '#f4e05b'],
+    doors: ['rect', '#87573b'],
+    encounters: ['circle', 'none'],
+  };
+
+  Object.entries(markers).forEach(([key, [tag, color]]) => {
+    (state[key] || []).forEach((item, index) => {
+      const x = item.position?.[0] * scale;
+      const y = (bounds.height_m - item.position?.[1]) * scale;
+      const radius = footprint(item.asset || item.archetype) * scale;
+      const size = key === 'hills' ? sizeOf(item.asset) : null;
+      const attributes = {
+        fill: color,
+        stroke: key === 'encounters' ? '#ffd05a' : '#171717',
+        'stroke-width': 2,
+      };
+      if (size) {
+        svg.append(element('rect', {
+          x: x - size[0] * scale / 2,
+          y: y - size[1] * scale / 2,
+          width: size[0] * scale,
+          height: size[1] * scale,
+          class: 'asset-footprint',
+          transform: `rotate(${-(item.rotation_deg || 0)} ${x} ${y})`,
+        }));
+      } else if (radius > 0) {
+        svg.append(element('circle', {cx: x, cy: y, r: radius, class: 'asset-footprint'}));
+      }
+      if (tag === 'circle') Object.assign(attributes, {cx: x, cy: y, r: key === 'encounters' ? 10 : 6});
+      if (tag === 'rect') Object.assign(attributes, {x: x - 6, y: y - 6, width: 12, height: 12});
+      if (tag === 'polygon') attributes.points = `${x},${y - 7} ${x - 7},${y + 6} ${x + 7},${y + 6}`;
+      if (tag === 'path') {
+        attributes.d = `M ${x} ${y - 8} L ${x + 7} ${y - 4} L ${x + 3} ${y + 7} L ${x - 5} ${y + 7} L ${x - 7} ${y - 4} Z`;
+      }
+      if (key === 'encounters') attributes['stroke-dasharray'] = '4 3';
+      addSelectable(element(tag, attributes), key, item.id, index);
+    });
+  });
+
+  if (state.player?.character_asset) {
+    const star = element('text', {x: 10, y: bounds.height_m * scale - 10, fill: '#ffe274', 'font-size': 18});
+    star.textContent = '★';
+    svg.append(star);
+  }
+  if (ui.draftShapePoints.length) {
+    svg.append(element('polyline', {
+      points: ui.draftShapePoints.map(value => point(value, bounds, scale)).join(' '),
+      class: 'draft',
+    }));
+  }
+}
+
+export function screenToWorld(svg, event, bounds) {
+  const rectangle = svg.getBoundingClientRect();
+  const round = value => Math.round(value * 100) / 100;
+  return [
+    round(Math.max(0, Math.min(bounds.width_m, (event.clientX - rectangle.left) / rectangle.width * bounds.width_m))),
+    round(Math.max(0, Math.min(bounds.height_m, bounds.height_m - (event.clientY - rectangle.top) / rectangle.height * bounds.height_m))),
+  ];
+}

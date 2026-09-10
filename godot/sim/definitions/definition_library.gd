@@ -22,7 +22,9 @@ extends RefCounted
 ## Bump 9: abilities carry presentation descriptions used by HUD tooltips.
 ## Bump 10: Talk is contextual to clicking a dialog-capable NPC, not a hotbar
 ## ability carried by the player stat block.
-const CONTENT_VERSION: int = 10
+## Bump 11: the healing potion costs a Bonus Action per SRD 5.2.1, abilities
+## carry per-encounter use limits, and the Fighter gains Second Wind.
+const CONTENT_VERSION: int = 11
 
 const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/basic_attack.tres",
@@ -33,6 +35,7 @@ const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/dodge.tres",
 	"res://data/abilities/ranged_attack.tres",
 	"res://data/abilities/talk.tres",
+	"res://data/abilities/second_wind.tres",
 ]
 
 const CONDITION_MANIFEST: Array[String] = [

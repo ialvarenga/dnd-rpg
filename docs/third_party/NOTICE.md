@@ -11,10 +11,10 @@ https://creativecommons.org/licenses/by/4.0/legalcode.
 The rules have been adapted into a deterministic, metric, single-hero tactical
 video game. Adaptations include presentation-friendly melee distances, rounded
 feet-to-meter range bands, automated selection of the defender's better Shove
-save, an action-cost healing potion retained from the existing game economy,
-and omission of rules the runtime does not yet model. The exact provenance and
-changes for each rules resource are recorded in
-`docs/rules/open-content-ledger.csv`. This project describes itself only as
+save, self-only healing-potion administration, an encounter boundary standing
+in for the SRD short rest, and omission of rules the runtime does not yet
+model. The exact provenance and changes for each rules resource are recorded
+in `docs/rules/open-content-ledger.csv`. This project describes itself only as
 “5E compatible.”
 
 Tactical Slash was inspected as a camera reference but no source was copied or
@@ -94,6 +94,7 @@ them by stable UI id; no icon is gameplay authority.
 | `godot/assets/game_icons/bowie-knife.svg` | Bowie Knife | Skoll | https://game-icons.net/1x1/skoll/bowie-knife.html |
 | `godot/assets/game_icons/leather-armor.svg` | Leather Armor | Delapouite | https://game-icons.net/1x1/delapouite/leather-armor.html |
 | `godot/assets/game_icons/chain-mail.svg` | Chain Mail | Willdabeast | https://game-icons.net/1x1/willdabeast/chain-mail.html |
+| `godot/assets/game_icons/healing.svg` | Healing | Delapouite | https://game-icons.net/1x1/delapouite/healing.html |
 
 ### KayKit Character Animations 1.1
 

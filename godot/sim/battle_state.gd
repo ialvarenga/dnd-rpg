@@ -82,6 +82,7 @@ func stable_snapshot() -> Dictionary:
 			"disposition": String(actor.disposition),
 			"condition_states": actor.condition_states.map(func(condition: ConditionState): return condition.to_dict()),
 			"inventory": actor.inventory,
+			"ability_uses_spent": _sorted_ability_uses(actor.ability_uses_spent),
 		})
 	var interactable_snapshots: Array[Dictionary] = []
 	var interactable_ids: Array = interactables.keys()
@@ -188,3 +189,15 @@ static func from_dict(data: Dictionary) -> BattleState:
 	if restored_flags is Dictionary:
 		state.world_flags = restored_flags
 	return state
+
+
+## Dictionary iteration follows insertion order, which depends on the order
+## abilities happened to be spent. Sorting keeps the stable snapshot (and the
+## determinism hash built from it) identical for equivalent states.
+static func _sorted_ability_uses(uses: Dictionary) -> Dictionary:
+	var sorted_uses := {}
+	var ability_ids: Array = uses.keys()
+	ability_ids.sort()
+	for ability_id in ability_ids:
+		sorted_uses[String(ability_id)] = int(uses[ability_id])
+	return sorted_uses

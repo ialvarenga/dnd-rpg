@@ -7,8 +7,10 @@ static func run() -> Dictionary:
 	_test_potion_heals_consumes_and_advances_rng(failures)
 	_test_potion_clamps_and_removes_one_matching_item(failures)
 	_test_missing_item_agrees_with_availability(failures)
+	_test_potion_is_affordable_after_attacking(failures)
 	_test_effective_abilities_and_snapshot(failures)
 	_test_content_manifest_and_ai(failures)
+	_test_ai_does_not_quaff_at_full_hp(failures)
 	return {"name": "unit/test_consumables", "failures": failures}
 
 
@@ -27,7 +29,7 @@ static func _test_potion_heals_consumes_and_advances_rng(failures: Array[String]
 	var state := _potion_state(10)
 	var expected := Dice.roll_dice(state.rng_state, 2, 4)
 	var result := Resolver.resolve(state, Command.create(&"quaff_healing_potion", 1), FakeNavProvider.new(), FakeLosProvider.new())
-	_expect(_event_types(result) == [&"action_spent", &"healing_received", &"item_consumed"], "potion did not emit action, healing, then consumption events", failures)
+	_expect(_event_types(result) == [&"bonus_action_spent", &"healing_received", &"item_consumed"], "potion did not emit bonus action, healing, then consumption events", failures)
 	_expect(result.next_rng_state == expected["next_rng_state"], "potion multi-die healing did not advance RNG deterministically", failures)
 	TestHelpers.apply_result(state, result)
 	_expect(state.actors[1].hp == mini(20, 10 + int(expected["total"]) + 2), "potion did not apply its data-authored 2d4+2 healing", failures)
@@ -53,6 +55,27 @@ static func _test_missing_item_agrees_with_availability(failures: Array[String])
 	_expect(result.events[0].data["reason"] == availability["reason"], "Resolver and ActionAvailability diverged on missing consumable inventory", failures)
 
 
+## SRD 5.2.1 makes drinking a Potion of Healing a Bonus Action, so spending the
+## turn's action on an attack must leave the potion affordable. Quaffing twice
+## in one turn must still fail, on the bonus action rather than the action.
+static func _test_potion_is_affordable_after_attacking(failures: Array[String]) -> void:
+	var state := _potion_state(5)
+	(state.actors[1] as ActorState).inventory = [&"healing_potion", &"healing_potion"]
+	var attack := Command.create(&"attack", 1)
+	attack.target_id = 2
+	TestHelpers.apply_result(state, Resolver.resolve(state, attack, FakeNavProvider.new(), FakeLosProvider.new()))
+	_expect(not (state.actors[1] as ActorState).action_available, "attack did not spend the turn's action", failures)
+
+	var availability := ActionAvailability.evaluate(state, 1, &"quaff_healing_potion")
+	var first := Resolver.resolve(state, Command.create(&"quaff_healing_potion", 1), FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(availability["available"], "potion was reported unavailable after the action was spent", failures)
+	_expect(first.events[0].type == &"bonus_action_spent", "potion was rejected after an attack instead of spending the bonus action", failures)
+	TestHelpers.apply_result(state, first)
+
+	var second := Resolver.resolve(state, Command.create(&"quaff_healing_potion", 1), FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(second.events[0].type == &"command_rejected" and second.events[0].data["reason"] == RejectionReason.BONUS_ACTION_UNAVAILABLE, "a second potion in one turn was not gated on the bonus action", failures)
+
+
 static func _test_effective_abilities_and_snapshot(failures: Array[String]) -> void:
 	var state := _potion_state(5)
 	var actor: ActorState = state.actors[1]
@@ -73,6 +96,19 @@ static func _test_content_manifest_and_ai(failures: Array[String]) -> void:
 	state.current_turn_index = 0
 	var command := EnemyAI.new().choose_command(state, 2, FakeNavProvider.new(), FakeLosProvider.new(), AIQueryBudget.new())
 	_expect(command != null and command.type == &"quaff_healing_potion", "AI did not prioritize a healing consumable at critical HP", failures)
+
+
+## A Bonus Action potion is affordable on almost every turn, so the score for a
+## heal that restores nothing has to sort below end_turn rather than tie with it.
+static func _test_ai_does_not_quaff_at_full_hp(failures: Array[String]) -> void:
+	var state := _potion_state(1)
+	var enemy: ActorState = state.actors[2]
+	enemy.inventory = [&"healing_potion"]
+	enemy.hp = enemy.max_hp
+	state.initiative_order = [2, 1]
+	state.current_turn_index = 0
+	var command := EnemyAI.new().choose_command(state, 2, FakeNavProvider.new(), FakeLosProvider.new(), AIQueryBudget.new())
+	_expect(command == null or command.type != &"quaff_healing_potion", "AI burned a healing potion at full HP", failures)
 
 
 static func _potion_state(hp: int) -> BattleState:

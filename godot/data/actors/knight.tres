@@ -20,7 +20,7 @@ movement_speed = 9.0
 attack_bonus = 2
 damage_die = 4
 damage_modifier = 0
-ability_ids = Array[StringName]([&"basic_attack", &"shove", &"dodge", &"dash", &"disengage"])
+ability_ids = Array[StringName]([&"basic_attack", &"shove", &"dodge", &"dash", &"disengage", &"second_wind"])
 equipment_slots = {
 &"weapon": &"longsword",
 &"armor": &"chainmail"

@@ -1,0 +1,27 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // Serves the whole repo (not just map_builder/) because the music preview
+      // buttons load ../godot/assets/music/*.ogg by relative path, so a server
+      // rooted at map_builder/ would 404 them. scripts/serve_map_builder.py
+      // sends no-store so a plain reload always picks up edited ES modules.
+      "name": "Map Builder",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/serve_map_builder.py",
+      "args": ["8123"],
+      "cwd": "${workspaceFolder}",
+      // Ctrl+C in the terminal stops the server cleanly (the script traps it).
+      "console": "integratedTerminal",
+      // The repo root serves a directory listing, so open the URL the script
+      // prints ("Serving <root> at http://localhost:8123/map_builder/") rather
+      // than the port on its own.
+      "serverReadyAction": {
+        "pattern": "Serving .* at (https?://[^\\s]+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      }
+    }
+  ]
+}

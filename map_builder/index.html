@@ -1,4 +1,69 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MapSpec Map Builder</title><link rel="stylesheet" href="styles.css"></head><body>
-<header><h1>MapSpec Map Builder <small>v1.0</small></h1><div class="io"><label class="button" id="import-fallback">Import JSON<input id="import-file" type="file" accept="application/json,.json" hidden></label><button id="import-picker" hidden>Import JSON</button><button id="export">Export JSON</button><button id="save" hidden>Save</button><button id="save-as" hidden title="Choose a new file to save to">Save As</button></div></header>
-<main><aside id="panels"></aside><section class="workspace"><div id="toolbar" class="toolbar"></div><div id="shape-actions"></div><div class="preview-wrap"><svg id="preview" aria-label="Map preview"></svg></div><section id="validation" aria-live="polite"></section></section></main><script type="module" src="js/app.js"></script>
-</body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MapSpec Map Builder</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <h1>MapSpec Map Builder <small>v1.0</small></h1>
+      <div id="document-status" class="document-status" aria-live="polite"></div>
+    </div>
+    <div class="io-actions">
+      <button id="new-map" type="button">New Map</button>
+      <button id="import" type="button">Import JSON</button>
+      <input id="import-file" type="file" accept="application/json,.json" hidden>
+      <button id="export" type="button">Export JSON</button>
+      <button id="save" type="button">Save</button>
+      <button id="save-as" type="button" hidden title="Choose a new file to save to">Save As</button>
+    </div>
+  </header>
+
+  <main class="editor-shell">
+    <aside id="navigator" class="navigator" aria-label="Map sections"></aside>
+
+    <section class="workspace">
+      <div id="canvas-toolbar" class="canvas-toolbar"></div>
+      <div class="preview-wrap">
+        <svg id="preview" aria-label="Map preview"></svg>
+      </div>
+      <section id="validation" class="validation" aria-live="polite"></section>
+    </section>
+
+    <aside id="inspector" class="inspector" aria-label="Properties inspector"></aside>
+  </main>
+
+  <dialog id="new-map-dialog" class="new-map-dialog">
+    <form id="new-map-form" method="dialog">
+      <div class="dialog-heading">
+        <p class="eyebrow">Start clean</p>
+        <h2>New Map</h2>
+        <p>Create the map shell now; terrain, entities, and gameplay details can be added in the workspace.</p>
+      </div>
+      <label>Map ID<input name="id" value="untitled_map" required pattern="[a-z][a-z0-9]*(?:_[a-z0-9]+)*"></label>
+      <label>Preset
+        <select name="preset">
+          <option value="encounter">encounter</option>
+          <option value="small">small</option>
+          <option value="medium">medium</option>
+        </select>
+      </label>
+      <div class="row">
+        <label>Width (m)<input name="width_m" type="number" min="1" max="256" value="64" required></label>
+        <label>Height (m)<input name="height_m" type="number" min="1" max="256" value="64" required></label>
+      </div>
+      <label>Seed<input name="seed" type="number" min="0" max="2147483647" step="1" value="0" required></label>
+      <p id="new-map-errors" class="form-errors" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" class="secondary" data-close-dialog>Cancel</button>
+        <button type="submit" class="primary">Create Map</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -22,6 +22,11 @@ const MOVEMENT_EPSILON := 0.0001
 ## Empty StringName means the ability's resources are affordable; the caller
 ## still has to look up/validate the ability and its targeting separately.
 static func rejection_for_cost(actor: ActorState, ability: AbilityDefinition, definitions: DefinitionLibrary = null) -> StringName:
+	# Checked before the action/bonus-action flags so an exhausted pool reports
+	# the reason the player can act on ("no uses left") rather than whichever
+	# economy slot happened to be spent first this turn.
+	if ability.max_uses >= 0 and remaining_uses(actor, ability) <= 0:
+		return RejectionReasonRules.ABILITY_USES_EXHAUSTED
 	if ability.costs_action and not actor.action_available:
 		return RejectionReasonRules.ACTION_UNAVAILABLE
 	if ability.costs_bonus_action and not actor.bonus_action_available:
@@ -39,3 +44,12 @@ static func rejection_for_cost(actor: ActorState, ability: AbilityDefinition, de
 			if required_item == null or not actor.inventory.has(required_item.id):
 				return RejectionReasonRules.ITEM_NOT_IN_INVENTORY
 	return &""
+
+
+## Activations left in this ability's pool. Unlimited abilities (max_uses < 0)
+## report a large positive number so callers can treat every ability uniformly
+## without re-checking the sentinel.
+static func remaining_uses(actor: ActorState, ability: AbilityDefinition) -> int:
+	if ability.max_uses < 0:
+		return 0x7FFFFFFF
+	return maxi(0, ability.max_uses - int(actor.ability_uses_spent.get(ability.id, 0)))

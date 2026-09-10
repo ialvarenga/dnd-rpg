@@ -20,6 +20,6 @@ script = ExtResource("1_ability")
 id = &"quaff_healing_potion"
 display_name = "Quaff Healing Potion"
 description = "Drink a healing potion to recover hit points."
-costs_action = true
+costs_bonus_action = true
 targeting = &"none"
 effects = Array[ExtResource("2_effect")]([SubResource("AbilityEffect_heal"), SubResource("AbilityEffect_consume")])

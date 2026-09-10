@@ -1,6 +1,105 @@
-const initial=()=>({version:'1.0',map:{id:'untitled_map',preset:'encounter',seed:0,bounds:{width_m:64,height_m:64}},music:{ambient:'ambient_light_1',battle:'battle_action_1'},terrain:{profile:'flat',surface:'grass'}});
-let mapSpec=initial();const subscribers=new Set();export const getState=()=>mapSpec;export const subscribe=fn=>(subscribers.add(fn),()=>subscribers.delete(fn));const notify=()=>subscribers.forEach(fn=>fn(mapSpec));
-export const replaceState=value=>{mapSpec=value;notify()};export const mutate=fn=>{fn(mapSpec);notify()};
-export const setMapField=(key,value)=>mutate(s=>{if(key==='width_m'||key==='height_m')s.map.bounds[key]=value;else if(value==='')delete s.map[key];else s.map[key]=value});export const setTerrainField=(key,value)=>mutate(s=>{if(value==='')delete s.terrain[key];else s.terrain[key]=value});export const setPlayerField=(key,value)=>mutate(s=>{if(value===''){if(s.player){delete s.player[key];if(!Object.keys(s.player).length)delete s.player}}else{ s.player??={};s.player[key]=value}});
-export const setMusicField=(key,value)=>mutate(s=>{s.music??={ambient:'ambient_light_1',battle:'battle_action_1'};s.music[key]=value});
-export const addEntity=(key,value)=>mutate(s=>{s[key]??=[];s[key].push(value)});export const updateEntity=(key,index,value)=>mutate(s=>s[key][index]=value);export const removeEntity=(key,index)=>mutate(s=>s[key].splice(index,1));
+export function createInitialMap(options = {}) {
+  return {
+    version: '1.0',
+    map: {
+      id: options.id ?? 'untitled_map',
+      preset: options.preset ?? 'encounter',
+      seed: options.seed ?? 0,
+      bounds: {
+        width_m: options.width_m ?? 64,
+        height_m: options.height_m ?? 64,
+      },
+    },
+    music: {ambient: 'ambient_light_1', battle: 'battle_action_1'},
+    terrain: {profile: 'flat', surface: 'grass'},
+  };
+}
+
+let mapSpec = createInitialMap();
+const subscribers = new Set();
+
+export const getState = () => mapSpec;
+export const subscribe = fn => (subscribers.add(fn), () => subscribers.delete(fn));
+
+function notify(type = 'edit') {
+  subscribers.forEach(fn => fn(mapSpec, {type}));
+}
+
+export function replaceState(value, type = 'replace') {
+  mapSpec = value;
+  notify(type);
+}
+
+export function resetState(options = {}) {
+  replaceState(createInitialMap(options), 'new');
+}
+
+export function mutate(fn) {
+  fn(mapSpec);
+  notify('edit');
+}
+
+export function setMapField(key, value) {
+  mutate(state => {
+    if (key === 'width_m' || key === 'height_m') state.map.bounds[key] = value;
+    else if (value === '') delete state.map[key];
+    else state.map[key] = value;
+  });
+}
+
+export function setTerrainField(key, value) {
+  mutate(state => {
+    if (value === '') delete state.terrain[key];
+    else state.terrain[key] = value;
+  });
+}
+
+export function setPlayerField(key, value) {
+  mutate(state => {
+    if (value === '') {
+      if (state.player) {
+        delete state.player[key];
+        if (!Object.keys(state.player).length) delete state.player;
+      }
+    } else {
+      state.player ??= {};
+      state.player[key] = value;
+    }
+  });
+}
+
+export function setMusicField(key, value) {
+  mutate(state => {
+    state.music ??= {ambient: 'ambient_light_1', battle: 'battle_action_1'};
+    state.music[key] = value;
+  });
+}
+
+export function addEntity(key, value) {
+  mutate(state => {
+    state[key] ??= [];
+    state[key].push(value);
+  });
+}
+
+export function findEntity(key, id) {
+  return (mapSpec[key] || []).find(entity => entity.id === id);
+}
+
+export function findEntityIndex(key, id) {
+  return (mapSpec[key] || []).findIndex(entity => entity.id === id);
+}
+
+export function updateEntity(key, id, value) {
+  const index = findEntityIndex(key, id);
+  if (index < 0) return false;
+  mutate(state => { state[key][index] = value; });
+  return true;
+}
+
+export function removeEntity(key, id) {
+  const index = findEntityIndex(key, id);
+  if (index < 0) return false;
+  mutate(state => { state[key].splice(index, 1); });
+  return true;
+}

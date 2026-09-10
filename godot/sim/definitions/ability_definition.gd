@@ -28,4 +28,14 @@ extends Resource
 ## existing content keeps its exact rejection order.
 @export var usable_in_exploration: bool = false
 
+## Activations available before a recharge. -1 means unlimited, which is what
+## every ability without a per-rest budget wants, so existing content keeps its
+## exact behavior. Resolver never branches on `id` to decide this.
+@export var max_uses: int = -1
+
+## When a spent pool refills: encounter | turn. There is no rest system, so an
+## encounter boundary stands in for the SRD short rest (see NOTICE.md).
+## Ignored while max_uses is negative.
+@export var uses_recharge: StringName = &"encounter"
+
 @export var effects: Array[AbilityEffect] = []
