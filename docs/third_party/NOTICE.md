@@ -14,9 +14,13 @@ feet-to-meter range bands, automated selection of the defender's better Shove
 save, a prone creature righting itself automatically (for half its Speed) at the
 start of its turn and when combat ends and being unable to take reactions while
 prone, self-only healing-potion administration, an encounter boundary standing
-in for the SRD short rest, and omission of rules the runtime does not yet
-model. The exact provenance and changes for each rules resource are recorded
-in `docs/rules/open-content-ledger.csv`. This project describes itself only as
+in for the SRD short rest, a minimum of 1 damage on every hit, and omission of
+rules the runtime does not yet model (shields, armor training and Strength
+requirements, and most weapon properties). Attack bonuses, damage, and Armor
+Class are derived from ability scores, proficiency, and equipment following the
+SRD formulas rather than authored per creature. The exact provenance and
+changes for each rules resource are recorded in
+`docs/rules/open-content-ledger.csv`. This project describes itself only as
 “5E compatible.”
 
 Tactical Slash was inspected as a camera reference but no source was copied or
@@ -147,7 +151,8 @@ them by stable UI id; no icon is gameplay authority.
   `Assets/gltf/`, copied unmodified into
   `godot/assets/kaykit_adventurers_weapons/`. CharacterView attaches these to
   the `handslot.r` bone of the equipped wielder (knight/longsword,
-  raider/dagger) via a `BoneAttachment3D`; the dagger is visual only and adds
-  no combat modifiers. Not a placeable catalog asset, so its audit record
+  raider/dagger; the bandit chieftain's scimitar reuses `sword_1handed`) via a
+  `BoneAttachment3D`. The models are visual only; combat statistics come from
+  the item definitions. Not a placeable catalog asset, so its audit record
   lives here rather than in `assets.csv`.
 - See `assets.csv` for the full per-asset audit trail of the character models.

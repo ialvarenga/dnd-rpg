@@ -1,7 +1,7 @@
 # Plano Técnico — RPG Tático 3D em Godot
 
 **Versão:** 3.1
-**Status:** Marcos A–D concluídos (D4.4 adiado); Marco E em andamento.
+**Status:** Marcos A–D concluídos (D4.4 adiado); Marco E em andamento (E0 concluído).
 **Princípio condutor:** ter algo **jogável** antes de ter algo **inteligente**
 ou **bonito**.
 
@@ -83,9 +83,9 @@ adiado está preservado em
 
 ### Marco E — Combat depth
 
-**Status:** em andamento — os quick wins de E0 estão concluídos; regras
-derivadas, novas ações, geometria, furtividade e a próxima iteração de IA
-ainda não começaram.
+**Status:** em andamento — E0 (quick wins, estatísticas derivadas e
+`attack_math.gd`) está concluído; novas ações (E1), geometria, furtividade e a
+próxima iteração de IA ainda não começaram.
 
 #### E0 — Fairness and attack correctness
 
@@ -100,15 +100,20 @@ ainda não começaram.
   one barrel) and add the archer stat block. The archer deliberately remains
   at a reachable camp position until player ranged attacks or jump/forced
   movement exist; an inaccessible high-ground placement is deferred with E2.
-- Derive attack and damage from ability scores, proficiency, weapon
+- [x] Derive attack and damage from ability scores, proficiency, weapon
   category, finesse, and magic bonus. Derive armor class from armor category
-  and Dexterity.
-- Extract one pure `attack_math.gd` consumed by Resolver, AI, and HUD; it
-  owns modifier, AC, cover, advantage/disadvantage sources, and hit
-  probability.
-- Bump rule/content/save compatibility versions when the derived-stat
-  contract lands, with migration rejection rather than silent
-  reinterpretation.
+  and Dexterity. Actors author `weapon_proficiencies` instead of attack/AC
+  numbers; unarmed strikes deal 1 + Strength. The bandit chieftain now wears
+  a scimitar and studded leather and the bandit raider leather armor, so
+  every enemy keeps its old AC; the knight's SRD Chain Mail is AC 16 (was 15).
+- [x] Extract one pure `sim/rules/attack_math.gd` consumed by Resolver, AI,
+  and HUD; it owns modifier, AC, cover, advantage/disadvantage sources, hit
+  probability, and expected damage. Attack events and the combat log name
+  every roll-mode source; the AI scores cover and roll mode through it, with
+  repeated line-of-sight queries answered once per decision.
+- [x] Bump rule/content/save compatibility versions when the derived-stat
+  contract lands (rules 10, content 14, save schema 5), with migration
+  rejection rather than silent reinterpretation.
 
 #### E1 — D&D action vocabulary
 

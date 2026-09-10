@@ -139,10 +139,8 @@ static func _test_basic_attack_targeting_and_outcomes(failures: Array[String]) -
 
 static func _test_opportunity_attack_and_disengage(failures: Array[String]) -> void:
 	var state := TestHelpers.make_battle(5)
-	var hero: ActorState = state.actors[1]
-	hero.armor_class = 1
 	var enemy: ActorState = state.actors[2]
-	enemy.attack_bonus = 20
+	TestHelpers.guarantee_hits(enemy)
 	var move := Command.create(&"move", 1)
 	move.target_pos = Vector3(4.0, 0.0, 0.0)
 	var result := Resolver.resolve(state, move, FakeNavProvider.new(), FakeLosProvider.new())
@@ -179,9 +177,8 @@ static func _test_opportunity_attack_and_disengage(failures: Array[String]) -> v
 	var fatal_hero: ActorState = fatal_state.actors[1]
 	fatal_hero.hp = 1
 	var fatal_enemy: ActorState = fatal_state.actors[2]
-	fatal_enemy.attack_bonus = 100
-	fatal_enemy.damage_die = 1
-	fatal_enemy.damage_modifier = 100
+	TestHelpers.guarantee_hits(fatal_enemy)
+	TestHelpers.set_fixed_damage(fatal_enemy, 100)
 	var fatal_result := Resolver.resolve(fatal_state, safe_move, FakeNavProvider.new(), FakeLosProvider.new())
 	_expect(_event_count(fatal_result, &"actor_died") == 1 and _event_count(fatal_result, &"movement_segment") == 1, "fatal opportunity attack did not stop the remaining resolved path", failures)
 	TestHelpers.apply_result(fatal_state, fatal_result)
@@ -233,9 +230,8 @@ static func _test_conditions_and_death(failures: Array[String]) -> void:
 
 	var lethal_state := TestHelpers.make_battle()
 	var lethal_attacker: ActorState = lethal_state.actors[1]
-	lethal_attacker.attack_bonus = 100
-	lethal_attacker.damage_die = 1
-	lethal_attacker.damage_modifier = 100
+	TestHelpers.guarantee_hits(lethal_attacker)
+	TestHelpers.set_fixed_damage(lethal_attacker, 100)
 	var lethal_attack := Command.create(&"attack", 1)
 	lethal_attack.target_id = 2
 	var lethal_result := Resolver.resolve(lethal_state, lethal_attack, FakeNavProvider.new(), FakeLosProvider.new())

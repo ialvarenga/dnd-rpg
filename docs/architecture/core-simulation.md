@@ -437,7 +437,6 @@ var position: Vector3
 
 var hp: int
 var max_hp: int
-var armor_class: int
 
 var strength: int
 var dexterity: int
@@ -447,6 +446,12 @@ var wisdom: int
 var charisma: int
 
 var proficiency_bonus: int
+var weapon_proficiencies: Array[StringName]
+
+# Attack bonus, damage and armor class are never stored: AttackMath
+# (sim/rules/attack_math.gd) derives them from the ability scores, the
+# proficiencies and equipment_slots.
+var equipment_slots: Dictionary
 
 var movement_speed: float
 var movement_remaining: float

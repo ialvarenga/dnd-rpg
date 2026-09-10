@@ -23,7 +23,11 @@ extends RefCounted
 ## Bump 8: peaceful social resolutions can clear an authored encounter.
 ## Bump 9: attack events carry their complete, already-resolved roll breakdown
 ## for combat-log narration and replay inspection.
-const RULES_VERSION: int = 9
+## Bump 10: attack bonus, damage, and armor class are derived by AttackMath from
+## ability scores, proficiency, and equipment instead of authored per actor;
+## unarmed strikes deal 1 + Strength; attack events name their modifier parts
+## and every advantage/disadvantage source.
+const RULES_VERSION: int = 10
 
 const ATTACK_RANGE_METERS := 1.5
 const THREAT_RANGE_METERS := 1.5
@@ -39,6 +43,7 @@ const AbilityCostRulesScript = preload("res://sim/rules/ability_cost_rules.gd")
 const AbilityTargetingRules = preload("res://sim/ability_targeting.gd")
 const EquipmentRules = preload("res://sim/equipment.gd")
 const AbilityCheckRules = preload("res://sim/rules/ability_check.gd")
+const AttackMathRules = preload("res://sim/rules/attack_math.gd")
 
 const EFFECT_ADD_BASE_MOVEMENT := &"add_base_movement"
 const EFFECT_APPLY_CONDITION := &"apply_condition"
@@ -557,37 +562,35 @@ static func _resolve_saving_throw(working: BattleState, source: ActorState, targ
 static func _resolve_attack_between(working: BattleState, attacker: ActorState, target: ActorState, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult, spends_action: bool, spends_reaction: bool, attack_kind: StringName, attack_range: float = ATTACK_RANGE_METERS, is_ranged: bool = false, normal_range: float = ATTACK_RANGE_METERS) -> bool:
 	if not los.has_line_of_sight(attacker.position, target.position) or attacker.position.distance_to(target.position) > attack_range + MOVEMENT_EPSILON:
 		return false
-	var attack_bonus := EquipmentRules.aggregate_attack_bonus(attacker, definitions)
 	var cover := los.cover_between(attacker.position, target.position)
-	var cover_bonus := 2 if cover == LosProvider.COVER_HALF else (5 if cover == LosProvider.COVER_THREE_QUARTERS else 0)
-	var armor_class := EquipmentRules.aggregate_armor_class(target, definitions) + cover_bonus
-	var range_disadvantage := is_ranged and attacker.position.distance_to(target.position) > normal_range + MOVEMENT_EPSILON
-	var roll_result := _roll_attack_d20(working.rng_state, attacker, target, is_ranged, definitions, range_disadvantage, _has_adjacent_hostile(working, attacker))
+	var attack := AttackMathRules.evaluate(working, attacker, target, definitions, cover, is_ranged, normal_range)
+	var roll_result := _roll_attack_d20(working.rng_state, attack["advantage"], attack["disadvantage"])
 	var roll: int = roll_result["roll"]
-	var critical := roll == 20
-	var hit := roll != 1 and (critical or (roll + attack_bonus >= armor_class))
+	var attack_bonus: int = attack["attack_bonus"]
+	var critical := AttackMathRules.is_critical(roll)
+	var hit := AttackMathRules.is_hit(roll, attack_bonus, attack["armor_class"])
 	_append_and_apply(result, working, Event.create(&"attack_rolled", {
 		"actor_id": attacker.id, "target_id": target.id, "attack_kind": attack_kind,
 		"roll": roll, "rolls": roll_result["rolls"], "attack_bonus": attack_bonus, "total": roll + attack_bonus,
-		"armor_class": armor_class,
-		"critical": critical, "hit": hit, "advantage": roll_result["advantage"], "disadvantage": roll_result["disadvantage"], "is_ranged": is_ranged,
-		"cover": cover, "cover_bonus": cover_bonus,
+		"weapon_id": attack["weapon_id"], "attack_ability": attack["attack_ability"],
+		"ability_modifier": attack["ability_modifier"], "proficiency_bonus": attack["proficiency_bonus"], "magic_bonus": attack["magic_bonus"],
+		"armor_class": attack["armor_class"], "target_armor_class": attack["target_armor_class"],
+		"critical": critical, "hit": hit, "advantage": attack["advantage"], "disadvantage": attack["disadvantage"],
+		"advantage_sources": attack["advantage_sources"], "disadvantage_sources": attack["disadvantage_sources"], "is_ranged": is_ranged,
+		"cover": cover, "cover_bonus": attack["cover_bonus"],
 		"action_spent": spends_action, "reaction_spent": spends_reaction,
 	}))
 	working.rng_state = roll_result["next_rng_state"]
 	if hit:
-		var damage_die := EquipmentRules.aggregate_damage_die(attacker, definitions)
-		var damage_modifier := EquipmentRules.aggregate_damage_modifier(attacker, definitions)
-		var damage_roll := Dice.roll_die(working.rng_state, damage_die)
-		var damage: int = int(damage_roll["value"]) + damage_modifier
-		working.rng_state = damage_roll["next_rng_state"]
-		if critical:
-			var critical_roll := Dice.roll_die(working.rng_state, damage_die)
-			damage += int(critical_roll["value"])
-			working.rng_state = critical_roll["next_rng_state"]
-		damage = max(1, damage)
+		var dice_count := AttackMathRules.damage_dice_count(attack, critical)
+		var die_values: Array = []
+		if dice_count > 0:
+			var damage_roll := Dice.roll_dice(working.rng_state, dice_count, attack["damage_die"])
+			working.rng_state = int(damage_roll["next_rng_state"])
+			die_values = damage_roll["values"]
+		var damage := AttackMathRules.damage_total(die_values, attack["damage_modifier"])
 		var hp_before := target.hp
-		_append_and_apply(result, working, Event.create(&"damage_taken", {"actor_id": target.id, "source_actor_id": attacker.id, "amount": damage, "damage_type": EquipmentRules.aggregate_damage_type(attacker, definitions)}))
+		_append_and_apply(result, working, Event.create(&"damage_taken", {"actor_id": target.id, "source_actor_id": attacker.id, "amount": damage, "damage_type": attack["damage_type"]}))
 		if hp_before - damage <= -target.max_hp:
 			_append_and_apply(result, working, Event.create(&"actor_died", {"actor_id": target.id}))
 		elif hp_before - damage <= 0:
@@ -596,15 +599,9 @@ static func _resolve_attack_between(working: BattleState, attacker: ActorState, 
 	return hit
 
 
-static func _roll_attack_d20(rng_state: int, attacker: ActorState, target: ActorState, is_ranged: bool, definitions: DefinitionLibrary, range_disadvantage: bool = false, nearby_hostile: bool = false) -> Dictionary:
-	var target_is_close := attacker.position.distance_to(target.position) <= ATTACK_RANGE_METERS + MOVEMENT_EPSILON
-	var attacker_flags := _condition_flags(attacker, definitions)
-	var target_flags := _condition_flags(target, definitions)
-	var advantage: bool = not is_ranged and target_flags["melee_advantage_when_close"] and target_is_close
-	var disadvantage: bool = attacker_flags["attack_roll_disadvantage"] or target_flags["attacks_against_disadvantage"] or range_disadvantage or (is_ranged and nearby_hostile) or (is_ranged and target_flags["ranged_disadvantage_when_not_close"] and not target_is_close)
-	if advantage and disadvantage:
-		advantage = false
-		disadvantage = false
+## Rolls the attack d20, twice when the already-evaluated roll mode calls for
+## Advantage or Disadvantage. Which mode applies is AttackMath's decision.
+static func _roll_attack_d20(rng_state: int, advantage: bool, disadvantage: bool) -> Dictionary:
 	var first_roll := Dice.roll_die(rng_state, 20)
 	var rolls: Array[int] = [int(first_roll["value"])]
 	var next_rng_state: int = first_roll["next_rng_state"]
@@ -614,17 +611,7 @@ static func _roll_attack_d20(rng_state: int, attacker: ActorState, target: Actor
 		rolls.append(int(second_roll["value"]))
 		next_rng_state = second_roll["next_rng_state"]
 		selected_roll = maxi(rolls[0], rolls[1]) if advantage else mini(rolls[0], rolls[1])
-	return {"roll": selected_roll, "rolls": rolls, "next_rng_state": next_rng_state, "advantage": advantage, "disadvantage": disadvantage}
-
-
-static func _has_adjacent_hostile(state: BattleState, actor: ActorState) -> bool:
-	for actor_id in state.actors:
-		if not state.active_combatant_ids.is_empty() and not state.active_combatant_ids.has(int(actor_id)):
-			continue
-		var candidate := state.actors[actor_id] as ActorState
-		if candidate.id != actor.id and candidate.side != actor.side and candidate.is_conscious() and candidate.position.distance_to(actor.position) <= THREAT_RANGE_METERS + MOVEMENT_EPSILON:
-			return true
-	return false
+	return {"roll": selected_roll, "rolls": rolls, "next_rng_state": next_rng_state}
 
 
 static func _resolve_end_turn(state: BattleState, cmd: Command, result: ResolutionResult, definitions: DefinitionLibrary) -> ResolutionResult:
@@ -687,18 +674,6 @@ static func _append_condition_boundary_events(result: ResolutionResult, actor: A
 
 static func _turn_started_event(actor: ActorState, turn_index: int, round_number: int) -> Event:
 	return Event.create(&"turn_started", {"actor_id": actor.id, "turn_index": turn_index, "round_number": round_number, "phase": EncounterRules.COMBAT, "movement_remaining": actor.movement_speed, "action_available": true, "bonus_action_available": true, "reaction_available": true, "disengaged": false})
-
-
-static func _condition_flags(actor: ActorState, definitions: DefinitionLibrary) -> Dictionary:
-	var flags := {"attack_roll_disadvantage": false, "melee_advantage_when_close": false, "ranged_disadvantage_when_not_close": false, "attacks_against_disadvantage": false}
-	for condition_id in actor.condition_ids():
-		var definition := definitions.get_condition(condition_id)
-		if definition == null: continue
-		flags["attack_roll_disadvantage"] = flags["attack_roll_disadvantage"] or definition.attack_roll_disadvantage
-		flags["melee_advantage_when_close"] = flags["melee_advantage_when_close"] or definition.melee_advantage_when_close
-		flags["ranged_disadvantage_when_not_close"] = flags["ranged_disadvantage_when_not_close"] or definition.ranged_disadvantage_when_not_close
-		flags["attacks_against_disadvantage"] = flags["attacks_against_disadvantage"] or definition.attacks_against_disadvantage
-	return flags
 
 
 static func _condition_requiring_stand(actor: ActorState, definitions: DefinitionLibrary) -> StringName:

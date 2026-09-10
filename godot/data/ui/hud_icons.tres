@@ -32,5 +32,7 @@ textures = {
 &"dagger": ExtResource("12_dagger"),
 &"healing_potion": ExtResource("10_potion"),
 &"leather_armor": ExtResource("13_leather"),
-&"chainmail": ExtResource("14_chainmail")
+&"chainmail": ExtResource("14_chainmail"),
+&"scimitar": ExtResource("11_longsword"),
+&"studded_leather": ExtResource("13_leather")
 }

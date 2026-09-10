@@ -7,7 +7,6 @@ script = ExtResource("1")
 id = &"bandit_raider"
 display_name = "Bandit Raider"
 max_hp = 9
-armor_class = 12
 strength = 12
 dexterity = 13
 constitution = 11
@@ -15,12 +14,11 @@ intelligence = 9
 wisdom = 10
 charisma = 10
 proficiency_bonus = 2
+weapon_proficiencies = Array[StringName]([&"simple", &"martial"])
 movement_speed = 8.0
-attack_bonus = 3
-damage_die = 6
-damage_modifier = 0
 ability_ids = Array[StringName]([&"basic_attack", &"dash", &"disengage"])
 equipment_slots = {
-&"weapon": &"dagger"
+&"weapon": &"dagger",
+&"armor": &"leather_armor"
 }
 starting_inventory = Array[StringName]([])

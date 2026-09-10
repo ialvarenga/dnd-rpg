@@ -8,6 +8,8 @@ static func run() -> Dictionary:
 	_test_choice_does_not_depend_on_future_rolls(failures)
 	_test_query_budget_enforcement(failures)
 	_test_attack_selection(failures)
+	_test_attack_scoring_reads_roll_mode(failures)
+	_test_repeated_line_of_sight_query_spends_budget_once(failures)
 	_test_approach_selection(failures)
 	_test_formation_spacing(failures)
 	_test_avoids_obvious_opportunity_attack(failures)
@@ -78,6 +80,35 @@ static func _test_attack_selection(failures: Array[String]) -> void:
 	_expect(command != null and command.type == &"basic_attack" and command.target_id == 1, "AI did not attack a legal adjacent enemy", failures)
 
 
+## Two identical adjacent heroes tie, and the tie goes to the lower id. A
+## Dodging hero imposes Disadvantage through AttackMath, so the AI switches.
+static func _test_attack_scoring_reads_roll_mode(failures: Array[String]) -> void:
+	var state := _enemy_turn_state(1.0)
+	var twin := (state.actors[1] as ActorState).clone()
+	twin.id = 3
+	twin.position = Vector3(1.0, 0.0, 1.0)
+	state.actors[twin.id] = twin
+	var ai := EnemyAI.new()
+	var untouched := ai.choose_command(state, 2, FakeNavProvider.new(), FakeLosProvider.new(), AIQueryBudget.new())
+	_expect(untouched != null and untouched.type == &"basic_attack" and untouched.target_id == 1, "identical targets should tie toward the lower actor id", failures)
+	(state.actors[1] as ActorState).add_condition(&"dodging")
+	var dodged := ai.choose_command(state, 2, FakeNavProvider.new(), FakeLosProvider.new(), AIQueryBudget.new())
+	_expect(dodged != null and dodged.type == &"basic_attack" and dodged.target_id == twin.id, "AI should prefer the target it can attack without Disadvantage", failures)
+
+
+static func _test_repeated_line_of_sight_query_spends_budget_once(failures: Array[String]) -> void:
+	var budget := AIQueryBudget.new(0, 1)
+	var fake := FakeLosProvider.new()
+	fake.set_cover(Vector3.ZERO, Vector3.RIGHT, LosProvider.COVER_HALF)
+	var los := BudgetedLosProvider.new(fake, budget)
+	var first := los.cover_between(Vector3.ZERO, Vector3.RIGHT)
+	var repeated := los.cover_between(Vector3.ZERO, Vector3.RIGHT)
+	_expect(first == LosProvider.COVER_HALF and repeated == first and los.has_line_of_sight(Vector3.ZERO, Vector3.RIGHT), "a repeated query should return the remembered answer", failures)
+	_expect(budget.line_of_sight_queries == 1 and budget.line_of_sight_denials == 0, "a repeated query should spend the budget only once", failures)
+	_expect(los.cover_between(Vector3.ZERO, Vector3.LEFT) == LosProvider.COVER_TOTAL and los.cover_between(Vector3.ZERO, Vector3.LEFT) == LosProvider.COVER_TOTAL, "a query past the budget should read as blocked", failures)
+	_expect(budget.line_of_sight_denials == 2, "denials should never be remembered as answers", failures)
+
+
 static func _test_approach_selection(failures: Array[String]) -> void:
 	var state := _enemy_turn_state(10.0)
 	var command := EnemyAI.new().choose_command(state, 2, FakeNavProvider.new(), FakeLosProvider.new(), AIQueryBudget.new())
@@ -106,9 +137,8 @@ static func _test_avoids_obvious_opportunity_attack(failures: Array[String]) -> 
 	var state := _enemy_turn_state(0.0)
 	var close_hero: ActorState = state.actors[1]
 	close_hero.position = Vector3(1.0, 0.0, 0.0)
-	close_hero.attack_bonus = 100
-	close_hero.damage_die = 1
-	close_hero.damage_modifier = 100
+	TestHelpers.guarantee_hits(close_hero)
+	TestHelpers.set_fixed_damage(close_hero, 100)
 	var distant_hero := ActorState.new()
 	distant_hero.id = 3
 	distant_hero.side = &"heroes"

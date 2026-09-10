@@ -28,9 +28,8 @@ static func _test_ordinary_zero_hp_is_immediate_defeat(failures: Array[String]) 
 	var hero: ActorState = state.actors[1]
 	var enemy: ActorState = state.actors[2]
 	hero.hp = 5
-	enemy.attack_bonus = 100
-	enemy.damage_die = 1
-	enemy.damage_modifier = 5
+	TestHelpers.guarantee_hits(enemy)
+	TestHelpers.set_fixed_damage(enemy, 6)
 	var command := Command.create(&"basic_attack", enemy.id)
 	command.target_id = hero.id
 	var result := Resolver.resolve(state, command, FakeNavProvider.new(), FakeLosProvider.new())
@@ -47,9 +46,8 @@ static func _test_ordinary_zero_hp_is_immediate_defeat(failures: Array[String]) 
 static func _test_massive_damage_preserves_death(failures: Array[String]) -> void:
 	var state := _active_battle([2, 1])
 	var enemy: ActorState = state.actors[2]
-	enemy.attack_bonus = 100
-	enemy.damage_die = 1
-	enemy.damage_modifier = 100
+	TestHelpers.guarantee_hits(enemy)
+	TestHelpers.set_fixed_damage(enemy, 101)
 	var command := Command.create(&"basic_attack", enemy.id)
 	command.target_id = 1
 	var result := Resolver.resolve(state, command, FakeNavProvider.new(), FakeLosProvider.new())
@@ -69,9 +67,8 @@ static func _test_victory_is_scoped_to_encounter_participants(failures: Array[St
 	state.actors[3] = unrelated
 	var hero: ActorState = state.actors[1]
 	var target: ActorState = state.actors[2]
-	hero.attack_bonus = 100
-	hero.damage_die = 1
-	hero.damage_modifier = 100
+	TestHelpers.guarantee_hits(hero)
+	TestHelpers.set_fixed_damage(hero, 101)
 	var command := Command.create(&"basic_attack", hero.id)
 	command.target_id = target.id
 	var result := Resolver.resolve(state, command, FakeNavProvider.new(), FakeLosProvider.new())
@@ -191,9 +188,8 @@ static func _test_combat_end_stands_prone_survivors(failures: Array[String]) -> 
 	var hero: ActorState = state.actors[1]
 	var enemy: ActorState = state.actors[2]
 	hero.add_condition(&"prone", 2)
-	hero.attack_bonus = 100
-	hero.damage_die = 1
-	hero.damage_modifier = 5
+	TestHelpers.guarantee_hits(hero)
+	TestHelpers.set_fixed_damage(hero, 6)
 	enemy.hp = 1
 	var command := Command.create(&"basic_attack", hero.id)
 	command.target_id = enemy.id
@@ -262,7 +258,7 @@ static func _test_ranged_bands_nearby_hostile_cover_and_damage_type(failures: Ar
 	var total_cover := _ranged_attack(state, cover_los)
 	_expect(total_cover.events[0].data.get("reason") == &"no_line_of_sight", "total cover did not reject direct targeting", failures)
 	var damage_state := _archer_battle(Vector3(20.0, 0.0, 0.0))
-	(damage_state.actors[2] as ActorState).attack_bonus = 100
+	TestHelpers.guarantee_hits(damage_state.actors[2] as ActorState)
 	var damage_result := _ranged_attack(damage_state, FakeLosProvider.new())
 	var damage_event := _event(damage_result, &"damage_taken")
 	_expect(damage_event != null and damage_event.data.get("damage_type") == &"piercing", "Shortbow damage event omitted piercing damage type", failures)
@@ -285,7 +281,7 @@ static func _test_attack_continues_into_secondary_effects(failures: Array[String
 	definitions.add_ability(ability)
 	definitions.add_condition(DefinitionLibrary.get_default().get_condition(&"prone"))
 	var state := _active_battle([1, 2])
-	(state.actors[1] as ActorState).attack_bonus = 100
+	TestHelpers.guarantee_hits(state.actors[1] as ActorState)
 	var command := Command.create(ability.id, 1)
 	command.target_id = 2
 	var result := Resolver.resolve(state, command, FakeNavProvider.new(), FakeLosProvider.new(), definitions)

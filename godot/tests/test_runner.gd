@@ -21,7 +21,7 @@ func _init() -> void:
 
 func _run() -> void:
 	var failure_count := 0
-	var suites := [TestSimulation, TestDefinitions, TestActionAvailability, TestHudViewModel, TestEquipment, TestGameplayRules, TestInteractables, TestAssetCatalog, TestTerrainProviderScript, TestMapCompilerScript, TestCharacterAnimatorScript, TestEnemyAI, TestConsumablesScript, TestAbilityUsesScript, TestTargetedActionPlannerScript, TestInteractableActionPlannerScript, TestPathPreviewRendererScript, TestAbilityCheck, TestDialogSession, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion, TestEncounterSession]
+	var suites := [TestSimulation, TestDefinitions, TestActionAvailability, TestHudViewModel, TestEquipment, TestAttackMath, TestGameplayRules, TestInteractables, TestAssetCatalog, TestTerrainProviderScript, TestMapCompilerScript, TestCharacterAnimatorScript, TestEnemyAI, TestConsumablesScript, TestAbilityUsesScript, TestTargetedActionPlannerScript, TestInteractableActionPlannerScript, TestPathPreviewRendererScript, TestAbilityCheck, TestDialogSession, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion, TestEncounterSession]
 	for suite in suites:
 		var report: Dictionary = suite.run()
 		var failures: Array = report["failures"]

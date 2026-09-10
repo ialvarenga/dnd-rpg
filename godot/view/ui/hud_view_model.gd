@@ -3,6 +3,7 @@ extends RefCounted
 
 const AbilityTargetingRules = preload("res://sim/ability_targeting.gd")
 const EquipmentRules = preload("res://sim/equipment.gd")
+const AttackMathRules = preload("res://sim/rules/attack_math.gd")
 const AbilityCostRules = preload("res://sim/rules/ability_cost_rules.gd")
 
 const AVAILABILITY_REASON_TEXT := {
@@ -62,7 +63,7 @@ static func for_actor(state: BattleState, actor_id: int, defs: DefinitionLibrary
 	return {
 		"actor_id": actor_id, "name": name, "hp": actor.hp, "max_hp": actor.max_hp,
 		"hp_fraction": clampf(float(actor.hp) / maxf(1.0, actor.max_hp), 0.0, 1.0),
-		"armor_class": actor.armor_class, "movement_remaining": actor.movement_remaining,
+		"armor_class": int(AttackMathRules.armor_class(actor, defs)["total"]) if defs != null else 0, "movement_remaining": actor.movement_remaining,
 		"movement_speed": actor.movement_speed, "movement_fraction": clampf(actor.movement_remaining / maxf(0.01, actor.movement_speed), 0.0, 1.0),
 		"action_available": actor.action_available, "bonus_action_available": actor.bonus_action_available,
 		"reaction_available": actor.reaction_available, "conditions": actor.condition_ids(),
@@ -167,10 +168,29 @@ static func _append_attack_mechanics(mechanics: Array[String], actor: ActorState
 	else:
 		mechanics.append("Melee")
 		mechanics.append("Range %s m" % _format_number(maximum_range))
-	mechanics.append("Attack %s" % _format_modifier(EquipmentRules.aggregate_attack_bonus(actor, defs)))
-	var damage := _format_roll(1, EquipmentRules.aggregate_damage_die(actor, defs), EquipmentRules.aggregate_damage_modifier(actor, defs))
-	var damage_type := String(EquipmentRules.aggregate_damage_type(actor, defs))
+	var profile := AttackMathRules.weapon_profile(actor, defs)
+	mechanics.append("Attack %s (%s)" % [_format_modifier(int(profile["attack_bonus"])), ", ".join(_attack_bonus_parts(profile))])
+	var damage := _format_damage(int(profile["damage_dice_count"]), int(profile["damage_die"]), int(profile["damage_modifier"]))
+	var damage_type := String(profile["damage_type"])
 	mechanics.append("Damage %s%s" % [damage, " " + damage_type if not damage_type.is_empty() else ""])
+
+
+## The same parts, in the same order, AttackMath added into attack_bonus.
+static func _attack_bonus_parts(profile: Dictionary) -> PackedStringArray:
+	var parts := PackedStringArray()
+	parts.append("%s %s" % [String(profile["attack_ability"]).substr(0, 3).capitalize(), _format_modifier(int(profile["ability_modifier"]))])
+	if int(profile["proficiency_bonus"]) != 0:
+		parts.append("Prof %s" % _format_modifier(int(profile["proficiency_bonus"])))
+	if int(profile["magic_bonus"]) != 0:
+		parts.append("Magic %s" % _format_modifier(int(profile["magic_bonus"])))
+	return parts
+
+
+## A die-less attack (an unarmed strike) shows its flat damage.
+static func _format_damage(dice_count: int, die: int, modifier: int) -> String:
+	if dice_count <= 0 or die <= 0:
+		return str(maxi(1, modifier))
+	return _format_roll(dice_count, die, modifier)
 
 
 static func _condition_mechanic(effect: AbilityEffect, defs: DefinitionLibrary) -> String:
@@ -245,7 +265,7 @@ static func narrate(event: Event, state: BattleState, defs: DefinitionLibrary) -
 		&"ability_use_spent": return ""
 		&"reaction_triggered": return "%s reacts." % actor_name
 		&"disengage_applied": return "%s disengages." % actor_name
-		&"attack_rolled": return _attack_roll_narration(actor_name, target_name, d)
+		&"attack_rolled": return _attack_roll_narration(actor_name, target_name, d, state, defs)
 		&"damage_taken":
 			var damage_type := String(d.get("damage_type", ""))
 			return "%s takes %d%s damage." % [actor_name, int(d.get("amount", 0)), " " + damage_type if not damage_type.is_empty() else ""]
@@ -272,14 +292,14 @@ static func narrate(event: Event, state: BattleState, defs: DefinitionLibrary) -
 		_: return "Combat event: %s." % String(event.type)
 
 
-static func _attack_roll_narration(actor_name: String, target_name: String, data: Dictionary) -> String:
+static func _attack_roll_narration(actor_name: String, target_name: String, data: Dictionary, state: BattleState, defs: DefinitionLibrary) -> String:
 	var roll := int(data.get("roll", 0))
 	var total := int(data.get("total", roll))
 	var modifier := int(data.get("attack_bonus", total - roll))
 	var breakdown := "%d %+d = %d" % [roll, modifier, total]
 	if data.has("armor_class"):
 		breakdown += " vs AC %d" % int(data["armor_class"])
-	var sources := _roll_sources(data)
+	var sources := _roll_sources(data, state, defs)
 	if not sources.is_empty():
 		breakdown += "; " + ", ".join(sources)
 	return "%s %s %s (%s)." % [actor_name, "hits" if data.get("hit", false) else "misses", target_name, breakdown]
@@ -296,7 +316,7 @@ static func _d20_test_narration(actor_name: String, data: Dictionary) -> String:
 	return "%s %s a %s save (%s)." % [actor_name, "passes" if data.get("success", false) else "fails", String(data.get("ability", "ability")), breakdown]
 
 
-static func _roll_sources(data: Dictionary) -> PackedStringArray:
+static func _roll_sources(data: Dictionary, state: BattleState = null, defs: DefinitionLibrary = null) -> PackedStringArray:
 	var sources := PackedStringArray()
 	var roll_values := PackedStringArray()
 	var rolls: Variant = data.get("rolls", [])
@@ -304,16 +324,44 @@ static func _roll_sources(data: Dictionary) -> PackedStringArray:
 		for value in rolls:
 			roll_values.append(str(value))
 	var roll_detail := " [%s]" % ", ".join(roll_values) if roll_values.size() > 1 else ""
+	var advantage_causes := _roll_mode_causes(data.get("advantage_sources", []), state, defs)
+	var disadvantage_causes := _roll_mode_causes(data.get("disadvantage_sources", []), state, defs)
 	if bool(data.get("advantage", false)):
-		sources.append("advantage" + roll_detail)
+		sources.append("advantage" + roll_detail + _caused_by(advantage_causes))
 	elif bool(data.get("disadvantage", false)):
-		sources.append("disadvantage" + roll_detail)
+		sources.append("disadvantage" + roll_detail + _caused_by(disadvantage_causes))
+	elif not advantage_causes.is_empty() and not disadvantage_causes.is_empty():
+		sources.append("advantage and disadvantage cancel")
 	var cover := StringName(data.get("cover", LosProvider.COVER_NONE))
 	var cover_bonus := int(data.get("cover_bonus", 0))
 	if cover_bonus > 0:
 		var label := "half cover" if cover == LosProvider.COVER_HALF else "three-quarters cover"
 		sources.append("%s +%d AC" % [label, cover_bonus])
 	return sources
+
+
+## Readable causes for AttackMath.roll_mode sources: "long range",
+## "adjacent enemy", or "<actor> <condition>".
+static func _roll_mode_causes(raw_sources: Variant, state: BattleState, defs: DefinitionLibrary) -> PackedStringArray:
+	var causes := PackedStringArray()
+	if not raw_sources is Array:
+		return causes
+	for raw_source in raw_sources:
+		if not raw_source is Dictionary:
+			continue
+		var source := StringName(str(raw_source.get("source", "")))
+		match source:
+			AttackMathRules.SOURCE_LONG_RANGE: causes.append("long range")
+			AttackMathRules.SOURCE_THREATENED: causes.append("adjacent enemy")
+			_:
+				var condition := defs.get_condition(source) if defs != null else null
+				var label := condition.display_name.to_lower() if condition != null and not condition.display_name.is_empty() else String(source).replace("_", " ")
+				causes.append("%s %s" % [_actor_name(state, int(raw_source.get("actor_id", -1)), defs), label])
+	return causes
+
+
+static func _caused_by(causes: PackedStringArray) -> String:
+	return " from " + " and ".join(causes) if not causes.is_empty() else ""
 
 
 static func _actor_name(state: BattleState, actor_id: int, defs: DefinitionLibrary) -> String:

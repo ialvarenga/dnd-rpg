@@ -37,6 +37,19 @@ static func _test_roll_breakdown_narration(state: BattleState, failures: Array[S
 		"cover": LosProvider.COVER_HALF, "cover_bonus": 2,
 	})
 	_expect(HudViewModel.narrate(attack, state, DefinitionLibrary.get_default()) == "Knight hits Actor 2 (14 +4 = 18 vs AC 15; advantage [7, 14], half cover +2 AC).", "attack narration omitted its full roll breakdown", failures)
+	var sourced := Event.create(&"attack_rolled", {
+		"actor_id": 1, "target_id": 2, "roll": 3, "attack_bonus": 4, "total": 7,
+		"armor_class": 12, "hit": false, "disadvantage": true, "rolls": [3, 15],
+		"disadvantage_sources": [{"source": AttackMath.SOURCE_LONG_RANGE, "actor_id": 1}, {"source": &"dodging", "actor_id": 2}],
+	})
+	_expect(HudViewModel.narrate(sourced, state, DefinitionLibrary.get_default()) == "Knight misses Actor 2 (3 +4 = 7 vs AC 12; disadvantage [3, 15] from long range and Actor 2 dodging).", "attack narration did not name its disadvantage sources: %s" % HudViewModel.narrate(sourced, state, DefinitionLibrary.get_default()), failures)
+	var cancelled := Event.create(&"attack_rolled", {
+		"actor_id": 1, "target_id": 2, "roll": 11, "attack_bonus": 4, "total": 15,
+		"armor_class": 12, "hit": true, "rolls": [11],
+		"advantage_sources": [{"source": &"prone", "actor_id": 2}],
+		"disadvantage_sources": [{"source": &"poisoned", "actor_id": 1}],
+	})
+	_expect(HudViewModel.narrate(cancelled, state, DefinitionLibrary.get_default()) == "Knight hits Actor 2 (11 +4 = 15 vs AC 12; advantage and disadvantage cancel).", "attack narration did not report cancelled roll modes", failures)
 	var save := Event.create(&"d20_test_rolled", {
 		"actor_id": 1, "ability": &"dexterity", "roll": 6, "modifier": 3,
 		"total": 9, "difficulty_class": 12, "success": false, "disadvantage": true,
@@ -55,7 +68,7 @@ static func _test_action_tooltip_projection(failures: Array[String]) -> void:
 	var attack := _action(data.action_availability, &"basic_attack")
 	_expect(attack.get("display_name") == "Basic Attack", "action projection did not expose the authored display name", failures)
 	_expect(String(attack.get("description", "")).contains("melee weapon attack"), "basic attack tooltip omitted its authored description", failures)
-	_expect(String(attack.get("tooltip", "")).contains("Action • Melee • Range 1.5 m • Attack +4 • Damage 1d8 + 2 slashing"), "basic attack tooltip did not use the knight's live longsword statistics", failures)
+	_expect(String(attack.get("tooltip", "")).contains("Action • Melee • Range 1.5 m • Attack +4 (Str +2, Prof +2) • Damage 1d8 + 2 slashing"), "basic attack tooltip did not use the knight's live longsword statistics", failures)
 
 	var dash := _action(data.action_availability, &"dash")
 	_expect(String(dash.get("tooltip", "")).contains("Action • Gain 9 m movement"), "dash tooltip did not calculate movement from the actor's speed", failures)
@@ -83,7 +96,7 @@ static func _test_action_tooltip_projection(failures: Array[String]) -> void:
 	state.actors[1] = archer
 	data = HudViewModel.for_actor(state, 1, definitions)
 	var ranged := _action(data.action_availability, &"ranged_attack")
-	_expect(String(ranged.get("tooltip", "")).contains("Ranged • Range 24 m / 96 m long • Attack +4 • Damage 1d6 + 2 piercing"), "ranged attack tooltip did not use the archer's live shortbow statistics", failures)
+	_expect(String(ranged.get("tooltip", "")).contains("Ranged • Range 24 m / 96 m long • Attack +4 (Dex +2, Prof +2) • Damage 1d6 + 2 piercing"), "ranged attack tooltip did not use the archer's live shortbow statistics", failures)
 
 
 static func _test_action_tooltip_fallback(failures: Array[String]) -> void:

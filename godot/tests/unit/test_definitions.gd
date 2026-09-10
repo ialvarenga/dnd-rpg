@@ -291,12 +291,12 @@ static func _test_bandit_stat_blocks_and_chainmail_are_loadable(failures: Array[
 		_expect(block != null, "the default library is missing the %s stat block" % stat_block_id, failures)
 		if block == null:
 			continue
-		# The dagger is worn for the held model only; every number that matters
-		# is authored on the stat block itself.
-		_expect(block.max_hp > 0 and block.armor_class > 0, "%s should author its own HP and AC" % stat_block_id, failures)
+		# Attack, damage, and AC are derived from these scores and the worn
+		# equipment (see test_attack_math); only HP is authored directly.
+		_expect(block.max_hp > 0 and not block.weapon_proficiencies.is_empty(), "%s should author its HP and weapon training" % stat_block_id, failures)
 		_expect(block.ability_ids.has(&"basic_attack"), "%s should be able to attack" % stat_block_id, failures)
 	var chainmail := definitions.get_item(&"chainmail")
-	_expect(chainmail != null and chainmail.slot == &"armor" and chainmail.armor_class_bonus == 5, "chainmail should be armor worth +5 AC", failures)
+	_expect(chainmail != null and chainmail.slot == &"armor" and chainmail.armor_category == &"heavy" and chainmail.base_armor_class == 16, "chainmail should be SRD heavy armor with a base AC of 16", failures)
 	var knight := definitions.get_actor(&"knight")
 	_expect(knight != null and knight.equipment_slots.get(&"armor", &"") == &"chainmail", "the knight should be wearing the rebalanced armor", failures)
 	_expect(knight != null and not knight.ability_ids.has(&"talk"), "Talk should be contextual to clicking an NPC, not a persistent knight ability", failures)

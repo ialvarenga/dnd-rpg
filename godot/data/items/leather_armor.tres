@@ -7,4 +7,5 @@ script = ExtResource("1_a1v3q")
 id = &"leather_armor"
 display_name = "Leather Armor"
 slot = &"armor"
-armor_class_bonus = 1
+armor_category = &"light"
+base_armor_class = 11

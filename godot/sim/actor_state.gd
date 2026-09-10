@@ -7,7 +7,6 @@ var position: Vector3 = Vector3.ZERO
 
 var hp: int = 1
 var max_hp: int = 1
-var armor_class: int = 10
 
 var strength: int = 10
 var dexterity: int = 10
@@ -17,6 +16,10 @@ var wisdom: int = 10
 var charisma: int = 10
 var proficiency_bonus: int = 2
 var saving_throw_proficiencies: Array[StringName] = []
+## Weapon categories or weapon item ids; see ActorDefinition. Attack, damage,
+## and armor class are never stored here: AttackMath derives them from the
+## ability scores above, this list, and equipment_slots.
+var weapon_proficiencies: Array[StringName] = []
 
 var movement_speed: float = 9.0
 var movement_remaining: float = 9.0
@@ -30,13 +33,6 @@ var disengaged: bool = false
 ## Absent keys mean nothing spent. Unlike the per-turn flags above this survives
 ## the turn, so it is part of the stable snapshot and the save round-trip.
 var ability_uses_spent: Dictionary = {}
-
-# Spike A-0 combat fields. These are the actor's own base stats; Resolver
-# reads through Equipment (sim/equipment.gd) to combine them with whatever is
-# in equipment_slots, so they stay meaningful even for an unequipped actor.
-var attack_bonus: int = 0
-var damage_die: int = 6
-var damage_modifier: int = 0
 
 # Fase C2 content fields. There is no equip command in this milestone:
 # equipment_slots/ability_ids are populated once (see from_definition) and
@@ -82,7 +78,6 @@ static func from_definition(definition: ActorDefinition, actor_id: int, side: St
 	actor.position = position
 	actor.hp = definition.max_hp
 	actor.max_hp = definition.max_hp
-	actor.armor_class = definition.armor_class
 	actor.strength = definition.strength
 	actor.dexterity = definition.dexterity
 	actor.constitution = definition.constitution
@@ -91,11 +86,9 @@ static func from_definition(definition: ActorDefinition, actor_id: int, side: St
 	actor.charisma = definition.charisma
 	actor.proficiency_bonus = definition.proficiency_bonus
 	actor.saving_throw_proficiencies = definition.saving_throw_proficiencies.duplicate()
+	actor.weapon_proficiencies = definition.weapon_proficiencies.duplicate()
 	actor.movement_speed = definition.movement_speed
 	actor.movement_remaining = definition.movement_speed
-	actor.attack_bonus = definition.attack_bonus
-	actor.damage_die = definition.damage_die
-	actor.damage_modifier = definition.damage_modifier
 	actor.ability_ids = definition.ability_ids.duplicate()
 	actor.equipment_slots = definition.equipment_slots.duplicate()
 	actor.inventory = definition.starting_inventory.duplicate()
@@ -111,7 +104,6 @@ func clone() -> ActorState:
 	copy.position = position
 	copy.hp = hp
 	copy.max_hp = max_hp
-	copy.armor_class = armor_class
 	copy.strength = strength
 	copy.dexterity = dexterity
 	copy.constitution = constitution
@@ -120,6 +112,7 @@ func clone() -> ActorState:
 	copy.charisma = charisma
 	copy.proficiency_bonus = proficiency_bonus
 	copy.saving_throw_proficiencies = saving_throw_proficiencies.duplicate()
+	copy.weapon_proficiencies = weapon_proficiencies.duplicate()
 	copy.movement_speed = movement_speed
 	copy.movement_remaining = movement_remaining
 	copy.action_available = action_available
@@ -128,9 +121,6 @@ func clone() -> ActorState:
 	for condition_state in condition_states:
 		copy.condition_states.append(condition_state.clone())
 	copy.disengaged = disengaged
-	copy.attack_bonus = attack_bonus
-	copy.damage_die = damage_die
-	copy.damage_modifier = damage_modifier
 	copy.ability_ids = ability_ids.duplicate()
 	copy.equipment_slots = equipment_slots.duplicate()
 	copy.inventory = inventory.duplicate()
@@ -234,7 +224,6 @@ func to_dict() -> Dictionary:
 		"position": SimulationSerialization.value_to_data(position),
 		"hp": hp,
 		"max_hp": max_hp,
-		"armor_class": armor_class,
 		"strength": strength,
 		"dexterity": dexterity,
 		"constitution": constitution,
@@ -243,6 +232,7 @@ func to_dict() -> Dictionary:
 		"charisma": charisma,
 		"proficiency_bonus": proficiency_bonus,
 		"saving_throw_proficiencies": SimulationSerialization.value_to_data(saving_throw_proficiencies),
+		"weapon_proficiencies": SimulationSerialization.value_to_data(weapon_proficiencies),
 		"movement_speed": movement_speed,
 		"movement_remaining": movement_remaining,
 		"action_available": action_available,
@@ -250,9 +240,6 @@ func to_dict() -> Dictionary:
 		"reaction_available": reaction_available,
 		"condition_states": condition_states.map(func(state: ConditionState): return state.to_dict()),
 		"disengaged": disengaged,
-		"attack_bonus": attack_bonus,
-		"damage_die": damage_die,
-		"damage_modifier": damage_modifier,
 		"ability_ids": SimulationSerialization.value_to_data(ability_ids),
 		"equipment_slots": _equipment_slots_to_data(equipment_slots),
 		"inventory": SimulationSerialization.value_to_data(inventory),
@@ -280,6 +267,17 @@ static func _equipment_slots_to_data(slots: Dictionary) -> Dictionary:
 	return data
 
 
+## Arrays of StringName are written through SimulationSerialization, so each
+## entry comes back as a tagged value that has to be decoded before use.
+static func _string_names_from_data(data: Variant) -> Array[StringName]:
+	var names: Array[StringName] = []
+	var restored: Variant = SimulationSerialization.data_to_value(data)
+	if restored is Array:
+		for value in restored:
+			names.append(StringName(str(value)))
+	return names
+
+
 static func from_dict(data: Dictionary) -> ActorState:
 	var actor := ActorState.new()
 	actor.id = int(data.get("id", -1))
@@ -289,7 +287,6 @@ static func from_dict(data: Dictionary) -> ActorState:
 		actor.position = restored_position
 	actor.hp = int(data.get("hp", 1))
 	actor.max_hp = int(data.get("max_hp", 1))
-	actor.armor_class = int(data.get("armor_class", 10))
 	actor.strength = int(data.get("strength", 10))
 	actor.dexterity = int(data.get("dexterity", 10))
 	actor.constitution = int(data.get("constitution", 10))
@@ -297,8 +294,8 @@ static func from_dict(data: Dictionary) -> ActorState:
 	actor.wisdom = int(data.get("wisdom", 10))
 	actor.charisma = int(data.get("charisma", 10))
 	actor.proficiency_bonus = int(data.get("proficiency_bonus", 2))
-	for proficiency in data.get("saving_throw_proficiencies", []):
-		actor.saving_throw_proficiencies.append(StringName(str(proficiency)))
+	actor.saving_throw_proficiencies = _string_names_from_data(data.get("saving_throw_proficiencies", []))
+	actor.weapon_proficiencies = _string_names_from_data(data.get("weapon_proficiencies", []))
 	actor.movement_speed = float(data.get("movement_speed", 9.0))
 	actor.movement_remaining = float(data.get("movement_remaining", 9.0))
 	actor.action_available = bool(data.get("action_available", true))
@@ -315,21 +312,12 @@ static func from_dict(data: Dictionary) -> ActorState:
 			for condition in legacy_conditions:
 				actor.add_condition(StringName(str(condition)))
 	actor.disengaged = bool(data.get("disengaged", false))
-	actor.attack_bonus = int(data.get("attack_bonus", 0))
-	actor.damage_die = int(data.get("damage_die", 6))
-	actor.damage_modifier = int(data.get("damage_modifier", 0))
-	var restored_ability_ids: Variant = SimulationSerialization.data_to_value(data.get("ability_ids", []))
-	if restored_ability_ids is Array:
-		for ability_id in restored_ability_ids:
-			actor.ability_ids.append(StringName(str(ability_id)))
+	actor.ability_ids = _string_names_from_data(data.get("ability_ids", []))
 	var restored_equipment: Variant = data.get("equipment_slots", {})
 	if restored_equipment is Dictionary:
 		for slot_key in (restored_equipment as Dictionary).keys():
 			actor.equipment_slots[StringName(str(slot_key))] = StringName(str((restored_equipment as Dictionary)[slot_key]))
-	var restored_inventory: Variant = SimulationSerialization.data_to_value(data.get("inventory", []))
-	if restored_inventory is Array:
-		for item_id in restored_inventory:
-			actor.inventory.append(StringName(str(item_id)))
+	actor.inventory = _string_names_from_data(data.get("inventory", []))
 	actor.coins = maxi(0, int(data.get("coins", 0)))
 	var restored_uses: Variant = data.get("ability_uses_spent", {})
 	if restored_uses is Dictionary:

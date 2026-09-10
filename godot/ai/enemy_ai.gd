@@ -7,6 +7,7 @@ extends RefCounted
 
 const ResolverRules = preload("res://sim/resolver.gd")
 const EquipmentRules = preload("res://sim/equipment.gd")
+const AttackMathRules = preload("res://sim/rules/attack_math.gd")
 ## SRD melee reach is 5 feet, represented as 1.5 m in the simulation. The
 ## resolver, targeting previews, and AI all use this same authored distance.
 const ATTACK_RANGE_METERS := 1.5
@@ -52,19 +53,17 @@ func _evaluate_candidates(snapshot: BattleState, actor_id: int, nav: NavProvider
 		var nav_denials_before := budget.navigation_denials
 		var los_denials_before := budget.line_of_sight_denials
 		var result := ResolverRules.resolve(snapshot, command, bounded_nav, bounded_los)
-		# Do not select a command whose legality/risk check was only partial.
-		if budget.navigation_denials != nav_denials_before or budget.line_of_sight_denials != los_denials_before:
-			continue
 		if not _is_accepted(result):
 			continue
-		evaluations.append({
-			"command": command,
-			"result": result,
-			# Resolution above establishes legality only. Its dice events must never
-			# influence scoring: otherwise the AI can select the action that happens
-			# to succeed against the current RNG state before it commits to it.
-			"score": _score(snapshot, actor, command, result),
-		})
+		# Resolution above establishes legality only. Its dice events must never
+		# influence scoring: otherwise the AI can select the action that happens
+		# to succeed against the current RNG state before it commits to it.
+		var score := _score(snapshot, actor, command, result, bounded_los)
+		# Do not select a command whose legality/risk check or scoring cover read
+		# was only partial.
+		if budget.navigation_denials != nav_denials_before or budget.line_of_sight_denials != los_denials_before:
+			continue
+		evaluations.append({"command": command, "result": result, "score": score})
 	return evaluations
 
 
@@ -222,15 +221,16 @@ func _planar_distance(a: Vector3, b: Vector3) -> float:
 	return Vector2(a.x, a.z).distance_to(Vector2(b.x, b.z))
 
 
-func _score(before: BattleState, actor: ActorState, command: Command, result: ResolutionResult) -> float:
+func _score(before: BattleState, actor: ActorState, command: Command, result: ResolutionResult, los: LosProvider) -> float:
 	var score := 0.0
-	var ability := DefinitionLibrary.get_default().get_ability(command.type)
+	var definitions := DefinitionLibrary.get_default()
+	var ability := definitions.get_ability(command.type)
 	if ability != null and _has_attack_effect(ability):
 		var target: ActorState = before.actors[command.target_id]
-		var attack := _attack_outcome(actor, target)
+		var attack := _attack_outcome(before, actor, target, ability, los, definitions)
 		score += 1000.0 + float(attack.expected_damage) * 10.0
 		score += float(attack.kill_probability) * 10000.0
-		if EquipmentRules.is_ranged_weapon(actor, DefinitionLibrary.get_default()) and _has_adjacent_enemy(before, actor):
+		if EquipmentRules.is_ranged_weapon(actor, definitions) and AttackMathRules.is_threatened(before, actor):
 			score -= 1000.0
 	elif ability != null and _has_heal_effect(ability):
 		var restored := _expected_healing(ability, actor)
@@ -245,7 +245,7 @@ func _score(before: BattleState, actor: ActorState, command: Command, result: Re
 			&"move":
 				var before_distance := _nearest_enemy_distance(before, actor)
 				var after_distance := _nearest_enemy_distance_from(before, actor, command.target_pos)
-				if EquipmentRules.is_ranged_weapon(actor, DefinitionLibrary.get_default()) and before_distance < MINIMUM_RANGED_STANDOFF_METERS:
+				if EquipmentRules.is_ranged_weapon(actor, definitions) and before_distance < MINIMUM_RANGED_STANDOFF_METERS:
 					score += (after_distance - before_distance) * 100.0
 				else:
 					score += (before_distance - after_distance) * 100.0
@@ -257,70 +257,46 @@ func _score(before: BattleState, actor: ActorState, command: Command, result: Re
 				# has no better attack or approach candidate.
 				var nearby_threat := _nearest_enemy_distance(before, actor)
 				score = 180.0 if actor.hp * 2 <= actor.max_hp and nearby_threat <= 6.0 else -10.0
-			&"disengage": score = 300.0 if _has_adjacent_enemy(before, actor) else -10.0
+			&"disengage": score = 300.0 if AttackMathRules.is_threatened(before, actor) else -10.0
 			&"dash": score = 100.0 if _nearest_enemy_distance(before, actor) > actor.movement_remaining else -10.0
 			&"end_turn": score = 0.0
 	# Opportunity attacks are deterministic to detect but stochastic to resolve.
 	# Penalize their expected harm, never the damage emitted by the speculative
-	# resolver call above.
+	# resolver call above. Each reaction is evaluated where it fires: at the
+	# end of the movement segment that precedes it.
+	var mover := actor.clone()
 	for event in result.events:
+		if event.type == &"movement_segment" and int(event.data.get("actor_id", -1)) == actor.id:
+			mover.position = event.data["to"]
+			continue
 		if event.type != &"reaction_triggered" or int(event.data.get("target_id", -1)) != actor.id:
 			continue
 		var reactor := before.actors.get(int(event.data.get("actor_id", -1))) as ActorState
 		if reactor == null:
 			continue
-		var reaction := _attack_outcome(reactor, actor)
+		var reaction := _opportunity_attack_outcome(before, reactor, mover, los, definitions)
 		score -= float(reaction.expected_damage) * 200.0
 		score -= float(reaction.kill_probability) * 1000000.0
 	return score
 
 
-func _has_adjacent_enemy(state: BattleState, actor: ActorState) -> bool:
-	for actor_id in state.actors:
-		if not state.active_combatant_ids.is_empty() and not state.active_combatant_ids.has(int(actor_id)):
-			continue
-		var target := state.actors[actor_id] as ActorState
-		if target.side != actor.side and target.is_conscious() and target.position.distance_to(actor.position) <= ATTACK_RANGE_METERS + SCORE_EPSILON:
-			return true
-	return false
+## Expected outcome of `ability` against `target` from the snapshot, through
+## the same AttackMath evaluation, range bands, and cover Resolver uses. Only
+## pre-roll facts are read; no speculative die result reaches the score.
+func _attack_outcome(before: BattleState, attacker: ActorState, target: ActorState, ability: AbilityDefinition, los: LosProvider, definitions: DefinitionLibrary) -> Dictionary:
+	var target_range := AbilityTargeting.target_range(definitions, ability.id)
+	var is_ranged := _ability_is_ranged(ability) or EquipmentRules.is_ranged_weapon(attacker, definitions)
+	var normal_range := EquipmentRules.normal_range(attacker, definitions, target_range) if is_ranged else target_range
+	var cover := los.cover_between(attacker.position, target.position)
+	var evaluation := AttackMathRules.evaluate(before, attacker, target, definitions, cover, is_ranged, normal_range)
+	return AttackMathRules.expected_outcome(evaluation, target.hp)
 
 
-## Reads through Equipment (sim/equipment.gd), the same way Resolver's attack
-## resolution does, so scoring reflects an actor's actual equipped weapon/
-## armor instead of only their unarmed/unarmored base stats. An actor with no
-## equipment aggregates back to exactly its base fields.
-func _expected_damage(attacker: ActorState, target: ActorState) -> float:
-	return float(_attack_outcome(attacker, target).expected_damage)
-
-
-func _attack_outcome(attacker: ActorState, target: ActorState) -> Dictionary:
-	var definitions := DefinitionLibrary.get_default()
-	var attack_bonus := EquipmentRules.aggregate_attack_bonus(attacker, definitions)
-	var armor_class := EquipmentRules.aggregate_armor_class(target, definitions)
-	var damage_die := EquipmentRules.aggregate_damage_die(attacker, definitions)
-	var damage_modifier := EquipmentRules.aggregate_damage_modifier(attacker, definitions)
-	var normal_hits := 0
-	for roll in range(2, 20):
-		if roll + attack_bonus >= armor_class:
-			normal_hits += 1
-	var normal_average := maxf(1.0, (float(damage_die) + 1.0) * 0.5 + damage_modifier)
-	var critical_average := maxf(1.0, float(damage_die) + 1.0 + damage_modifier)
-	var expected_damage := (float(normal_hits) * normal_average + critical_average) / 20.0
-	var normal_kill_faces := 0
-	for damage_roll in range(1, damage_die + 1):
-		if max(1, damage_roll + damage_modifier) >= target.hp:
-			normal_kill_faces += 1
-	var critical_kill_faces := 0
-	for first_roll in range(1, damage_die + 1):
-		for second_roll in range(1, damage_die + 1):
-			if max(1, first_roll + second_roll + damage_modifier) >= target.hp:
-				critical_kill_faces += 1
-	var normal_kill_probability := float(normal_kill_faces) / float(damage_die)
-	var critical_kill_probability := float(critical_kill_faces) / float(damage_die * damage_die)
-	return {
-		"expected_damage": expected_damage,
-		"kill_probability": (float(normal_hits) * normal_kill_probability + critical_kill_probability) / 20.0,
-	}
+## Opportunity attacks are melee attacks made at the reactor's reach.
+func _opportunity_attack_outcome(before: BattleState, reactor: ActorState, mover: ActorState, los: LosProvider, definitions: DefinitionLibrary) -> Dictionary:
+	var cover := los.cover_between(reactor.position, mover.position)
+	var evaluation := AttackMathRules.evaluate(before, reactor, mover, definitions, cover, false, ATTACK_RANGE_METERS)
+	return AttackMathRules.expected_outcome(evaluation, mover.hp)
 
 
 func _expected_healing(ability: AbilityDefinition, actor: ActorState) -> float:

@@ -6,12 +6,14 @@ extends Resource
 ## from one of these; the resolver never reads ActorDefinition directly, the
 ## same way it never reads AbilityDefinition/ConditionDefinition content
 ## through anything but the ActorState it already produced (ADR-004).
+##
+## There is no authored attack bonus, damage, or AC: AttackMath derives all
+## three from the ability scores, proficiencies, and equipment below.
 
 @export var id: StringName = &""
 @export var display_name: String = ""
 
 @export var max_hp: int = 1
-@export var armor_class: int = 10
 
 @export var strength: int = 10
 @export var dexterity: int = 10
@@ -21,12 +23,11 @@ extends Resource
 @export var charisma: int = 10
 @export var proficiency_bonus: int = 2
 @export var saving_throw_proficiencies: Array[StringName] = []
+## Weapon categories (&"simple", &"martial") or individual weapon item ids the
+## actor adds its proficiency bonus to. Unarmed strikes are always proficient.
+@export var weapon_proficiencies: Array[StringName] = []
 
 @export var movement_speed: float = 9.0
-
-@export var attack_bonus: int = 0
-@export var damage_die: int = 6
-@export var damage_modifier: int = 0
 
 ## Ordered so a HUD hotbar (Fase C3) and ActionAvailability enumerate an
 ## actor's abilities deterministically instead of depending on Dictionary or

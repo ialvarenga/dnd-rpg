@@ -58,9 +58,8 @@ func run() -> Dictionary:
 
 	player.hp = 5
 	var enemy := map.battle_state.actors[enemy_id] as ActorState
-	enemy.attack_bonus = 100
-	enemy.damage_die = 1
-	enemy.damage_modifier = 5
+	TestHelpers.guarantee_hits(enemy)
+	TestHelpers.set_fixed_damage(enemy, 6)
 	player.position = enemy.position + Vector3(1.25, 0.0, 0.0)
 	map.character.synchronize_to_authoritative_position(player.position)
 	map.character.play_movement(PackedVector3Array([map.character.global_position, map.character.global_position + Vector3(4.0, 0.0, 0.0)]), map.character.global_position + Vector3(4.0, 0.0, 0.0))

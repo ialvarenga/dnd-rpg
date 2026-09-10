@@ -66,7 +66,7 @@ func _test_state_changed_health_update(map: CompiledMapController, failures: Arr
 	# anchor there, and that anchor must not leave an invisible static blocker
 	# which rejects an otherwise legal adjacent attack as no_line_of_sight.
 	player_state.position = target_state.position + Vector3(1.25, 0.0, 0.0)
-	target_state.armor_class = 0
+	TestHelpers.make_easy_target(target_state)
 	var result: ResolutionResult = map.session.submit_ability(map.character.actor_id, &"basic_attack", target_id, Vector3.INF)
 	var expected_fraction := clampf(float(target_state.hp) / maxf(1.0, float(target_state.max_hp)), 0.0, 1.0)
 	_expect(not result.events.any(func(event: Event): return event.type == &"command_rejected" and event.data.get("reason") == &"no_line_of_sight"), "authored enemy anchor blocked line of sight to an adjacent target", failures)
@@ -80,8 +80,8 @@ func _test_approach_then_attack(map: CompiledMapController, failures: Array[Stri
 	var target_id: int = map.hostile_views.keys()[0]
 	var target := map.battle_state.actors[target_id] as ActorState
 	var player := map.battle_state.actors[map.character.actor_id] as ActorState
-	# _test_state_changed_health_update just hit this same actor with AC forced
-	# to 0, and a light stat block can be downed by that one roll. Restore it, so
+	# _test_state_changed_health_update just hit this same actor stripped down
+	# to AC 5, and a light stat block can be downed by that one roll. Restore it, so
 	# this test measures approach-then-attack rather than the previous damage roll.
 	target.hp = target.max_hp
 	target.condition_states.clear()
@@ -93,7 +93,7 @@ func _test_approach_then_attack(map: CompiledMapController, failures: Array[Stri
 	map.battle_state.phase = &"combat"
 	map.battle_state.initiative_order = [player.id, target.id]
 	map.battle_state.current_turn_index = 0
-	target.armor_class = 0
+	TestHelpers.make_easy_target(target)
 	var hp_before := target.hp
 	map._targeting_ability_id = &"basic_attack"
 	map._submit_targeted_ability(target.id)
