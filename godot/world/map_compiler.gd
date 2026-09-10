@@ -368,6 +368,16 @@ func _validate_dialog_references(spec: Dictionary, errors: Array[MapValidationEr
 			for option in node.get("options", []):
 				if option.has("check") and not option.has("failure_outcome"):
 					_add(errors, &"INVALID_DIALOG_OPTION", "dialog '%s' node '%s' has a check with no failure_outcome" % [dialog_id, node.get("id", "")], StringName(dialog_id))
+				if option.has("coin_cost"):
+					var coin_cost: Variant = option.get("coin_cost")
+					# JSON parsing represents numeric literals as floats in Godot; accept
+					# only positive whole values so the runtime agrees with the schema's
+					# integer contract without rejecting valid authored map data.
+					var is_positive_integer := (typeof(coin_cost) == TYPE_INT or (typeof(coin_cost) == TYPE_FLOAT and is_equal_approx(float(coin_cost), floorf(float(coin_cost))))) and float(coin_cost) > 0.0
+					if not is_positive_integer:
+						_add(errors, &"INVALID_DIALOG_OPTION", "dialog '%s' node '%s' has a non-positive coin_cost" % [dialog_id, node.get("id", "")], StringName(dialog_id))
+					if option.has("check"):
+						_add(errors, &"INVALID_DIALOG_OPTION", "dialog '%s' node '%s' combines coin_cost with check" % [dialog_id, node.get("id", "")], StringName(dialog_id))
 				for key in ["outcome", "failure_outcome"]:
 					var outcome: Dictionary = option.get(key, {})
 					var next := String(outcome.get("next", ""))

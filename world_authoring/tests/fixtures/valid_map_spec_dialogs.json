@@ -36,7 +36,8 @@
               }
             },
             {
-              "text": "Leave",
+              "text": "Pay",
+              "coin_cost": 10,
               "outcome": {
                 "effect": "end"
               }

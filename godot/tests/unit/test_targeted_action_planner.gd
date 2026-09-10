@@ -12,7 +12,24 @@ static func run() -> Dictionary:
 	_test_ability_level_range_supports_future_targeted_actions(failures)
 	_test_plan_reserves_declared_ability_movement_cost(failures)
 	_test_planning_does_not_mutate_state(failures)
+	_test_exploration_ignores_combat_movement_budget(failures)
 	return {"name": "unit/test_targeted_action_planner", "failures": failures}
+
+
+## Walking up to talk outside combat must not be capped by the turn's movement
+## budget: farther than one turn of Speed, and with that budget already spent.
+static func _test_exploration_ignores_combat_movement_budget(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle()
+	state.phase = &"exploration"
+	var hero: ActorState = state.actors[1]
+	hero.movement_remaining = 0.0
+	var npc: ActorState = state.actors[2]
+	npc.position = Vector3(20.0, 0.0, 0.0)
+	npc.dialog_id = &"test_dialog"
+	var plan = TargetedActionPlannerScript.plan(state, hero.id, &"talk", npc.id, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(plan.can_execute and plan.requires_movement, "exploration talk incorrectly used the combat movement budget (rejected: %s)" % plan.rejection_reason, failures)
+	var range := AbilityTargetingRules.target_range(DefinitionLibrary.get_default(), &"talk")
+	_expect(plan.destination.distance_to(npc.position) <= range + AbilityTargetingRules.RANGE_EPSILON, "exploration talk plan stopped outside talk range", failures)
 
 
 static func _test_in_range_action_needs_no_movement(failures: Array[String]) -> void:

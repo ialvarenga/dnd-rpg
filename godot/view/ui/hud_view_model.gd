@@ -66,6 +66,7 @@ static func for_actor(state: BattleState, actor_id: int, defs: DefinitionLibrary
 		"movement_speed": actor.movement_speed, "movement_fraction": clampf(actor.movement_remaining / maxf(0.01, actor.movement_speed), 0.0, 1.0),
 		"action_available": actor.action_available, "bonus_action_available": actor.bonus_action_available,
 		"reaction_available": actor.reaction_available, "conditions": actor.condition_ids(),
+		"coins": actor.coins,
 		"is_current_turn": state.current_actor_id() == actor_id, "phase": state.phase,
 		"movement_budget_ignored": state.phase == &"exploration", "action_availability": _present_actions(actor, actions, defs),
 	}
@@ -251,6 +252,7 @@ static func narrate(event: Event, state: BattleState, defs: DefinitionLibrary) -
 		&"d20_test_rolled": return "%s %s a %s save (%d vs DC %d)." % [actor_name, "passes" if d.get("success", false) else "fails", String(d.get("ability", "ability")), int(d.get("total", 0)), int(d.get("difficulty_class", 0))]
 		&"healing_received": return "%s recovers %d HP." % [actor_name, int(d.get("amount", 0))]
 		&"item_consumed": return "%s consumes %s." % [actor_name, String(d.get("item_id", "an item")).replace("_", " ")]
+		&"coins_transferred": return "%s pays %d coins to %s." % [actor_name, int(d.get("amount", 0)), target_name]
 		&"actor_downed": return "%s is downed." % actor_name
 		&"actor_died": return "%s dies." % actor_name
 		&"condition_added": return "%s gains %s." % [actor_name, String(d.get("condition", "a condition"))]

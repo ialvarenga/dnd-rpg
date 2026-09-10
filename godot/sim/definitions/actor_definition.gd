@@ -40,3 +40,8 @@ extends Resource
 
 ## Item ids carried but not equipped.
 @export var starting_inventory: Array[StringName] = []
+
+## Single-denomination currency copied into the actor's authoritative wallet.
+## This is separate from inventory because coins are fungible and have no
+## equipment or use behavior.
+@export var starting_coins: int = 0

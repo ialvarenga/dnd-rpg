@@ -47,6 +47,9 @@ var ability_ids: Array[StringName] = []
 ## Slot (Equipment.SLOT_WEAPON/SLOT_ARMOR) -> ItemDefinition id.
 var equipment_slots: Dictionary = {}
 var inventory: Array[StringName] = []
+## Fungible, actor-owned currency. Payments move this between actors instead
+## of consuming an inventory item, so every balance remains authoritative.
+var coins: int = 0
 ## Which ActorDefinition this actor was built from, if any (empty for actors
 ## constructed ad hoc, e.g. in tests). Save/HUD-facing metadata only; Resolver
 ## never looks this up.
@@ -96,6 +99,7 @@ static func from_definition(definition: ActorDefinition, actor_id: int, side: St
 	actor.ability_ids = definition.ability_ids.duplicate()
 	actor.equipment_slots = definition.equipment_slots.duplicate()
 	actor.inventory = definition.starting_inventory.duplicate()
+	actor.coins = definition.starting_coins
 	actor.definition_id = definition.id
 	return actor
 
@@ -130,6 +134,7 @@ func clone() -> ActorState:
 	copy.ability_ids = ability_ids.duplicate()
 	copy.equipment_slots = equipment_slots.duplicate()
 	copy.inventory = inventory.duplicate()
+	copy.coins = coins
 	copy.ability_uses_spent = ability_uses_spent.duplicate()
 	copy.definition_id = definition_id
 	copy.disposition = disposition
@@ -251,6 +256,7 @@ func to_dict() -> Dictionary:
 		"ability_ids": SimulationSerialization.value_to_data(ability_ids),
 		"equipment_slots": _equipment_slots_to_data(equipment_slots),
 		"inventory": SimulationSerialization.value_to_data(inventory),
+		"coins": coins,
 		"ability_uses_spent": _ability_uses_to_data(ability_uses_spent),
 		"definition_id": String(definition_id),
 		"disposition": String(disposition),
@@ -324,6 +330,7 @@ static func from_dict(data: Dictionary) -> ActorState:
 	if restored_inventory is Array:
 		for item_id in restored_inventory:
 			actor.inventory.append(StringName(str(item_id)))
+	actor.coins = maxi(0, int(data.get("coins", 0)))
 	var restored_uses: Variant = data.get("ability_uses_spent", {})
 	if restored_uses is Dictionary:
 		for ability_id in (restored_uses as Dictionary).keys():

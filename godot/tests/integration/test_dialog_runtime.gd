@@ -24,6 +24,7 @@ func run() -> Dictionary:
 	_test_neutral_camp_does_not_ambush(map, failures)
 	_test_talk_opens_the_authored_graph(map, failures)
 	_test_underlings_defer_instead_of_negotiating(map, failures)
+	_test_coin_toll_transfers_and_pacifies(map, failures)
 	await _test_persuasion_can_pacify_the_camp(map, failures)
 	_test_drawing_starts_the_encounter(map, failures)
 	map.queue_free()
@@ -79,6 +80,8 @@ func _test_authored_stat_blocks_and_stances(map: CompiledMapController, failures
 		# actor with nothing to say neither ambushes nor talks, so every member
 		# of a neutral camp needs a way in.
 		_expect(actor.dialog_id != &"", "camp actor '%s' is neutral but has no dialog, so walking up to it does nothing" % actor.definition_id, failures)
+	var player := map.battle_state.actors[map.character.actor_id] as ActorState
+	_expect(player.coins == 10, "the Knight should begin the Emberwatch map with the authored 10-coin wallet", failures)
 
 
 ## The reason disposition exists: detection fires at encounter range, which is
@@ -144,6 +147,35 @@ func _test_underlings_defer_instead_of_negotiating(map: CompiledMapController, f
 		map.hud.dialog_panel.close()
 
 
+func _test_coin_toll_transfers_and_pacifies(map: CompiledMapController, failures: Array[String]) -> void:
+	var talker_id := _negotiator(map)
+	if talker_id == -1 or not map._dialog_session.is_active():
+		failures.append("could not open the negotiation to test the coin toll")
+		return
+	var payment_option := _payment_option(map)
+	_expect(payment_option != -1, "the chief should offer the authored 10-coin toll", failures)
+	if payment_option == -1:
+		return
+	var payment_button := map.hud.dialog_panel.option_list.get_child(payment_option) as Button
+	_expect(not payment_button.disabled, "the 10-coin toll should be enabled for the Knight's exact starting balance", failures)
+	var normal_style := payment_button.get_theme_stylebox(&"normal")
+	_expect(normal_style != null and is_equal_approx(normal_style.get_content_margin(SIDE_LEFT), 12.0), "dialog choice text should have a 12 px left inset", failures)
+	map._dialog_session.choose(payment_option)
+	var player := map.battle_state.actors[map.character.actor_id] as ActorState
+	var chieftain := map.battle_state.actors[talker_id] as ActorState
+	_expect(player.coins == 0 and chieftain.coins == 10, "paying the toll should debit the Knight and credit the speaking chieftain", failures)
+	_expect(map.hud.coins_label.text == "COINS: 0", "the HUD should refresh after the coin transfer", failures)
+	for actor_id in map.hostile_views:
+		_expect((map.battle_state.actors[int(actor_id)] as ActorState).disposition == &"neutral", "paying the toll should safely pacify the entire camp", failures)
+	_expect(not map._dialog_session.is_active() and not map.hud.dialog_panel.visible, "a paid toll should close the dialog after granting passage", failures)
+	_expect(_open_dialog(map, talker_id), "the chieftain should remain talkable after granting passage", failures)
+	var unaffordable_option := _payment_option(map)
+	_expect(unaffordable_option != -1 and (map.hud.dialog_panel.option_list.get_child(unaffordable_option) as Button).disabled, "a payment option should disable once the player lacks its coins", failures)
+	if map._dialog_session.is_active():
+		map._dialog_session.cancel()
+		map.hud.dialog_panel.close()
+
+
 ## The whole camp stands down, not just the bandit who was spoken to -- the
 ## encounter is the social unit.
 func _test_persuasion_can_pacify_the_camp(map: CompiledMapController, failures: Array[String]) -> void:
@@ -198,6 +230,15 @@ func _first_check_option(map: CompiledMapController) -> int:
 	var index := 0
 	for button in map.hud.dialog_panel.option_list.get_children():
 		if (button as Button).text.begins_with("["):
+			return index
+		index += 1
+	return -1
+
+
+func _payment_option(map: CompiledMapController) -> int:
+	var index := 0
+	for button in map.hud.dialog_panel.option_list.get_children():
+		if (button as Button).text.contains("Pay 10 coins"):
 			return index
 		index += 1
 	return -1

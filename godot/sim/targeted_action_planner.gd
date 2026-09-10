@@ -50,7 +50,9 @@ static func plan(state: BattleState, actor_id: int, ability_id: StringName, targ
 	if target_range < 0.0:
 		return result
 	var actor: ActorState = state.actors[actor_id]
-	if actor.movement_remaining <= EPSILON:
+	# Exploration moves ignore the combat movement budget (Resolver does too),
+	# so walking up to talk is limited only by navigation, like interactables.
+	if state.phase == &"combat" and actor.movement_remaining <= EPSILON:
 		return result
 	var target: ActorState = state.actors[target_id]
 	var best := _best_direct_path_candidate(state, ability_command, actor, target, nav, los, defs)
@@ -74,7 +76,7 @@ static func _best_direct_path_candidate(state: BattleState, ability_command: Com
 	if path.size() < 2:
 		return {}
 	var path_length := PolylineUtil.length(path)
-	var search_limit := minf(path_length, actor.movement_remaining)
+	var search_limit := path_length if state.phase != &"combat" else minf(path_length, actor.movement_remaining)
 	var previous_distance := 0.0
 	var distance := minf(PATH_SAMPLE_STEP_M, search_limit)
 	while distance > previous_distance + EPSILON:
@@ -108,7 +110,7 @@ static func _best_radial_candidate(state: BattleState, ability_command: Command,
 		var requested := target.position + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
 		requested = nav.snap_to_navmesh(requested)
 		var path := PolylineUtil.with_start(nav.find_path(actor.position, requested), actor.position)
-		if path.size() < 2 or PolylineUtil.length(path) > actor.movement_remaining + EPSILON:
+		if path.size() < 2 or (state.phase == &"combat" and PolylineUtil.length(path) > actor.movement_remaining + EPSILON):
 			continue
 		var candidate := path[path.size() - 1]
 		var evaluation := _evaluate_candidate(state, ability_command, candidate, nav, los, definitions)

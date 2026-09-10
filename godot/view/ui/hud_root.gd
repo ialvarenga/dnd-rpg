@@ -29,6 +29,7 @@ var actor_id := -1
 @onready var item_slots: GridContainer = $Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots
 @onready var outcome_overlay: OutcomeOverlayScript = $OutcomeOverlay
 @onready var objective_label: Label = $Margin/TopBar/ObjectiveLabel
+@onready var coins_label: Label = $Margin/TopBar/CoinsLabel
 @onready var dialog_panel: DialogPanelScript = $DialogPanel
 
 func _ready() -> void:
@@ -60,6 +61,7 @@ func sync() -> void:
 	turns.set_turn_order(HudViewModel.turn_order(session.battle_state, definitions))
 	conditions.set_conditions(data.conditions)
 	objective_label.text = "OBJECTIVE: %s" % HudViewModel.objective_prompt(session.battle_state)
+	coins_label.text = "COINS: %d" % int(data.get("coins", 0))
 	_sync_inventory(session.battle_state.actors[actor_id] as ActorState)
 
 

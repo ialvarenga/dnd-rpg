@@ -8,6 +8,7 @@ static func run() -> Dictionary:
 	_test_is_compatible_detects_version_drift(failures)
 	_test_disposition_and_dialog_round_trip(failures)
 	_test_ability_uses_round_trip(failures)
+	_test_coins_round_trip_and_default(failures)
 	return {"name": "unit/test_save_game", "failures": failures}
 
 
@@ -148,6 +149,19 @@ static func _test_ability_uses_round_trip(failures: Array[String]) -> void:
 
 	var legacy := ActorState.from_dict({"id": 7})
 	_expect(legacy.ability_uses_spent.is_empty(), "an actor saved before use pools existed should load with an empty pool", failures)
+
+
+static func _test_coins_round_trip_and_default(failures: Array[String]) -> void:
+	var actor := ActorState.new()
+	actor.id = 8
+	actor.coins = 17
+	var restored := ActorState.from_dict(actor.to_dict())
+	_expect(restored.coins == 17, "coins did not survive actor serialization", failures)
+	var clone := actor.clone()
+	clone.coins = 2
+	_expect(actor.coins == 17, "clone changed the original coin wallet", failures)
+	var legacy := ActorState.from_dict({"id": 9})
+	_expect(legacy.coins == 0, "an actor saved before wallets existed should default to zero coins", failures)
 
 
 static func _expect(condition: bool, message: String, failures: Array[String]) -> void:

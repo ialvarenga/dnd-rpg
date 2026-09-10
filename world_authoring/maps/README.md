@@ -16,3 +16,10 @@ asset catalog. The reference map uses the currently available
 This phase establishes an authoring contract fixture only. Compilation,
 runtime instantiation, terrain generation, navigation generation, procedural
 vegetation, and AI authoring are deliberately deferred to later B phases.
+
+## Dialogue coin costs
+
+A dialog option may declare a positive integer `coin_cost`. Choosing it
+transfers that many coins from the player to the speaking actor before the
+option's normal outcome runs. Coin-cost options cannot include a `check` in
+the current contract; author a separate payment or skill-check option instead.

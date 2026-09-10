@@ -197,6 +197,19 @@ static func _test_dialog_and_stat_block_cross_references(failures: Array[String]
 	]}]
 	_expect(_compile_codes(_dialog_spec(checkless_failure, [talker], encounters)).has(&"INVALID_DIALOG_OPTION"), "a check with no failure_outcome should be rejected", failures)
 
+	var paid_passage := [{"id": "toll", "root": "greeting", "nodes": [
+		{"id": "greeting", "text": "Pay up.", "options": [{"text": "Pay", "coin_cost": 10, "outcome": {"effect": "pacify_encounter"}}]},
+	]}]
+	_expect(_compile_codes(_dialog_spec(paid_passage, [talker], encounters)).is_empty(), "a positive, check-free coin cost should compile", failures)
+	var free_payment := [{"id": "toll", "root": "greeting", "nodes": [
+		{"id": "greeting", "text": "Pay up.", "options": [{"text": "Pay", "coin_cost": 0, "outcome": {"effect": "end"}}]},
+	]}]
+	_expect(_compile_codes(_dialog_spec(free_payment, [talker], encounters)).has(&"INVALID_DIALOG_OPTION"), "a non-positive coin cost should be rejected", failures)
+	var checked_payment := [{"id": "toll", "root": "greeting", "nodes": [
+		{"id": "greeting", "text": "Pay up.", "options": [{"text": "Pay", "coin_cost": 1, "check": {"ability": "charisma", "dc": 10}, "outcome": {"effect": "end"}, "failure_outcome": {"effect": "end"}}]},
+	]}]
+	_expect(_compile_codes(_dialog_spec(checked_payment, [talker], encounters)).has(&"INVALID_DIALOG_OPTION"), "a coin cost combined with a check should be rejected", failures)
+
 	var stranger := {"id": "chief", "archetype": "character_knight_01", "position": [32, 16], "dialog": "missing_dialog"}
 	_expect(_compile_codes(_dialog_spec(good_dialog, [stranger], encounters)).has(&"UNKNOWN_DIALOG"), "an actor naming a missing dialog should be rejected", failures)
 

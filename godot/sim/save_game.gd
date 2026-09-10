@@ -13,8 +13,8 @@ extends RefCounted
 ## loader must check all three before trusting a save (see is_compatible).
 
 ## Fase C2 bump: ActorState now serializes ability_ids/equipment_slots/
-## inventory/definition_id.
-const SCHEMA_VERSION: int = 3
+## inventory/definition_id. Bump 4 adds persistent actor coin wallets.
+const SCHEMA_VERSION: int = 4
 const GAME_VERSION: String = "0.1.0"
 
 var schema_version: int = SCHEMA_VERSION

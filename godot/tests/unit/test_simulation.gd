@@ -33,6 +33,7 @@ static func run() -> Dictionary:
 	_test_skill_check_rolls_in_any_phase(failures)
 	_test_skill_check_rejects_malformed_metadata(failures)
 	_test_set_disposition_applies_and_is_exploration_only(failures)
+	_test_transfer_coins_is_atomic_and_exploration_only(failures)
 	return {"name": "unit/test_simulation", "failures": failures}
 
 
@@ -527,6 +528,46 @@ static func _test_set_disposition_applies_and_is_exploration_only(failures: Arra
 	mid_combat.metadata = {"disposition": &"neutral"}
 	var combat_rejection := _first_event(Resolver.resolve(state, mid_combat, FakeNavProvider.new(), FakeLosProvider.new()), &"command_rejected")
 	_expect(combat_rejection != null and combat_rejection.data["reason"] == &"combat_already_active", "set_disposition should be rejected during combat", failures)
+
+
+static func _test_transfer_coins_is_atomic_and_exploration_only(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle()
+	state.phase = &"exploration"
+	(state.actors[1] as ActorState).coins = 10
+	(state.actors[2] as ActorState).coins = 3
+	var command := Command.create(&"transfer_coins", 1)
+	command.target_id = 2
+	command.metadata = {"amount": 10}
+	var before := JSON.stringify(state.stable_snapshot())
+	var result := Resolver.resolve(state, command, FakeNavProvider.new(), FakeLosProvider.new())
+	var transfer := _first_event(result, &"coins_transferred")
+	_expect(transfer != null and int(transfer.data["amount"]) == 10, "an affordable transfer should emit one coin event", failures)
+	_expect(JSON.stringify(state.stable_snapshot()) == before, "coin transfer resolution mutated its input", failures)
+	TestHelpers.apply_result(state, result)
+	_expect((state.actors[1] as ActorState).coins == 0 and (state.actors[2] as ActorState).coins == 13, "applying a transfer should debit and credit atomically", failures)
+
+	var insufficient := Command.create(&"transfer_coins", 1)
+	insufficient.target_id = 2
+	insufficient.metadata = {"amount": 1}
+	var rejected := _first_event(Resolver.resolve(state, insufficient, FakeNavProvider.new(), FakeLosProvider.new()), &"command_rejected")
+	_expect(rejected != null and rejected.data["reason"] == &"insufficient_coins", "an overdrawn transfer should be rejected", failures)
+	for bad_amount in [0, -1, 1.5]:
+		var malformed := Command.create(&"transfer_coins", 1)
+		malformed.target_id = 2
+		malformed.metadata = {"amount": bad_amount}
+		var amount_rejection := _first_event(Resolver.resolve(state, malformed, FakeNavProvider.new(), FakeLosProvider.new()), &"command_rejected")
+		_expect(amount_rejection != null and amount_rejection.data["reason"] == &"invalid_coin_amount", "coin amount %s should be rejected" % bad_amount, failures)
+	var self_transfer := Command.create(&"transfer_coins", 1)
+	self_transfer.target_id = 1
+	self_transfer.metadata = {"amount": 1}
+	var self_rejection := _first_event(Resolver.resolve(state, self_transfer, FakeNavProvider.new(), FakeLosProvider.new()), &"command_rejected")
+	_expect(self_rejection != null and self_rejection.data["reason"] == &"invalid_target", "a transfer to oneself should be rejected", failures)
+	state.phase = &"combat"
+	var mid_combat := Command.create(&"transfer_coins", 1)
+	mid_combat.target_id = 2
+	mid_combat.metadata = {"amount": 1}
+	var combat_rejection := _first_event(Resolver.resolve(state, mid_combat, FakeNavProvider.new(), FakeLosProvider.new()), &"command_rejected")
+	_expect(combat_rejection != null and combat_rejection.data["reason"] == &"combat_already_active", "transfers should be exploration-only", failures)
 
 
 static func _first_event(result: ResolutionResult, type: StringName) -> Event:

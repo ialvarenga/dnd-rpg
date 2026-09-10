@@ -19,7 +19,8 @@ extends RefCounted
 ## Bump 6: a prone actor stands automatically at the start of its turn (and
 ## when combat ends), a targeted ability's action_spent carries target_id, and
 ## a condition may block reactions (no opportunity attacks while prone).
-const RULES_VERSION: int = 6
+## Bump 7: actors have wallets and can transfer coins during exploration.
+const RULES_VERSION: int = 7
 
 const ATTACK_RANGE_METERS := 1.5
 const THREAT_RANGE_METERS := 1.5
@@ -91,6 +92,8 @@ static func _resolve_command(state: BattleState, cmd: Command, nav: NavProvider,
 		return _resolve_skill_check(state, cmd, result)
 	if cmd.type == &"set_disposition":
 		return _resolve_set_disposition(state, cmd, result)
+	if cmd.type == &"transfer_coins":
+		return _resolve_transfer_coins(state, cmd, result)
 	# Abilities resolve their own phase gate, because one may declare
 	# usable_in_exploration. Everything else stays behind the combat turn gate,
 	# in the same order as before.
@@ -378,6 +381,39 @@ static func _resolve_set_disposition(state: BattleState, cmd: Command, result: R
 		"actor_id": actor.id,
 		"previous_disposition": actor.disposition,
 		"disposition": disposition,
+	}))
+	return result
+
+
+## Currency exchanges are authoritative simulation commands even though the
+## current caller is dialogue. Keeping the recipient in target_id lets events,
+## replay, and saves record a real transfer instead of a disappearing cost.
+## There is no action cost, but transfers are exploration-only so a dialog
+## cannot change wallets after combat has started.
+static func _resolve_transfer_coins(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
+	if state.phase != EncounterRules.EXPLORATION:
+		return _rejected(result, cmd, RejectionReasonRules.COMBAT_ALREADY_ACTIVE)
+	if not state.actors.has(cmd.target_id) or cmd.target_id == cmd.actor_id:
+		return _rejected(result, cmd, RejectionReasonRules.INVALID_TARGET if state.actors.has(cmd.target_id) else RejectionReasonRules.UNKNOWN_TARGET)
+	var amount_value: Variant = cmd.metadata.get("amount", 0)
+	if typeof(amount_value) != TYPE_INT or int(amount_value) <= 0:
+		return _rejected(result, cmd, RejectionReasonRules.INVALID_COIN_AMOUNT)
+	var payer: ActorState = state.actors[cmd.actor_id]
+	var conscious_rejection := CommandPhaseRulesScript.rejection_for_conscious(payer)
+	if conscious_rejection != &"":
+		return _rejected(result, cmd, conscious_rejection)
+	var amount := int(amount_value)
+	if payer.coins < amount:
+		return _rejected(result, cmd, RejectionReasonRules.INSUFFICIENT_COINS)
+	var recipient: ActorState = state.actors[cmd.target_id]
+	result.events.append(Event.create(&"coins_transferred", {
+		"actor_id": payer.id,
+		"target_id": recipient.id,
+		"amount": amount,
+		"payer_coins_before": payer.coins,
+		"payer_coins_after": payer.coins - amount,
+		"recipient_coins_before": recipient.coins,
+		"recipient_coins_after": recipient.coins + amount,
 	}))
 	return result
 
@@ -814,6 +850,9 @@ static func apply(state: BattleState, event: Event) -> void:
 		&"damage_taken": (state.actors[event.data["actor_id"]] as ActorState).hp = max(0, (state.actors[event.data["actor_id"]] as ActorState).hp - event.data["amount"])
 		&"healing_received": (state.actors[event.data["actor_id"]] as ActorState).hp = mini((state.actors[event.data["actor_id"]] as ActorState).max_hp, (state.actors[event.data["actor_id"]] as ActorState).hp + int(event.data["amount"]))
 		&"item_consumed": (state.actors[event.data["actor_id"]] as ActorState).inventory.erase(StringName(str(event.data["item_id"])))
+		&"coins_transferred":
+			(state.actors[event.data["actor_id"]] as ActorState).coins = int(event.data["payer_coins_after"])
+			(state.actors[event.data["target_id"]] as ActorState).coins = int(event.data["recipient_coins_after"])
 		&"ability_use_spent": (state.actors[event.data["actor_id"]] as ActorState).ability_uses_spent[StringName(str(event.data["ability_id"]))] = int(event.data["uses_spent"])
 		&"actor_downed":
 			var downed_actor: ActorState = state.actors[event.data["actor_id"]]

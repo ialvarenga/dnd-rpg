@@ -32,6 +32,7 @@ import {
   resetDocumentState,
 } from '../js/document-state.js';
 import {validateFullMap} from '../js/full-validation.js';
+import {validateMapSpec} from '../js/validation.js';
 
 test('every MapSpec collection belongs to exactly one named section and has a creation mode', () => {
   assert.deepEqual(Object.keys(CONFIGS).sort(), [...ARRAY_KEYS].sort());
@@ -128,6 +129,28 @@ test('full validation combines schema and collision errors', () => {
   assert.ok(result.errors.some(issue => issue.message.includes('overlaps tree_1')));
 
   replaceState(createInitialMap());
+});
+
+test('dialog coin costs require a positive integer and cannot be combined with a check', () => {
+  const map = createInitialMap();
+  map.dialogs = [{
+    id: 'toll', root: 'greeting', nodes: [{
+      id: 'greeting', text: 'Pay the toll.', options: [{
+        text: 'Pay', coin_cost: 10, outcome: {effect: 'end'},
+      }],
+    }],
+  }];
+  assert.deepEqual(validateMapSpec(map).errors, []);
+
+  map.dialogs[0].nodes[0].options[0].coin_cost = 0;
+  assert.ok(validateMapSpec(map).errors.some(issue => issue.path.endsWith('/coin_cost')));
+
+  map.dialogs[0].nodes[0].options[0] = {
+    text: 'Pay and bluff', coin_cost: 1,
+    check: {ability: 'charisma', dc: 10},
+    outcome: {effect: 'end'}, failure_outcome: {effect: 'end'},
+  };
+  assert.ok(validateMapSpec(map).errors.some(issue => issue.message.includes('cannot also require a check')));
 });
 
 test('Save is visible before browser capability detection', async () => {

@@ -8,10 +8,12 @@ static func run() -> Dictionary:
 	actor.definition_id = &"knight"
 	actor.ability_ids = [&"dash"]
 	actor.hp = 10
+	actor.coins = 7
 	var data := HudViewModel.for_actor(state, 1, DefinitionLibrary.get_default())
 	_expect(is_equal_approx(data.hp_fraction, 0.5), "actor projection should expose HP fraction", failures)
 	_expect(data.is_current_turn, "actor projection should expose current turn", failures)
 	_expect(data.action_availability.size() == 1, "actor projection should preserve available action order", failures)
+	_expect(int(data.coins) == 7, "actor projection should expose the live coin balance", failures)
 	var order := HudViewModel.turn_order(state, DefinitionLibrary.get_default())
 	_expect(order.size() == 2 and order[0].actor_id == 1, "turn order should follow authoritative initiative order", failures)
 	state.actors[2].hp = 0
@@ -97,6 +99,7 @@ static func _event_narration_expectations() -> Dictionary:
 		&"damage_taken": "Knight takes 2 damage.",
 		&"healing_received": "Knight recovers 2 HP.",
 		&"item_consumed": "Knight consumes an item.",
+		&"coins_transferred": "Knight pays 2 coins to Actor 2.",
 		&"actor_downed": "Knight is downed.",
 		&"actor_died": "Knight dies.",
 		&"condition_added": "Knight gains poisoned.",

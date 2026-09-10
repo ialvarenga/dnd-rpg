@@ -22,6 +22,7 @@
           "options": [
             {
               "text": "Bluff",
+              "coin_cost": 1,
               "check": {
                 "ability": "charisma",
                 "skill": "persuasion",

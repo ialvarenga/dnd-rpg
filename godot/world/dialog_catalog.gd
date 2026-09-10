@@ -57,6 +57,7 @@ func _normalized_options(raw_options: Array) -> Array[Dictionary]:
 	for raw_option in raw_options:
 		options.append({
 			"text": str(raw_option.get("text", "")),
+			"coin_cost": maxi(0, int(raw_option.get("coin_cost", 0))),
 			"check": _normalized_check(raw_option.get("check", {})),
 			"outcome": _normalized_outcome(raw_option.get("outcome", {})),
 			"failure_outcome": _normalized_outcome(raw_option.get("failure_outcome", {})),

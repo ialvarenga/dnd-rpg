@@ -237,12 +237,20 @@
       "required": ["text", "outcome"],
       "properties": {
         "text": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "coin_cost": { "type": "integer", "minimum": 1, "description": "Coins transferred from the player to the speaking actor before this option's outcome. Cannot be combined with check in V1." },
         "check": { "$ref": "#/$defs/dialogCheck" },
         "outcome": { "$ref": "#/$defs/dialogOutcome", "description": "Taken unconditionally, or on a successful `check`." },
         "failure_outcome": { "$ref": "#/$defs/dialogOutcome", "description": "Taken when `check` fails. Required whenever `check` is present." }
       },
-      "if": { "required": ["check"] },
-      "then": { "required": ["failure_outcome"] }
+      "allOf": [
+        {
+          "if": { "required": ["check"] },
+          "then": { "required": ["failure_outcome"] }
+        },
+        {
+          "not": { "required": ["check", "coin_cost"] }
+        }
+      ]
     },
     "dialogCheck": {
       "type": "object",

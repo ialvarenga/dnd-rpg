@@ -15,6 +15,7 @@ static func run() -> Dictionary:
 	_test_plain_option_advances_to_next_node(failures)
 	_test_check_option_waits_for_the_simulation(failures)
 	_test_check_outcome_follows_success_and_failure(failures)
+	_test_payment_waits_for_the_simulation(failures)
 	_test_terminal_effects_finish_the_conversation(failures)
 	_test_missing_next_ends_cleanly(failures)
 	_test_dangling_next_ends_instead_of_crashing(failures)
@@ -36,6 +37,7 @@ static func _spec() -> Dictionary:
 				{"text": "Leave", "outcome": {"effect": "end"}},
 				{"text": "Nowhere", "outcome": {"next": "deleted_node"}},
 				{"text": "Silence", "outcome": {}},
+				{"text": "Pay", "coin_cost": 10, "outcome": {"next": "why"}},
 			]},
 			{"id": "why", "text": "Because we hold the road.", "options": []},
 			{"id": "aside", "text": "Walk on.", "options": [
@@ -58,12 +60,14 @@ static func _session() -> DialogSessionScript:
 class Recorder extends RefCounted:
 	var views: Array[Dictionary] = []
 	var checks: Array[Dictionary] = []
+	var payments: Array[Dictionary] = []
 	var effects: Array[StringName] = []
 
 	func bind(session: DialogSessionScript) -> void:
 		session.presented.connect(func(view: Dictionary): views.append(view))
 		session.check_requested.connect(func(index: int, ability: StringName, skill: StringName, dc: int, proficient: bool):
 			checks.append({"index": index, "ability": ability, "skill": skill, "dc": dc, "proficient": proficient}))
+		session.payment_requested.connect(func(index: int, coin_cost: int): payments.append({"index": index, "coin_cost": coin_cost}))
 		session.finished.connect(func(effect: StringName): effects.append(effect))
 
 
@@ -81,7 +85,7 @@ static func _test_begin_presents_the_root_node(failures: Array[String]) -> void:
 	_expect(session.speaker_actor_id() == 7, "the session should remember who is speaking", failures)
 	_expect(recorder.views.size() == 1, "begin() should present exactly one node", failures)
 	_expect(recorder.views[0]["text"] == "Pay the toll.", "begin() should present the authored root node", failures)
-	_expect((recorder.views[0]["options"] as Array).size() == 6, "the presented node should carry every authored option", failures)
+	_expect((recorder.views[0]["options"] as Array).size() == 7, "the presented node should carry every authored option", failures)
 	var second_option: Dictionary = recorder.views[0]["options"][1]
 	_expect(second_option["index"] == 1, "an option should carry its own index for the panel to send back", failures)
 	_expect(not (second_option["check"] as Dictionary).is_empty(), "an option with a check should advertise it to the panel", failures)
@@ -131,6 +135,19 @@ static func _test_check_outcome_follows_success_and_failure(failures: Array[Stri
 	failing_session.resolve_check(1, false)
 	_expect(failed.effects == [&"start_combat"], "a failed check should take the failure_outcome", failures)
 	_expect(not failing_session.is_active(), "a terminal failure_outcome should close the conversation", failures)
+
+
+static func _test_payment_waits_for_the_simulation(failures: Array[String]) -> void:
+	var recorder := Recorder.new()
+	var session := _begun(recorder)
+	session.choose(6)
+	_expect(recorder.payments.size() == 1 and int(recorder.payments[0]["coin_cost"]) == 10, "a priced option should request its authored transfer", failures)
+	_expect(recorder.views.size() == 1, "a priced option must not advance before payment is accepted", failures)
+	session.resolve_payment(6, false)
+	_expect(recorder.views.size() == 2 and recorder.views[1]["text"] == "Pay the toll.", "a rejected payment should re-present the same node", failures)
+	session.choose(6)
+	session.resolve_payment(6, true)
+	_expect(recorder.views.size() == 3 and recorder.views[2]["text"] == "Because we hold the road.", "an accepted payment should advance to its normal outcome", failures)
 
 
 static func _test_terminal_effects_finish_the_conversation(failures: Array[String]) -> void:

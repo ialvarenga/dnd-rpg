@@ -846,6 +846,7 @@ func _setup_dialogs(spec: Dictionary) -> void:
 	_dialog_session.configure(_dialog_catalog)
 	_dialog_session.presented.connect(_on_dialog_presented)
 	_dialog_session.check_requested.connect(_on_dialog_check_requested)
+	_dialog_session.payment_requested.connect(_on_dialog_payment_requested)
 	_dialog_session.finished.connect(_on_dialog_finished)
 	hud.dialog_panel.option_chosen.connect(_on_dialog_option_chosen)
 	hud.dialog_panel.dismissed.connect(_on_dialog_dismissed)
@@ -875,11 +876,23 @@ func _on_dialog_events_resolved(events: Array[Event]) -> void:
 func _on_dialog_presented(view: Dictionary) -> void:
 	_clear_targeting()
 	_clear_path_preview()
-	hud.dialog_panel.present(view)
+	var presented := view.duplicate(true)
+	var payer := battle_state.actors.get(character.actor_id) as ActorState
+	presented["coin_balance"] = payer.coins if payer != null else 0
+	hud.dialog_panel.present(presented)
 
 
 func _on_dialog_option_chosen(option_index: int) -> void:
 	_dialog_session.choose(option_index)
+
+
+func _on_dialog_payment_requested(option_index: int, coin_cost: int) -> void:
+	var command := Command.create(&"transfer_coins", character.actor_id)
+	command.target_id = _dialog_session.speaker_actor_id()
+	command.metadata = {"amount": coin_cost}
+	var result: ResolutionResult = session.submit_command(command)
+	var succeeded := result.events.any(func(event: Event): return event.type == &"coins_transferred")
+	_dialog_session.resolve_payment(option_index, succeeded)
 
 
 func _on_dialog_dismissed() -> void:

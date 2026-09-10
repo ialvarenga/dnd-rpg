@@ -16,6 +16,9 @@ const DialogCatalogScript = preload("res://world/dialog_catalog.gd")
 ## {speaker, text, options: [{index, text, check}]}
 signal presented(view: Dictionary)
 signal check_requested(option_index: int, ability: StringName, skill: StringName, difficulty_class: int, proficient: bool)
+## A priced option pauses graph traversal until the owner reports whether its
+## authoritative transfer command succeeded.
+signal payment_requested(option_index: int, coin_cost: int)
 ## &"end" | &"start_combat" | &"pacify_encounter"
 signal finished(effect: StringName)
 
@@ -35,6 +38,7 @@ var _node_id: StringName = &""
 var _speaker_actor_id: int = -1
 var _speaker_name: String = ""
 var _active: bool = false
+var _pending_payment_option_index: int = -1
 
 
 func configure(catalog: DialogCatalogScript) -> void:
@@ -68,8 +72,15 @@ func speaker_actor_id() -> int:
 ## An option carrying a check does not advance here: it emits check_requested
 ## and waits for resolve_check, so the roll always happens in the simulation.
 func choose(option_index: int) -> void:
+	if _pending_payment_option_index >= 0:
+		return
 	var option := _option(option_index)
 	if option.is_empty():
+		return
+	var coin_cost := int(option.get("coin_cost", 0))
+	if coin_cost > 0:
+		_pending_payment_option_index = option_index
+		payment_requested.emit(option_index, coin_cost)
 		return
 	var check: Dictionary = option["check"]
 	if check.is_empty():
@@ -85,6 +96,23 @@ func resolve_check(option_index: int, success: bool) -> void:
 	_advance(option["outcome"] if success else option["failure_outcome"])
 
 
+## Failed or rejected transfers deliberately keep the player on the same
+## node. The controller will re-project its current wallet into the view,
+## which disables any newly unaffordable cost without trusting the UI as the
+## source of truth.
+func resolve_payment(option_index: int, succeeded: bool) -> void:
+	if not _active or option_index != _pending_payment_option_index:
+		return
+	_pending_payment_option_index = -1
+	var option := _option(option_index)
+	if option.is_empty():
+		return
+	if succeeded:
+		_advance(option["outcome"])
+	else:
+		_present(_node_id)
+
+
 ## Closes the conversation without any outcome -- the player walked away, or
 ## the owner is tearing the map down. Deliberately silent: no `finished`, so a
 ## cancel cannot be mistaken for an authored ending.
@@ -93,6 +121,7 @@ func cancel() -> void:
 	_dialog_id = &""
 	_node_id = &""
 	_speaker_actor_id = -1
+	_pending_payment_option_index = -1
 
 
 func _option(option_index: int) -> Dictionary:
@@ -124,7 +153,12 @@ func _present(node_id: StringName) -> void:
 	var options: Array[Dictionary] = []
 	var index := 0
 	for option in node.get("options", []):
-		options.append({"index": index, "text": option["text"], "check": (option["check"] as Dictionary).duplicate()})
+		options.append({
+			"index": index,
+			"text": option["text"],
+			"coin_cost": int(option.get("coin_cost", 0)),
+			"check": (option["check"] as Dictionary).duplicate(),
+		})
 		index += 1
 	presented.emit({
 		"speaker": node.get("speaker", "") if not str(node.get("speaker", "")).is_empty() else _speaker_name,
@@ -136,4 +170,5 @@ func _present(node_id: StringName) -> void:
 func _finish(effect: StringName) -> void:
 	_active = false
 	_node_id = &""
+	_pending_payment_option_index = -1
 	finished.emit(effect)

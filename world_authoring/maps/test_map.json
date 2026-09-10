@@ -31,11 +31,15 @@
         ],
         [
           40,
-          106
+          112
         ],
         [
           4,
-          106
+          114
+        ],
+        [
+          10,
+          96
         ]
       ],
       "vegetation": {
@@ -81,11 +85,11 @@
         ],
         [
           86,
-          108
+          117
         ],
         [
           42,
-          108
+          117
         ]
       ],
       "vegetation": {
@@ -131,11 +135,11 @@
         ],
         [
           116,
-          108
+          117
         ],
         [
-          104,
-          108
+          102,
+          117
         ]
       ],
       "vegetation": {
@@ -209,8 +213,12 @@
           110
         ],
         [
-          146,
-          110
+          168,
+          115
+        ],
+        [
+          126,
+          114
         ]
       ],
       "vegetation": {
@@ -936,6 +944,13 @@
               "text": "Ask what a camp this size is doing on a dead road.",
               "outcome": {
                 "next": "what_road"
+              }
+            },
+            {
+              "text": "Pay 10 coins to pass.",
+              "coin_cost": 10,
+              "outcome": {
+                "effect": "pacify_encounter"
               }
             },
             {

@@ -57,6 +57,11 @@ text = "OBJECTIVE: Explore the area"
 theme_override_colors/font_color = Color(0.95, 0.84, 0.48, 1)
 theme_override_font_sizes/font_size = 14
 
+[node name="CoinsLabel" type="Label" parent="Margin/TopBar"]
+text = "COINS: 0"
+theme_override_colors/font_color = Color(0.95, 0.84, 0.48, 1)
+theme_override_font_sizes/font_size = 14
+
 [node name="Conditions" parent="Margin/TopBar" instance=ExtResource("6_conditions")]
 [node name="InitiativeLabel" type="Label" parent="Margin/TopBar"]
 text = "ATTACK ORDER"

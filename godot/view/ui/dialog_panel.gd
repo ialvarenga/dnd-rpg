@@ -25,7 +25,7 @@ func present(view: Dictionary) -> void:
 	text_label.text = str(view.get("text", ""))
 	roll_label.text = ""
 	roll_label.hide()
-	_rebuild_options(view.get("options", []))
+	_rebuild_options(view.get("options", []), int(view.get("coin_balance", 0)))
 	show()
 
 
@@ -44,14 +44,17 @@ func close() -> void:
 	_clear_options()
 
 
-func _rebuild_options(options: Array) -> void:
+func _rebuild_options(options: Array, coin_balance: int) -> void:
 	_clear_options()
 	for option in options:
 		var button := Button.new()
-		button.text = _option_text(option)
+		var coin_cost := int(option.get("coin_cost", 0))
+		button.text = _option_text(option, coin_balance)
 		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.custom_minimum_size = Vector2(0, 34)
+		button.disabled = coin_cost > coin_balance
+		_apply_choice_padding(button)
 		var check: Dictionary = option.get("check", {})
 		if not check.is_empty():
 			button.add_theme_color_override(&"font_color", CHECK_LABEL_COLOR)
@@ -64,14 +67,30 @@ func _rebuild_options(options: Array) -> void:
 
 ## A check option advertises its skill and DC up front, so choosing it is an
 ## informed gamble rather than a hidden dice roll.
-func _option_text(option: Dictionary) -> String:
+func _option_text(option: Dictionary, coin_balance: int) -> String:
 	var text := str(option.get("text", ""))
+	var coin_cost := int(option.get("coin_cost", 0))
+	if coin_cost > 0:
+		return "%s [%d coins%s]" % [text, coin_cost, "; have %d" % coin_balance if coin_cost > coin_balance else ""]
 	var check: Dictionary = option.get("check", {})
 	if check.is_empty():
 		return text
 	var skill := String(check.get("skill", ""))
 	var label := skill.replace("_", " ").capitalize() if not skill.is_empty() else String(check.get("ability", "")).capitalize()
 	return "[%s DC %d] %s" % [label, int(check.get("dc", 0)), text]
+
+
+## Button StyleBoxes own text insets. Clone the existing HUD Button styles so
+## dialog choices get a readable left gutter without altering hotbar slots or
+## every other button in the game.
+func _apply_choice_padding(button: Button) -> void:
+	for style_name in [&"normal", &"hover", &"pressed", &"focus", &"disabled"]:
+		var inherited := get_theme_stylebox(style_name, &"Button")
+		if inherited == null:
+			continue
+		var padded := inherited.duplicate() as StyleBox
+		padded.set_content_margin(SIDE_LEFT, 12.0)
+		button.add_theme_stylebox_override(style_name, padded)
 
 
 func _clear_options() -> void:

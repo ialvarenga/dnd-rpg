@@ -26,7 +26,8 @@ extends RefCounted
 ## carry per-encounter use limits, and the Fighter gains Second Wind.
 ## Bump 12: Prone blocks reactions (BG3-style) and gives the prone creature
 ## Disadvantage on its own attack rolls; Shove authors its animation verb.
-const CONTENT_VERSION: int = 12
+## Bump 13: actor definitions now author starting coin wallets.
+const CONTENT_VERSION: int = 13
 
 const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/basic_attack.tres",

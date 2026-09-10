@@ -26,3 +26,4 @@ equipment_slots = {
 &"armor": &"chainmail"
 }
 starting_inventory = Array[StringName]([&"healing_potion"])
+starting_coins = 10

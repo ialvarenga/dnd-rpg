@@ -82,6 +82,7 @@ func stable_snapshot() -> Dictionary:
 			"disposition": String(actor.disposition),
 			"condition_states": actor.condition_states.map(func(condition: ConditionState): return condition.to_dict()),
 			"inventory": actor.inventory,
+			"coins": actor.coins,
 			"ability_uses_spent": _sorted_ability_uses(actor.ability_uses_spent),
 		})
 	var interactable_snapshots: Array[Dictionary] = []
