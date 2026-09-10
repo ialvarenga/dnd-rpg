@@ -9,5 +9,7 @@ display_name = "Prone"
 tags = Array[StringName]([&"condition.prone"])
 melee_advantage_when_close = true
 ranged_disadvantage_when_not_close = true
+attack_roll_disadvantage = true
+prevents_reactions = true
 counts_as_prone = true
 half_speed_required_to_stand = true

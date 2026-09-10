@@ -145,6 +145,12 @@ func is_conscious() -> bool:
 	return is_alive() and not _has_condition_flag(&"prevents_actions")
 
 
+## Whether this actor may react at all right now, independent of whether its
+## per-round reaction is still unspent (reaction_available).
+func can_take_reactions() -> bool:
+	return is_conscious() and not _has_condition_flag(&"prevents_reactions")
+
+
 func is_prone() -> bool:
 	# Both "prone" and "unconscious" flag counts_as_prone in their
 	# ConditionDefinition, so an unconscious actor is prone here without

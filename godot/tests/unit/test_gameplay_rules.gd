@@ -13,6 +13,8 @@ static func run() -> Dictionary:
 	_test_encounter_start_validation_and_scope(failures)
 	_test_objective_prerequisites_and_completion(failures)
 	_test_shove_uses_better_save_and_applies_prone(failures)
+	_test_prone_actor_stands_at_turn_start(failures)
+	_test_combat_end_stands_prone_survivors(failures)
 	_test_dodge_expires_at_owner_turn_start(failures)
 	_test_ranged_bands_nearby_hostile_cover_and_damage_type(failures)
 	_test_archer_ai_creates_standoff(failures)
@@ -154,8 +156,53 @@ static func _test_shove_uses_better_save_and_applies_prone(failures: Array[Strin
 	_expect(test_event != null and test_event.data.get("ability_modifier") == -4 and not test_event.data.get("proficient") and test_event.data.get("proficiency_bonus") == 0, "saving throw event did not expose its ability and proficiency components", failures)
 	_expect(test_event != null and test_event.data.get("rng_state_before") == state.rng_state and test_event.data.get("next_rng_state") == first.next_rng_state, "saving throw event did not expose its deterministic RNG transition", failures)
 	_expect(TestHelpers.event_log_entry(first) == TestHelpers.event_log_entry(second), "saving throw and RNG advance were not deterministic", failures)
+	var action_event := _event(first, &"action_spent")
+	_expect(action_event != null and action_event.data.get("action") == &"shove" and action_event.data.get("target_id") == target.id, "Shove's action_spent did not name its target for presentation", failures)
 	TestHelpers.apply_result(state, first)
 	_expect(target.has_condition(&"prone") and target.condition_state(&"prone").source_actor_id == hero.id, "failed Shove did not apply a sourced permanent Prone condition", failures)
+
+
+static func _test_prone_actor_stands_at_turn_start(failures: Array[String]) -> void:
+	var state := _active_battle([1, 2])
+	var target: ActorState = state.actors[2]
+	target.movement_speed = 9.0
+	target.add_condition(&"prone", 1)
+	var result := Resolver.resolve(state, Command.create(&"end_turn", 1), FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(_event_types(result) == [&"turn_ended", &"turn_started", &"condition_removed", &"movement_spent"], "prone turn start did not stand up after its turn_started reset", failures)
+	var removed := _event(result, &"condition_removed")
+	var spent := _event(result, &"movement_spent")
+	_expect(removed != null and removed.data.get("actor_id") == target.id and removed.data.get("condition") == &"prone", "turn-start stand-up did not remove the new actor's Prone", failures)
+	_expect(spent != null and is_equal_approx(float(spent.data.get("amount")), 4.5) and is_equal_approx(float(spent.data.get("movement_remaining_after")), 4.5), "standing up did not cost half Speed", failures)
+	TestHelpers.apply_result(state, result)
+	_expect(not target.has_condition(&"prone") and is_equal_approx(target.movement_remaining, 4.5), "applied turn-start stand-up left the actor prone or with full movement", failures)
+
+	var immobile_state := _active_battle([1, 2])
+	var immobile: ActorState = immobile_state.actors[2]
+	immobile.movement_speed = 0.0
+	immobile.add_condition(&"prone", 1)
+	var immobile_result := Resolver.resolve(immobile_state, Command.create(&"end_turn", 1), FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(not _has_event(immobile_result, &"condition_removed"), "an actor with no Speed stood up from Prone", failures)
+	TestHelpers.apply_result(immobile_state, immobile_result)
+	_expect(immobile.has_condition(&"prone"), "an actor with no Speed did not stay prone", failures)
+
+
+static func _test_combat_end_stands_prone_survivors(failures: Array[String]) -> void:
+	var state := _active_battle([1, 2])
+	var hero: ActorState = state.actors[1]
+	var enemy: ActorState = state.actors[2]
+	hero.add_condition(&"prone", 2)
+	hero.attack_bonus = 100
+	hero.damage_die = 1
+	hero.damage_modifier = 5
+	enemy.hp = 1
+	var command := Command.create(&"basic_attack", hero.id)
+	command.target_id = enemy.id
+	var result := Resolver.resolve(state, command, FakeNavProvider.new(), FakeLosProvider.new())
+	var types := _event_types(result)
+	var removed := _event(result, &"condition_removed")
+	_expect(removed != null and removed.data.get("actor_id") == hero.id and types.find(&"condition_removed") < types.find(&"encounter_resolved"), "a prone survivor did not stand up before combat ended", failures)
+	TestHelpers.apply_result(state, result)
+	_expect(state.phase == &"exploration" and not hero.has_condition(&"prone"), "combat ended with its survivor still prone", failures)
 
 
 static func _test_dodge_expires_at_owner_turn_start(failures: Array[String]) -> void:

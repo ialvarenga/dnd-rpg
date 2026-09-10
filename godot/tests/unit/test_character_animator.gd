@@ -9,14 +9,36 @@ static func run() -> Dictionary:
 	_test_missing_idle_uses_safe_fallback(failures)
 	_test_missing_idle_uses_available_safe_clip(failures)
 	_test_no_available_clip_is_safe(failures)
+	_test_state_finished_reports_only_the_current_clip(failures)
+	_test_hold_pose_relabels_without_changing_clip(failures)
 	return {"name": "unit/test_character_animator", "failures": failures}
 
 
 static func _test_stable_verb_vocabulary(failures: Array[String]) -> void:
 	var animation_set := ActorAnimationSet.new()
-	for verb in [&"idle", &"locomotion", &"jump", &"crouch", &"dodge", &"interact", &"attack", &"combat_ready", &"block", &"hit", &"death"]:
+	for verb in [&"idle", &"locomotion", &"jump", &"crouch", &"dodge", &"interact", &"attack", &"combat_ready", &"block", &"hit", &"death", &"shove", &"knockdown", &"prone", &"stand_up"]:
 		_expect(animation_set.clip_for(verb) != &"", "animation set has no clip mapping for %s" % verb, failures)
 	_expect(animation_set.clip_for(&"unknown") == &"", "animation set mapped an unknown verb", failures)
+	_expect(is_equal_approx(animation_set.speed_scale_for(&"stand_up"), 1.4) and is_equal_approx(animation_set.speed_scale_for(&"idle"), 1.0), "animation set did not scale only the stand-up clip", failures)
+
+
+static func _test_state_finished_reports_only_the_current_clip(failures: Array[String]) -> void:
+	var animator := _animator_with(PackedStringArray(["Idle", "Fall", "Lie"]))
+	var finished: Array[StringName] = []
+	animator.state_finished.connect(func(state: StringName): finished.append(state))
+	var player: AnimationPlayer = animator._players[0]
+	animator.present(&"knockdown")
+	player.animation_finished.emit(&"test/Idle")
+	_expect(finished.is_empty(), "a clip that is no longer current reported a finished state", failures)
+	player.animation_finished.emit(&"test/Fall")
+	_expect(finished == [&"knockdown"], "the current knockdown clip did not report its finished state", failures)
+
+
+static func _test_hold_pose_relabels_without_changing_clip(failures: Array[String]) -> void:
+	var animator := _animator_with(PackedStringArray(["Idle", "Lie"]))
+	animator.present(&"prone")
+	animator.hold_pose(&"death")
+	_expect(animator.current_state == &"death" and animator.current_clip == &"Lie", "hold_pose did not keep the lying clip under the death state", failures)
 
 
 static func _test_selects_stable_verb_clip(failures: Array[String]) -> void:
@@ -61,6 +83,8 @@ static func _animator_with(clips: PackedStringArray) -> CharacterAnimator:
 	animation_set.combat_ready = &"CombatReady"
 	animation_set.hit = &"Hit"
 	animation_set.death = &"Death"
+	animation_set.knockdown = &"Fall"
+	animation_set.prone = &"Lie"
 	var player := AnimationPlayer.new()
 	var library := AnimationLibrary.new()
 	for clip in clips:

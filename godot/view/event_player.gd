@@ -10,6 +10,8 @@ signal movement_completed(actor_id: int)
 signal feedback_presented(event: Event, feedback: FloatingCombatText)
 
 const FLOATING_COMBAT_TEXT_SCENE := preload("res://view/ui/floating_combat_text.tscn")
+## Gaining/losing this condition is narrated as a knockdown/stand-up.
+const PRONE_CONDITION := &"prone"
 
 var _views_by_actor: Dictionary = {}
 var _last_paths: Dictionary = {}
@@ -77,8 +79,24 @@ func _narrate_event(event: Event) -> void:
 			if view != null:
 				view.present_death()
 				_present_floating_feedback(view, event)
+		&"action_spent":
+			var ability := DefinitionLibrary.get_default().get_ability(StringName(event.data.get("action", &"")))
+			if view != null and ability != null and ability.animation_verb != &"":
+				var ability_target_view := get_character_view(int(event.data.get("target_id", -1)))
+				view.present_ability(ability.animation_verb, ability_target_view.global_position if ability_target_view != null else view.global_position)
+		&"d20_test_rolled":
+			# Only a save forced by another actor (a shove) has someone to resist.
+			var save_source_view := get_character_view(int(event.data.get("source_actor_id", -1)))
+			if view != null and save_source_view != null and event.data.get("test_type") == &"saving_throw" and bool(event.data.get("success", false)):
+				view.present_resisted()
+				_present_floating_feedback(view, event)
 		&"condition_added", &"condition_removed", &"command_rejected":
 			if view != null:
+				if event.type == &"condition_added" and event.data.get("condition") == PRONE_CONDITION:
+					var source_view := get_character_view(int(event.data.get("source_actor_id", -1)))
+					view.present_knockdown(source_view.global_position if source_view != null else view.global_position)
+				elif event.type == &"condition_removed" and event.data.get("condition") == PRONE_CONDITION:
+					view.present_stand_up()
 				_present_floating_feedback(view, event)
 		&"actor_died":
 			if view != null:

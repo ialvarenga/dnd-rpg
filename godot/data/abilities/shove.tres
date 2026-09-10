@@ -24,4 +24,5 @@ description = "Force a nearby enemy to resist being knocked prone."
 costs_action = true
 targeting = &"actor"
 target_range_meters = 1.5
+animation_verb = &"shove"
 effects = Array[ExtResource("2")]([SubResource("Effect_save"), SubResource("Effect_prone")])

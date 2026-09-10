@@ -38,4 +38,9 @@ extends Resource
 ## Ignored while max_uses is negative.
 @export var uses_recharge: StringName = &"encounter"
 
+## Presentation-only: the ActorAnimationSet verb the user plays when this
+## ability's action is spent. Empty means no dedicated animation (attacks are
+## narrated by attack_rolled instead). The Resolver never reads it.
+@export var animation_verb: StringName = &""
+
 @export var effects: Array[AbilityEffect] = []

@@ -165,6 +165,14 @@ static func _test_opportunity_attack_and_disengage(failures: Array[String]) -> v
 	var hidden_result := Resolver.resolve(hidden_state, safe_move, FakeNavProvider.new(), hidden_los)
 	_expect(_event_count(hidden_result, &"reaction_triggered") == 0, "enemy without visibility triggered an opportunity attack", failures)
 
+	# BG3-style Prone: a creature lying on the ground cannot react, so walking
+	# away from a shoved enemy provokes nothing (its reaction stays unspent).
+	var prone_threat_state := TestHelpers.make_battle(5)
+	(prone_threat_state.actors[2] as ActorState).add_condition(&"prone", 1)
+	var prone_threat_result := Resolver.resolve(prone_threat_state, safe_move, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(_event_count(prone_threat_result, &"reaction_triggered") == 0 and _event_count(prone_threat_result, &"movement_segment") == 1, "a prone enemy made an opportunity attack", failures)
+	_expect((prone_threat_state.actors[2] as ActorState).reaction_available and not (prone_threat_state.actors[2] as ActorState).can_take_reactions(), "Prone did not block reactions while leaving the reaction unspent", failures)
+
 	var fatal_state := TestHelpers.make_battle(5)
 	var fatal_hero: ActorState = fatal_state.actors[1]
 	fatal_hero.hp = 1
@@ -202,6 +210,12 @@ static func _test_conditions_and_death(failures: Array[String]) -> void:
 	ranged_prone_attack.metadata = {"is_ranged": true, "range_meters": 9.0}
 	var ranged_prone_result := Resolver.resolve(ranged_prone_state, ranged_prone_attack, FakeNavProvider.new(), FakeLosProvider.new())
 	_expect(ranged_prone_result.events[0].data["disadvantage"] and not ranged_prone_result.events[0].data["advantage"], "ranged attack beyond close range against prone target did not use disadvantage", failures)
+	var prone_attacker_state := TestHelpers.make_battle()
+	(prone_attacker_state.actors[1] as ActorState).add_condition(&"prone")
+	var prone_attacker_attack := Command.create(&"attack", 1)
+	prone_attacker_attack.target_id = 2
+	var prone_attacker_result := Resolver.resolve(prone_attacker_state, prone_attacker_attack, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(prone_attacker_result.events[0].data["disadvantage"] and (prone_attacker_result.events[0].data["rolls"] as Array).size() == 2, "a prone attacker did not roll with disadvantage", failures)
 
 	var poisoned_state := TestHelpers.make_battle()
 	(poisoned_state.actors[1] as ActorState).add_condition(&"poisoned")

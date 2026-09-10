@@ -10,3 +10,4 @@ asset_type = &"prop"
 tags = PackedStringArray("dungeon", "light", "torch", "wall")
 footprint_radius = 0.15
 placement_max_slope_deg = 90.0
+display_offset = Vector3(0, 0.3950457, 0)

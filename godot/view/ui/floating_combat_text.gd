@@ -30,6 +30,10 @@ func show_event(event: Event) -> void:
 		&"attack_rolled":
 			text = "HIT" if event.data.get("hit", false) else "MISS"
 			modulate = Color.WHITE
+		&"d20_test_rolled":
+			# A failed save is already told by its effect (e.g. "+PRONE").
+			text = "RESISTED" if event.data.get("success", false) else ""
+			modulate = Color("c9d3e6")
 		_:
 			text = ""
 	if not text.is_empty():

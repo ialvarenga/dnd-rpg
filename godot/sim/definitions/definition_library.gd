@@ -24,7 +24,9 @@ extends RefCounted
 ## ability carried by the player stat block.
 ## Bump 11: the healing potion costs a Bonus Action per SRD 5.2.1, abilities
 ## carry per-encounter use limits, and the Fighter gains Second Wind.
-const CONTENT_VERSION: int = 11
+## Bump 12: Prone blocks reactions (BG3-style) and gives the prone creature
+## Disadvantage on its own attack rolls; Shove authors its animation verb.
+const CONTENT_VERSION: int = 12
 
 const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/basic_attack.tres",

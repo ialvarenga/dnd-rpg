@@ -31,7 +31,7 @@ static func rejection_for_cost(actor: ActorState, ability: AbilityDefinition, de
 		return RejectionReasonRules.ACTION_UNAVAILABLE
 	if ability.costs_bonus_action and not actor.bonus_action_available:
 		return RejectionReasonRules.BONUS_ACTION_UNAVAILABLE
-	if ability.costs_reaction and not actor.reaction_available:
+	if ability.costs_reaction and (not actor.reaction_available or not actor.can_take_reactions()):
 		return RejectionReasonRules.REACTION_UNAVAILABLE
 	if ability.movement_cost > 0.0 and actor.movement_remaining + MOVEMENT_EPSILON < ability.movement_cost:
 		return RejectionReasonRules.INSUFFICIENT_MOVEMENT

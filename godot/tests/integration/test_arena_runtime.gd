@@ -22,6 +22,7 @@ func run() -> Dictionary:
 	await _test_preview_and_clamped_combat_movement(controller, player, event_player, failures)
 	_test_command_event_view_pipeline(controller, player, event_player, failures)
 	await _test_animation_movement_transition(controller, player, event_player, failures)
+	await _test_knockdown_sequence(controller, player, event_player, failures)
 	await _test_target_replacement(controller, player, event_player, failures)
 	await _test_obstacle_route(controller, player, event_player, failures)
 	await _test_rejected_and_invalid_clicks(controller, player, failures)
@@ -186,6 +187,68 @@ func _test_animation_movement_transition(_controller: TestArenaController, playe
 		])
 		await get_tree().physics_frame
 		_expect(player.animator.current_state == &"death", "damage followed by actor_died did not narrate death", failures)
+
+
+## Shove -> knockdown -> prone -> stand-up -> walk, driven only by narrated
+## events. The clips are short and their player sits in the tree so real
+## animation_finished signals chain the sequence.
+func _test_knockdown_sequence(controller: TestArenaController, player: CharacterView, event_player: EventPlayer, failures: Array[String]) -> void:
+	if player.animator == null:
+		return
+	# The previous test narrated this view's death; start from the live actor.
+	var actor: ActorState = controller.battle_state.actors[player.actor_id]
+	player.reset_presentation(actor)
+	var clip_player := _configure_knockdown_clips(player)
+	event_player.play_events([Event.create(&"action_spent", {"actor_id": player.actor_id, "action": &"shove", "target_id": -1})])
+	_expect(player.animator.current_state == &"shove" and player.animator.current_clip == &"Melee_Block_Attack", "a shove's action_spent did not play its authored animation verb", failures)
+
+	event_player.play_events([Event.create(&"condition_added", {"actor_id": player.actor_id, "condition": &"prone", "source_actor_id": -1})])
+	_expect(player.animator.current_state == &"shove" and player.is_presentation_busy(), "the fall did not wait for the push to connect", failures)
+	_expect(await _wait_for_animator_state(player, &"knockdown", 90), "Prone did not play the knockdown fall", failures)
+	_expect(await _wait_for_animator_state(player, &"prone", 90), "the knockdown did not settle into the prone loop", failures)
+	_expect(not player.is_presentation_busy(), "lying prone kept the view busy", failures)
+	event_player.play_events([Event.create(&"damage_taken", {"actor_id": player.actor_id, "amount": 1})])
+	_expect(player.animator.current_state == &"prone", "a hit reaction stood a prone actor back up", failures)
+
+	var start := player.global_position
+	var target := start + Vector3(1.5, 0.0, 0.0)
+	event_player.play_events([
+		Event.create(&"condition_removed", {"actor_id": player.actor_id, "condition": &"prone"}),
+		Event.create(&"movement_segment", {"actor_id": player.actor_id, "path": PackedVector3Array([start, target]), "to": target}),
+	])
+	await get_tree().physics_frame
+	_expect(player.animator.current_state == &"stand_up" and player.is_moving() and player.global_position == start, "a prone move walked before its stand-up finished", failures)
+	_expect(await _wait_for_animator_state(player, &"locomotion", 90), "the queued walk did not start after the stand-up", failures)
+	await _wait_for_destination(player, 180)
+	_expect(player.destination_state == &"reached" and not player.is_presentation_busy(), "the queued walk did not reach its destination", failures)
+
+	event_player.play_events([Event.create(&"d20_test_rolled", {"actor_id": player.actor_id, "source_actor_id": player.actor_id, "test_type": &"saving_throw", "success": true})])
+	_expect(await _wait_for_animator_state(player, &"hit", 90), "a resisted shove did not stagger its target", failures)
+	clip_player.queue_free()
+	_configure_event_animation_clips(player.animator)
+	player.reset_presentation(actor)
+
+
+func _configure_knockdown_clips(view: CharacterView) -> AnimationPlayer:
+	var clip_player := AnimationPlayer.new()
+	var library := AnimationLibrary.new()
+	for clip in PackedStringArray(["Idle_A", "Walking_A", "Melee_Blocking", "Melee_Block_Attack", "Death_A", "Lie_Idle", "Lie_StandUp", "Hit_A"]):
+		var animation := Animation.new()
+		animation.length = 0.1
+		animation.loop_mode = Animation.LOOP_LINEAR if clip == "Lie_Idle" else Animation.LOOP_NONE
+		library.add_animation(clip, animation)
+	clip_player.add_animation_library(&"test", library)
+	view.add_child(clip_player)
+	view.animator.configure_players([clip_player])
+	return clip_player
+
+
+func _wait_for_animator_state(view: CharacterView, state: StringName, max_frames: int) -> bool:
+	for _frame in range(max_frames):
+		if view.animator.current_state == state:
+			return true
+		await get_tree().physics_frame
+	return view.animator.current_state == state
 
 
 func _configure_event_animation_clips(animator: CharacterAnimator) -> void:

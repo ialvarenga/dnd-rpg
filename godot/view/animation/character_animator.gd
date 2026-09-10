@@ -6,12 +6,19 @@ const DEFAULT_ANIMATION_SET: ActorAnimationSet = preload("res://data/animations/
 ## Explicit presentation state machine.  It owns no simulation references and
 ## accepts only already-narrated view intents from CharacterView/EventPlayer.
 
+## Emitted when the clip playing for `state` reaches its end, so a view can
+## chain one-shot clips (knockdown -> prone, stand_up -> ready). Looping clips
+## never finish, and a clip interrupted by another request never reports.
+signal state_finished(state: StringName)
+
 @export var animation_set: ActorAnimationSet = DEFAULT_ANIMATION_SET
 @export_range(0.0, 1.0, 0.01) var blend_seconds := 0.15
 
 var current_state: StringName = &"idle"
 var current_clip: StringName = &""
 var _players: Array[AnimationPlayer] = []
+var _current_player: AnimationPlayer
+var _current_player_clip: StringName = &""
 
 
 func _ready() -> void:
@@ -28,6 +35,7 @@ func configure_model(model_root: Node) -> void:
 		_players.append(model_player)
 	for path in animation_set.animation_library_paths:
 		_add_optional_library(model_root, path)
+	_connect_finished_signals()
 	request_state(&"idle")
 
 
@@ -36,6 +44,7 @@ func configure_model(model_root: Node) -> void:
 ## AnimationPlayer root bindings.
 func configure_players(players: Array[AnimationPlayer]) -> void:
 	_players = players.duplicate()
+	_connect_finished_signals()
 	request_state(&"idle")
 
 
@@ -81,6 +90,14 @@ func present(verb: StringName) -> void:
 	request_state(verb)
 
 
+## Freezes whatever pose is showing and relabels it, e.g. a prone actor that
+## dies stays where it lies instead of standing back up to replay a fall.
+func hold_pose(state: StringName) -> void:
+	current_state = state
+	if _current_player != null and _current_player.is_playing():
+		_current_player.pause()
+
+
 func request_state(verb: StringName) -> void:
 	var requested_clip := animation_set.clip_for(verb) if animation_set != null else &""
 	var resolved := _resolve_clip(requested_clip)
@@ -101,7 +118,7 @@ func request_state(verb: StringName) -> void:
 	# AnimationPlayer keys may be qualified (for example "movement/Walk"),
 	# while this component exposes the data-facing clip name to views and tests.
 	current_clip = StringName(String(selected_clip).get_file())
-	_play(selected, selected_clip)
+	_play(selected, selected_clip, animation_set.speed_scale_for(resolved_state) if animation_set != null else 1.0)
 
 
 func has_clip(verb: StringName) -> bool:
@@ -169,15 +186,31 @@ func _resolve_clip(clip: StringName) -> Dictionary:
 	return {}
 
 
-func _play(selected: AnimationPlayer, clip: StringName) -> void:
+func _play(selected: AnimationPlayer, clip: StringName, speed_scale: float = 1.0) -> void:
 	for player in _players:
 		if player != selected and player.is_playing():
 			player.stop()
+	_current_player = selected
+	_current_player_clip = clip
 	if selected.current_animation != clip or not selected.is_playing():
-		selected.play(clip, blend_seconds)
+		selected.play(clip, blend_seconds, speed_scale)
 
 
 func _stop_all() -> void:
+	_current_player = null
+	_current_player_clip = &""
 	for player in _players:
 		if player.is_playing():
 			player.stop()
+
+
+func _connect_finished_signals() -> void:
+	for player in _players:
+		var callback := _on_player_animation_finished.bind(player)
+		if not player.animation_finished.is_connected(callback):
+			player.animation_finished.connect(callback)
+
+
+func _on_player_animation_finished(clip: StringName, player: AnimationPlayer) -> void:
+	if player == _current_player and clip == _current_player_clip:
+		state_finished.emit(current_state)

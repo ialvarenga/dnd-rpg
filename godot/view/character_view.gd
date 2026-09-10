@@ -36,6 +36,20 @@ var _target_highlight_material: StandardMaterial3D
 var _model_root: Node
 var _weapon_attached := false
 var _is_dead := false
+var _in_combat := false
+# Knockdown sequence: a shove's impact is delayed (_knockdown_pending), then
+# the fall plays, then the prone loop holds (_is_prone) until the simulation
+# stands the actor up (_standing_up). A stand-up narrated mid-fall waits for
+# the fall to land (_stand_pending), and a walk narrated before the actor is on
+# its feet waits for the stand-up (_pending_movement).
+var _is_prone := false
+var _knockdown_pending := false
+var _stand_pending := false
+var _standing_up := false
+var _pending_movement: Dictionary = {}
+# Bumped whenever presentation is reset or ends in death, so a delayed impact
+# scheduled against the previous presentation never fires into the new one.
+var _presentation_generation := 0
 @onready var animator: CharacterAnimator = get_node_or_null("CharacterAnimator") as CharacterAnimator
 @onready var combat_sfx: AudioStreamPlayer3D = get_node_or_null("CombatSfx") as AudioStreamPlayer3D
 
@@ -43,12 +57,24 @@ var _is_dead := false
 func _ready() -> void:
 	_locomotion.speed = movement_speed
 	_locomotion.waypoint_tolerance = target_tolerance
+	if animator != null:
+		animator.state_finished.connect(_on_animator_state_finished)
 	# AssetCatalog dresses the character from its parent's _ready. Deferring lets
 	# this presentation layer find the KayKit model after that replacement.
 	call_deferred("_initialize_animations")
 
 
 func play_movement(path: PackedVector3Array, target: Vector3) -> bool:
+	if _is_grounded():
+		# A prone move narrates its stand-up first; walking must not stomp that
+		# clip, so the path waits until the actor is on its feet. Movement with
+		# no stand-up narrated still needs one visually, so start it here.
+		_pending_movement = {"path": path.duplicate(), "target": target}
+		destination = target
+		destination_state = &"standing_up"
+		if not (_knockdown_pending or _stand_pending or _standing_up):
+			present_stand_up()
+		return true
 	_locomotion.speed = movement_speed
 	_locomotion.waypoint_tolerance = target_tolerance
 	destination = target
@@ -75,7 +101,14 @@ func get_debug_velocity() -> Vector3:
 
 
 func is_moving() -> bool:
-	return _locomotion.is_active()
+	return _locomotion.is_active() or not _pending_movement.is_empty()
+
+
+## True while this view still lags the simulation in a way the next command
+## must wait for: a walk, or a fall/stand-up an attack clip would stomp. Lying
+## still in the prone loop is not busy -- an actor with no Speed stays there.
+func is_presentation_busy() -> bool:
+	return is_moving() or _knockdown_pending or _stand_pending or _standing_up or (animator != null and animator.current_state == &"knockdown")
 
 
 func synchronize_to_authoritative_position(position: Vector3) -> void:
@@ -88,6 +121,7 @@ func synchronize_to_authoritative_position(position: Vector3) -> void:
 func reset_presentation(actor: ActorState, in_combat: bool = false) -> void:
 	_locomotion.stop()
 	_is_dead = false
+	_clear_knockdown_sequence()
 	destination = actor.position
 	destination_state = &"idle"
 	global_position = actor.position
@@ -97,9 +131,16 @@ func reset_presentation(actor: ActorState, in_combat: bool = false) -> void:
 	if in_combat:
 		present_combat_ready()
 	else:
+		_in_combat = false
 		_detach_held_weapon()
 		if animator != null:
 			animator.present_combat_ended()
+	# A restored checkpoint/save can hold a prone actor: show it already lying
+	# down rather than replaying a fall that happened before the restore.
+	if actor.has_condition(&"prone"):
+		_is_prone = true
+		if animator != null:
+			animator.request_state(&"prone")
 
 
 func _physics_process(delta: float) -> void:
@@ -120,8 +161,7 @@ func _physics_process(delta: float) -> void:
 		_finish_movement()
 		return
 	if velocity.length_squared() > 0.0001:
-		var desired_yaw := atan2(-velocity.x, -velocity.z)
-		rotation.y = lerp_angle(rotation.y, desired_yaw, 1.0 - exp(-turn_speed * delta))
+		rotation.y = lerp_angle(rotation.y, _yaw_toward(velocity), 1.0 - exp(-turn_speed * delta))
 		# Same guard as the stopped branch above: a death/attack/hit narrated
 		# while this actor's walk is still interpolating must not be stomped
 		# back to locomotion on the very next tick.
@@ -196,7 +236,8 @@ func present_attack() -> void:
 
 
 func present_combat_ready() -> void:
-	if animator != null:
+	_in_combat = true
+	if animator != null and not _is_grounded():
 		animator.present_combat_ready()
 	_attach_held_weapon()
 
@@ -206,18 +247,21 @@ func present_combat_ended() -> void:
 	# raise a corpse back to its idle/weapon-ready presentation.
 	if _is_dead:
 		return
+	_in_combat = false
 	_detach_held_weapon()
-	if animator != null:
+	# A stand-up narrated just before combat ended settles into idle itself.
+	if animator != null and not _is_grounded():
 		animator.present_combat_ended()
 
 
 func present_dodge() -> void:
-	if animator != null:
+	if animator != null and not _is_grounded():
 		animator.present_dodge()
 
 
 func present_hit() -> void:
-	if animator != null:
+	# A standing hit reaction would pop a prone actor back onto its feet.
+	if animator != null and not _is_grounded():
 		animator.present_hit()
 	_play_combat_sound(HURT_SOUNDS)
 
@@ -227,15 +271,155 @@ func present_interaction() -> void:
 		animator.present_interaction()
 
 
+## Plays an ability's dedicated animation (AbilityDefinition.animation_verb)
+## turned toward its target, e.g. the shove's push.
+func present_ability(verb: StringName, target_position: Vector3) -> void:
+	if _is_dead:
+		return
+	_face_toward(target_position)
+	if animator != null:
+		animator.present(verb)
+
+
+## The simulation already applied Prone. Face the shover so the backward fall
+## lands away from it, and hold the fall until the push connects.
+func present_knockdown(source_position: Vector3) -> void:
+	if _is_dead or (_is_prone and not _standing_up):
+		return
+	_is_prone = true
+	_standing_up = false
+	_stand_pending = false
+	_knockdown_pending = true
+	_face_toward(source_position)
+	_after_impact(&"knockdown")
+
+
+## A successful save against a push: stagger in place once the push connects.
+func present_resisted() -> void:
+	if not _is_dead and not _is_grounded():
+		_after_impact(&"resisted")
+
+
+func present_stand_up() -> void:
+	if _is_dead:
+		return
+	if _knockdown_pending or (animator != null and animator.current_state == &"knockdown"):
+		_stand_pending = true
+		return
+	if _is_prone:
+		_begin_stand_up()
+
+
 func present_death() -> void:
+	# Mid-fall the death clip simply continues the knockdown's Death_A.
+	var lying_down := _is_prone and not _knockdown_pending and (animator == null or animator.current_state != &"knockdown")
 	_is_dead = true
+	_clear_knockdown_sequence()
 	_locomotion.stop()
 	velocity = Vector3.ZERO
 	destination_state = &"dead"
 	_locomotion_was_active = false
 	set_target_highlight(false)
-	if animator != null:
+	if animator == null:
+		return
+	if lying_down:
+		# Already on the ground: replaying the fall would stand the body up
+		# first. Freeze the prone pose where it lies instead.
+		animator.hold_pose(&"death")
+	else:
 		animator.present_death()
+
+
+func _is_grounded() -> bool:
+	return _is_prone or _knockdown_pending or _stand_pending or _standing_up
+
+
+func _clear_knockdown_sequence() -> void:
+	_presentation_generation += 1
+	_is_prone = false
+	_knockdown_pending = false
+	_stand_pending = false
+	_standing_up = false
+	_pending_movement = {}
+
+
+## Runs `impact` once the shove clip reaches contact. Bound to this node (not
+## a lambda) so a freed view silently drops the timer instead of erroring.
+func _after_impact(impact: StringName) -> void:
+	var delay := animator.animation_set.shove_impact_seconds if animator != null and animator.animation_set != null else 0.0
+	if delay <= 0.0 or not is_inside_tree():
+		_on_impact(_presentation_generation, impact)
+		return
+	get_tree().create_timer(delay).timeout.connect(_on_impact.bind(_presentation_generation, impact))
+
+
+func _on_impact(generation: int, impact: StringName) -> void:
+	if generation != _presentation_generation or _is_dead:
+		return
+	match impact:
+		&"knockdown":
+			_knockdown_pending = false
+			_play_combat_sound(HURT_SOUNDS)
+			if animator == null:
+				return
+			animator.request_state(&"knockdown")
+			# Without a fall clip there is nothing to wait for.
+			if animator.current_state != &"knockdown":
+				_on_knockdown_landed()
+		&"resisted":
+			if animator != null and not _is_grounded():
+				animator.present_hit()
+
+
+func _on_animator_state_finished(state: StringName) -> void:
+	if _is_dead:
+		return
+	match state:
+		&"knockdown":
+			_on_knockdown_landed()
+		&"stand_up":
+			_finish_stand_up()
+
+
+func _on_knockdown_landed() -> void:
+	if _stand_pending:
+		_begin_stand_up()
+	elif animator != null:
+		animator.request_state(&"prone")
+
+
+func _begin_stand_up() -> void:
+	_is_prone = false
+	_stand_pending = false
+	_standing_up = true
+	if animator != null:
+		animator.request_state(&"stand_up")
+	# Without a stand-up clip no finish signal will come.
+	if animator == null or animator.current_state != &"stand_up":
+		_finish_stand_up()
+
+
+func _finish_stand_up() -> void:
+	_standing_up = false
+	if animator != null:
+		if _in_combat:
+			animator.present_combat_ready()
+		else:
+			animator.present_combat_ended()
+	if not _pending_movement.is_empty():
+		var pending := _pending_movement
+		_pending_movement = {}
+		play_movement(pending["path"], pending["target"])
+
+
+func _face_toward(point: Vector3) -> void:
+	var direction := point - global_position
+	if Vector2(direction.x, direction.z).length_squared() > 0.0001:
+		rotation.y = _yaw_toward(direction)
+
+
+func _yaw_toward(direction: Vector3) -> float:
+	return atan2(-direction.x, -direction.z)
 
 
 func set_target_highlight(active: bool, in_range: bool = true) -> void:
@@ -264,7 +448,7 @@ func set_target_highlight(active: bool, in_range: bool = true) -> void:
 
 
 func _notify_locomotion_started() -> void:
-	if animator != null and not _is_dead:
+	if animator != null and not _is_dead and not _is_grounded():
 		animator.locomotion_started()
 
 
@@ -272,9 +456,10 @@ func _notify_locomotion_started() -> void:
 ## rejection, synchronize_to_authoritative_position, _finish_movement, plus
 ## the physics-process branches) shares this one path, so guarding it here
 ## once keeps a dead actor's death presentation from being overwritten no
-## matter which of those still runs after the fatal blow lands.
+## matter which of those still runs after the fatal blow lands. The same holds
+## for a fall, the prone loop, and a stand-up.
 func _notify_locomotion_stopped() -> void:
-	if animator != null and not _is_dead:
+	if animator != null and not _is_dead and not _is_grounded():
 		animator.locomotion_stopped()
 
 

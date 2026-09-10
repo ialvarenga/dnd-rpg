@@ -23,6 +23,9 @@ extends Resource
 
 ## Actor-eligibility / movement modifiers.
 @export var prevents_actions: bool = false
+## Blocks reactions (opportunity attacks, reaction abilities) while leaving the
+## actor's own turn intact -- e.g. BG3-style Prone.
+@export var prevents_reactions: bool = false
 @export var counts_as_prone: bool = false
 @export var half_speed_required_to_stand: bool = false
 

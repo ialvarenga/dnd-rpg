@@ -16,7 +16,10 @@ extends RefCounted
 ## Bump 5: adds skill_check and set_disposition commands, the start_dialog
 ## ability effect, and lets an ability opt into resolving outside combat
 ## (usable_in_exploration) instead of every ability being combat-gated.
-const RULES_VERSION: int = 5
+## Bump 6: a prone actor stands automatically at the start of its turn (and
+## when combat ends), a targeted ability's action_spent carries target_id, and
+## a condition may block reactions (no opportunity attacks while prone).
+const RULES_VERSION: int = 6
 
 const ATTACK_RANGE_METERS := 1.5
 const THREAT_RANGE_METERS := 1.5
@@ -65,7 +68,7 @@ const INTERACTABLE_TRANSITIONS := {
 
 static func resolve(state: BattleState, cmd: Command, nav: NavProvider, los: LosProvider, defs: DefinitionLibrary = null) -> ResolutionResult:
 	var result := _resolve_command(state, cmd, nav, los, defs)
-	return _finalize_resolution(state, cmd, result)
+	return _finalize_resolution(state, cmd, result, defs if defs != null else DefinitionLibrary.get_default())
 
 
 static func _resolve_command(state: BattleState, cmd: Command, nav: NavProvider, los: LosProvider, defs: DefinitionLibrary = null) -> ResolutionResult:
@@ -79,7 +82,7 @@ static func _resolve_command(state: BattleState, cmd: Command, nav: NavProvider,
 	if cmd.type == &"start_combat":
 		return _resolve_start_combat(state, cmd, result)
 	if cmd.type == &"end_combat":
-		return _resolve_end_combat(state, cmd, result)
+		return _resolve_end_combat(state, cmd, result, definitions)
 	if cmd.type == &"move" and state.phase == EncounterRules.EXPLORATION:
 		return _resolve_move(state, cmd, nav, los, definitions, result)
 	if cmd.type == &"interact" and state.phase == EncounterRules.EXPLORATION:
@@ -105,7 +108,7 @@ static func _resolve_command(state: BattleState, cmd: Command, nav: NavProvider,
 	if cmd.type == &"interact":
 		return _resolve_interact(state, cmd, result, true)
 	if cmd.type == &"end_turn":
-		return _resolve_end_turn(state, cmd, result)
+		return _resolve_end_turn(state, cmd, result, definitions)
 	return _rejected(result, cmd, RejectionReasonRules.UNSUPPORTED_COMMAND)
 
 
@@ -146,13 +149,14 @@ static func _resolve_start_combat(state: BattleState, cmd: Command, result: Reso
 	return result
 
 
-static func _resolve_end_combat(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
+static func _resolve_end_combat(state: BattleState, cmd: Command, result: ResolutionResult, definitions: DefinitionLibrary) -> ResolutionResult:
 	if not EncounterRules.can_end(state):
 		return _rejected(result, cmd, RejectionReasonRules.NOT_IN_COMBAT)
 	if state.current_actor_id() != cmd.actor_id:
 		return _rejected(result, cmd, RejectionReasonRules.NOT_CURRENT_ACTOR)
 	if EncounterRules.resolved_outcome(state) == EncounterRules.OUTCOME_NONE:
 		return _rejected(result, cmd, RejectionReasonRules.COMBAT_UNRESOLVED)
+	_append_combat_end_stand_ups(result, state, definitions)
 	result.events.append(Event.create(&"combat_ending", {"phase": EncounterRules.COMBAT_ENDING}))
 	result.events.append(Event.create(&"combat_ended", {"phase": EncounterRules.EXPLORATION, "initiative_order": [], "current_turn_index": 0, "round_number": 1}))
 	return result
@@ -197,11 +201,9 @@ static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, lo
 	var working_actor: ActorState = working.actors[cmd.actor_id]
 	var standing_condition := _condition_requiring_stand(working_actor, definitions)
 	if standing_condition != &"":
-		var stand_cost := working_actor.movement_speed * 0.5
-		if working_actor.movement_remaining + MOVEMENT_EPSILON < stand_cost:
+		if working_actor.movement_remaining + MOVEMENT_EPSILON < _stand_cost(working_actor):
 			return _rejected(result, cmd, RejectionReasonRules.INSUFFICIENT_MOVEMENT_TO_STAND)
-		_append_and_apply(result, working, Event.create(&"condition_removed", {"actor_id": working_actor.id, "condition": standing_condition}))
-		_append_movement_spent(result, working, working_actor.id, stand_cost)
+		_append_stand_up(result, working, working_actor.id, standing_condition)
 
 	var available := maxf(0.0, (working.actors[cmd.actor_id] as ActorState).movement_remaining)
 	if available <= MOVEMENT_EPSILON:
@@ -301,7 +303,7 @@ static func _resolve_ability_command(state: BattleState, cmd: Command, los: LosP
 	# be a rejection here. Keyed off the effect type, never off an ability id.
 	if ability.effects.any(func(effect: AbilityEffect): return effect.type == EFFECT_START_DIALOG) and (target == null or target.dialog_id == &""):
 		return _rejected(result, cmd, RejectionReasonRules.TARGET_HAS_NO_DIALOG)
-	_spend_ability_cost(result, actor, ability, not has_attack, not has_attack)
+	_spend_ability_cost(result, actor, ability, not has_attack, not has_attack, target.id if target != null else -1)
 	var working := state.clone()
 	var source: ActorState = working.actors[actor.id]
 	var working_target: ActorState = working.actors.get(cmd.target_id) as ActorState
@@ -380,7 +382,7 @@ static func _resolve_set_disposition(state: BattleState, cmd: Command, result: R
 	return result
 
 
-static func _spend_ability_cost(result: ResolutionResult, actor: ActorState, ability: AbilityDefinition, include_action: bool = true, include_reaction: bool = true) -> void:
+static func _spend_ability_cost(result: ResolutionResult, actor: ActorState, ability: AbilityDefinition, include_action: bool = true, include_reaction: bool = true, target_id: int = -1) -> void:
 	# Unlike the action/bonus-action flags this is emitted for attacks too: the
 	# attack_rolled event carries only the action/reaction spend flags, so a
 	# limited-use attack would otherwise never decrement its pool.
@@ -391,7 +393,12 @@ static func _spend_ability_cost(result: ResolutionResult, actor: ActorState, abi
 			"uses_spent": spent, "uses_remaining": maxi(0, ability.max_uses - spent),
 		}))
 	if include_action and ability.costs_action:
-		result.events.append(Event.create(&"action_spent", {"actor_id": actor.id, "action": ability.id}))
+		var action_data := {"actor_id": actor.id, "action": ability.id}
+		# Presentation needs the recipient before any save/effect event names it
+		# (a push is narrated toward its target even when the save succeeds).
+		if target_id >= 0:
+			action_data["target_id"] = target_id
+		result.events.append(Event.create(&"action_spent", action_data))
 	if ability.costs_bonus_action:
 		result.events.append(Event.create(&"bonus_action_spent", {"actor_id": actor.id, "action": ability.id}))
 	if include_reaction and ability.costs_reaction:
@@ -561,7 +568,7 @@ static func _has_adjacent_hostile(state: BattleState, actor: ActorState) -> bool
 	return false
 
 
-static func _resolve_end_turn(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
+static func _resolve_end_turn(state: BattleState, cmd: Command, result: ResolutionResult, definitions: DefinitionLibrary) -> ResolutionResult:
 	if state.initiative_order.is_empty(): return _rejected(result, cmd, RejectionReasonRules.NO_INITIATIVE_ORDER)
 	var next_index := TurnOrderRules.next_eligible_index(state, state.current_turn_index)
 	if next_index < 0: return _rejected(result, cmd, RejectionReasonRules.NO_ELIGIBLE_ACTORS)
@@ -570,7 +577,39 @@ static func _resolve_end_turn(state: BattleState, cmd: Command, result: Resoluti
 	result.events.append(Event.create(&"turn_ended", {"actor_id": cmd.actor_id}))
 	_append_condition_boundary_events(result, next_actor, &"turn_start")
 	result.events.append(_turn_started_event(next_actor, next_index, next_round))
+	# BG3-style: a prone actor rights itself as soon as its turn starts, paying
+	# the same half-Speed cost a move would, so it never fights from the ground.
+	# With no Speed it cannot stand and simply stays prone (SRD Prone).
+	var standing_condition := _condition_requiring_stand(next_actor, definitions)
+	if standing_condition != &"" and next_actor.movement_speed > MOVEMENT_EPSILON:
+		var working := state.clone()
+		for resolved_event in result.events:
+			apply(working, resolved_event)
+		_append_stand_up(result, working, next_actor.id, standing_condition)
 	return result
+
+
+## Emits the stand-up pair shared by a prone move and a prone turn start: the
+## condition ends, then half the actor's Speed is spent. Callers check the cost.
+static func _append_stand_up(result: ResolutionResult, working: BattleState, actor_id: int, condition_id: StringName) -> void:
+	_append_and_apply(result, working, Event.create(&"condition_removed", {"actor_id": actor_id, "condition": condition_id}))
+	_append_movement_spent(result, working, actor_id, _stand_cost(working.actors[actor_id]))
+
+
+static func _stand_cost(actor: ActorState) -> float:
+	return actor.movement_speed * 0.5
+
+
+## Exploration moves never pay the stand cost, so a conscious combatant still
+## prone when combat ends gets up for free rather than staying down forever.
+static func _append_combat_end_stand_ups(result: ResolutionResult, state: BattleState, definitions: DefinitionLibrary) -> void:
+	for actor_id in state.active_combatant_ids:
+		var actor := state.actors.get(actor_id) as ActorState
+		if actor == null or not actor.is_conscious():
+			continue
+		var standing_condition := _condition_requiring_stand(actor, definitions)
+		if standing_condition != &"":
+			result.events.append(Event.create(&"condition_removed", {"actor_id": actor.id, "condition": standing_condition}))
 
 
 static func _append_condition_boundary_events(result: ResolutionResult, actor: ActorState, timing: StringName) -> void:
@@ -621,7 +660,7 @@ static func _next_opportunity_reaction(state: BattleState, mover_id: int, path: 
 		if not state.active_combatant_ids.is_empty() and not state.active_combatant_ids.has(int(actor_id_variant)):
 			continue
 		var enemy: ActorState = state.actors[actor_id_variant]
-		if enemy.id == mover.id or enemy.side == mover.side or not enemy.is_conscious() or not enemy.reaction_available: continue
+		if enemy.id == mover.id or enemy.side == mover.side or not enemy.can_take_reactions() or not enemy.reaction_available: continue
 		if not los.has_line_of_sight(enemy.position, mover.position): continue
 		var exit_distance := _threat_exit_distance(path, enemy.position)
 		if exit_distance < -MOVEMENT_EPSILON: continue
@@ -689,7 +728,7 @@ static func _rejected(result: ResolutionResult, cmd: Command, reason: StringName
 	return result
 
 
-static func _finalize_resolution(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
+static func _finalize_resolution(state: BattleState, cmd: Command, result: ResolutionResult, definitions: DefinitionLibrary) -> ResolutionResult:
 	if result.events.is_empty() or result.events[0].type == &"command_rejected":
 		return result
 	var working := state.clone()
@@ -699,6 +738,7 @@ static func _finalize_resolution(state: BattleState, cmd: Command, result: Resol
 	if state.phase == EncounterRules.COMBAT and working.phase == EncounterRules.COMBAT:
 		var outcome := EncounterRules.resolved_outcome(working)
 		if outcome != EncounterRules.OUTCOME_NONE:
+			_append_combat_end_stand_ups(result, working, definitions)
 			_append_encounter_outcome(result, working, outcome)
 			return result
 	if cmd.type == &"move" and working.phase == EncounterRules.EXPLORATION and working.game_outcome == &"ongoing":

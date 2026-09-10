@@ -130,7 +130,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		# move or attack from the world below it does not.
 		get_viewport().set_input_as_handled()
 		return
-	if battle_state.phase == &"combat" and character.is_moving():
+	if battle_state.phase == &"combat" and character.is_presentation_busy():
 		# The simulation commits movement immediately, while the CharacterView
 		# catches up over several frames. Keep combat input behind that visual
 		# barrier so an attack cannot appear to land from the old position.
@@ -500,9 +500,10 @@ func _check_hostile_detection() -> void:
 func _take_enemy_turn() -> void:
 	var actor_id := battle_state.current_actor_id()
 	var hostile_view := hostile_views.get(actor_id) as CharacterView
-	if hostile_view == null or hostile_view.is_moving():
+	if hostile_view == null or hostile_view.is_presentation_busy():
 		# Authoritative movement is applied before its presentation completes.
-		# Do not resolve the enemy's next action against that still-distant view.
+		# Do not resolve the enemy's next action against that still-distant view,
+		# nor attack while its turn-start stand-up is still playing.
 		return
 	var command: Command = EnemyAIScript.new().choose_command(battle_state, actor_id, nav_provider, los_provider)
 	if command == null:
@@ -734,7 +735,7 @@ func _setup_music(settings: Dictionary) -> void:
 
 
 func _on_hud_ability_requested(ability_id: StringName) -> void:
-	if character != null and character.is_moving():
+	if character != null and character.is_presentation_busy():
 		return
 	_cancel_pending_interaction()
 	_pending_targeted_action.clear()
@@ -753,7 +754,7 @@ func _on_hud_ability_requested(ability_id: StringName) -> void:
 
 
 func _on_inventory_item_requested(item_id: StringName) -> void:
-	if character != null and character.is_moving():
+	if character != null and character.is_presentation_busy():
 		return
 	_cancel_pending_interaction()
 	_pending_targeted_action.clear()
@@ -766,7 +767,7 @@ func _on_inventory_item_requested(item_id: StringName) -> void:
 
 
 func _on_hud_end_turn_requested() -> void:
-	if character != null and character.is_moving():
+	if character != null and character.is_presentation_busy():
 		return
 	_cancel_pending_interaction()
 	_clear_interactable_highlight()
@@ -945,7 +946,7 @@ func _encounter_id_for_actor(actor_id: int) -> String:
 
 
 func _submit_targeted_ability(target_id: int) -> void:
-	if character.is_moving() or not battle_state.actors.has(character.actor_id) or not battle_state.actors.has(target_id):
+	if character.is_presentation_busy() or not battle_state.actors.has(character.actor_id) or not battle_state.actors.has(target_id):
 		return
 	_cancel_pending_interaction()
 	_clear_interactable_highlight()

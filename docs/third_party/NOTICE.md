@@ -11,7 +11,9 @@ https://creativecommons.org/licenses/by/4.0/legalcode.
 The rules have been adapted into a deterministic, metric, single-hero tactical
 video game. Adaptations include presentation-friendly melee distances, rounded
 feet-to-meter range bands, automated selection of the defender's better Shove
-save, self-only healing-potion administration, an encounter boundary standing
+save, a prone creature righting itself automatically (for half its Speed) at the
+start of its turn and when combat ends and being unable to take reactions while
+prone, self-only healing-potion administration, an encounter boundary standing
 in for the SRD short rest, and omission of rules the runtime does not yet
 model. The exact provenance and changes for each rules resource are recorded
 in `docs/rules/open-content-ledger.csv`. This project describes itself only as
@@ -101,14 +103,18 @@ them by stable UI id; no icon is gameplay authority.
 - Author: Kay Lousberg, www.kaylousberg.com
 - License: CC0 1.0 (Creative Commons Zero / public domain).
 - Files used: `Rig_Medium_MovementBasic.glb`, `Rig_Medium_CombatMelee.glb`,
-  `Rig_Medium_General.glb`, and `Rig_Medium_MovementAdvanced.glb`, copied
-  unmodified into `godot/assets/kaykit_character_animations/`. On the
+  `Rig_Medium_General.glb`, `Rig_Medium_MovementAdvanced.glb`, and
+  `Rig_Medium_Simulation.glb`, copied unmodified into
+  `godot/assets/kaykit_character_animations/` (only the Simulation import
+  settings loop `Lie_Idle`). On the
   compatible `Rig_Medium` skeleton used by the knight/raider: `Walking_A`
   plays while a character follows a resolved movement path;
   `Melee_1H_Attack_Slice_Horizontal` plays after a resolved basic attack;
   `Idle_A`/`Hit_A`/`Death_A` narrate idle/damage-taken/death; `Dodge_Backward`
   narrates a missed incoming attack; `Melee_Blocking` is the weapon-ready
-  pose entered when combat starts.
+  pose entered when combat starts. A Shove plays `Melee_Block_Attack`; its
+  target falls with `Death_A`, lies in `Lie_Idle` while Prone, and gets up
+  with `Lie_StandUp`.
 - This shared animation library is not a placeable catalog asset, so its audit
   record lives here rather than in `assets.csv`.
 
