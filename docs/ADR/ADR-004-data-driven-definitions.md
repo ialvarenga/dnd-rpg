@@ -10,9 +10,7 @@ Ability and condition content (`AbilityDefinition`, `AbilityEffect`,
 `ConditionDefinition`) is authored as plain Godot `Resource` subclasses under
 `sim/definitions/`, serialized as `.tres` text resources under
 `data/abilities/` and `data/conditions/`. This is the "simplest project-native
-format" available: the Reuse Spike (A-1) that would justify a GodotGAS
-adapter is still unstarted (see `implementation_plan.md`, section on Fase A7
-in context), there is no YAML parser in the project, and `.tres` is natively
+format" available: there is no YAML parser in the project, and `.tres` is natively
 serializable, diffable, editor-authorable, and loadable with the engine's own
 `load()` — no new dependency, no expression language, no mod loader.
 
@@ -82,8 +80,5 @@ content injection for lifecycle/eligibility checks too, thread
 `DefinitionLibrary` through `ActorState`'s predicates and their callers at
 that point.
 
-If the A-1 Reuse Spike later adopts GodotGAS as the presentation/runtime
-layer, `AbilityDefinition`/`ConditionDefinition` remain the authoritative
-content; an adapter would translate them for GodotGAS's non-authoritative
-use, per the existing GodotGAS ADR constraint in `implementation_plan.md`
-("GodotGAS NÃO é o BattleState autoritativo").
+The reuse review rejected third-party ability-system integration: the local
+definitions remain the only content format and runtime authority.
