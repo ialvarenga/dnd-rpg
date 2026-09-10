@@ -950,7 +950,7 @@
               "text": "Pay 10 coins to pass.",
               "coin_cost": 10,
               "outcome": {
-                "effect": "pacify_encounter"
+                "next": "paid_toll"
               }
             },
             {
@@ -1003,6 +1003,18 @@
         {
           "id": "stand_aside",
           "text": "...Off the road, both of you. Walk through, keep your hands where I can see them, and do not come back this way after dark.",
+          "options": [
+            {
+              "text": "Walk through the camp.",
+              "outcome": {
+                "effect": "pacify_encounter"
+              }
+            }
+          ]
+        },
+        {
+          "id": "paid_toll",
+          "text": "Ten coins buys you the road, not my trust. Walk through with your hands where I can see them. Reach for that sword again and I will collect the rest in blood.",
           "options": [
             {
               "text": "Walk through the camp.",

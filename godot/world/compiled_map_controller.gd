@@ -947,6 +947,11 @@ func _set_encounter_disposition(speaker_id: int, disposition: StringName) -> voi
 		command.metadata = {"disposition": disposition}
 		var result: ResolutionResult = session.submit_command(command)
 		event_player.play_events(result.events)
+	if disposition == &"neutral" and not encounter_id.is_empty():
+		var clear := Command.create(&"clear_encounter", speaker_id)
+		clear.metadata = {"encounter_id": encounter_id}
+		var clear_result: ResolutionResult = session.submit_command(clear)
+		event_player.play_events(clear_result.events)
 
 
 func _encounter_id_for_actor(actor_id: int) -> String:

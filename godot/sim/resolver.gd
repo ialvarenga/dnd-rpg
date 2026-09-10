@@ -20,7 +20,8 @@ extends RefCounted
 ## when combat ends), a targeted ability's action_spent carries target_id, and
 ## a condition may block reactions (no opportunity attacks while prone).
 ## Bump 7: actors have wallets and can transfer coins during exploration.
-const RULES_VERSION: int = 7
+## Bump 8: peaceful social resolutions can clear an authored encounter.
+const RULES_VERSION: int = 8
 
 const ATTACK_RANGE_METERS := 1.5
 const THREAT_RANGE_METERS := 1.5
@@ -94,6 +95,8 @@ static func _resolve_command(state: BattleState, cmd: Command, nav: NavProvider,
 		return _resolve_set_disposition(state, cmd, result)
 	if cmd.type == &"transfer_coins":
 		return _resolve_transfer_coins(state, cmd, result)
+	if cmd.type == &"clear_encounter":
+		return _resolve_clear_encounter(state, cmd, result)
 	# Abilities resolve their own phase gate, because one may declare
 	# usable_in_exploration. Everything else stays behind the combat turn gate,
 	# in the same order as before.
@@ -415,6 +418,23 @@ static func _resolve_transfer_coins(state: BattleState, cmd: Command, result: Re
 		"recipient_coins_before": recipient.coins,
 		"recipient_coins_after": recipient.coins + amount,
 	}))
+	return result
+
+
+## Social resolutions use this instead of pretending the player won a combat.
+## Encounter membership remains world-owned data, so the controller supplies
+## the authored id after settling every member's disposition.
+static func _resolve_clear_encounter(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
+	if state.phase != EncounterRules.EXPLORATION:
+		return _rejected(result, cmd, RejectionReasonRules.COMBAT_ALREADY_ACTIVE)
+	var actor: ActorState = state.actors[cmd.actor_id]
+	var conscious_rejection := CommandPhaseRulesScript.rejection_for_conscious(actor)
+	if conscious_rejection != &"":
+		return _rejected(result, cmd, conscious_rejection)
+	var encounter_id := str(cmd.metadata.get("encounter_id", ""))
+	if encounter_id.is_empty():
+		return _rejected(result, cmd, RejectionReasonRules.INVALID_ENCOUNTER)
+	result.events.append(Event.create(&"encounter_cleared", {"actor_id": actor.id, "encounter_id": encounter_id}))
 	return result
 
 
@@ -901,6 +921,10 @@ static func apply(state: BattleState, event: Event) -> void:
 			var resolved_encounter_id := str(event.data.get("encounter_id", ""))
 			if state.last_encounter_outcome == EncounterRules.OUTCOME_VICTORY and not resolved_encounter_id.is_empty() and not state.cleared_encounter_ids.has(resolved_encounter_id):
 				state.cleared_encounter_ids.append(resolved_encounter_id)
+		&"encounter_cleared":
+			var cleared_encounter_id := str(event.data.get("encounter_id", ""))
+			if not cleared_encounter_id.is_empty() and not state.cleared_encounter_ids.has(cleared_encounter_id):
+				state.cleared_encounter_ids.append(cleared_encounter_id)
 		&"initiative_established":
 			state.initiative_order = _actor_ids(event.data["initiative_order"])
 			state.current_turn_index = event.data["current_turn_index"]

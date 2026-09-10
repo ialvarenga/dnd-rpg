@@ -264,6 +264,7 @@ static func narrate(event: Event, state: BattleState, defs: DefinitionLibrary) -
 			return "%s rolls %s: %d vs DC %d - %s." % [actor_name, label, int(d.get("total", 0)), int(d.get("difficulty_class", 0)), "success" if d.get("success", false) else "failure"]
 		&"disposition_changed":
 			return "%s stands down." % actor_name if String(d.get("disposition", "")) == "neutral" else "%s turns hostile." % actor_name
+		&"encounter_cleared": return "%s resolves %s peacefully." % [actor_name, String(d.get("encounter_id", "the encounter")).replace("_", " ")]
 		&"dialog_started": return "%s speaks with %s." % [actor_name, target_name]
 		&"turn_ended": return "%s ends their turn." % actor_name
 		&"turn_started": return "%s's turn." % actor_name

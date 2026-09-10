@@ -34,6 +34,7 @@ static func run() -> Dictionary:
 	_test_skill_check_rejects_malformed_metadata(failures)
 	_test_set_disposition_applies_and_is_exploration_only(failures)
 	_test_transfer_coins_is_atomic_and_exploration_only(failures)
+	_test_clear_encounter_is_authoritative_and_exploration_only(failures)
 	return {"name": "unit/test_simulation", "failures": failures}
 
 
@@ -568,6 +569,29 @@ static func _test_transfer_coins_is_atomic_and_exploration_only(failures: Array[
 	mid_combat.metadata = {"amount": 1}
 	var combat_rejection := _first_event(Resolver.resolve(state, mid_combat, FakeNavProvider.new(), FakeLosProvider.new()), &"command_rejected")
 	_expect(combat_rejection != null and combat_rejection.data["reason"] == &"combat_already_active", "transfers should be exploration-only", failures)
+
+
+static func _test_clear_encounter_is_authoritative_and_exploration_only(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle()
+	state.phase = &"exploration"
+	var clear := Command.create(&"clear_encounter", 1)
+	clear.metadata = {"encounter_id": "ambush"}
+	var before := JSON.stringify(state.stable_snapshot())
+	var result := Resolver.resolve(state, clear, FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(_first_event(result, &"encounter_cleared") != null, "a peaceful encounter clear should emit an authoritative event", failures)
+	_expect(JSON.stringify(state.stable_snapshot()) == before, "clearing an encounter mutated state during resolution", failures)
+	TestHelpers.apply_result(state, result)
+	_expect(state.cleared_encounter_ids == ["ambush"], "applying an encounter clear should unlock its objective gate", failures)
+	TestHelpers.apply_result(state, result)
+	_expect(state.cleared_encounter_ids == ["ambush"], "applying the same encounter clear twice should remain idempotent", failures)
+	var missing_id := Command.create(&"clear_encounter", 1)
+	var missing_rejection := _first_event(Resolver.resolve(state, missing_id, FakeNavProvider.new(), FakeLosProvider.new()), &"command_rejected")
+	_expect(missing_rejection != null and missing_rejection.data["reason"] == &"invalid_encounter", "an encounter clear needs an authored encounter id", failures)
+	state.phase = &"combat"
+	var combat_clear := Command.create(&"clear_encounter", 1)
+	combat_clear.metadata = {"encounter_id": "ambush"}
+	var combat_rejection := _first_event(Resolver.resolve(state, combat_clear, FakeNavProvider.new(), FakeLosProvider.new()), &"command_rejected")
+	_expect(combat_rejection != null and combat_rejection.data["reason"] == &"combat_already_active", "encounter clears should be exploration-only", failures)
 
 
 static func _first_event(result: ResolutionResult, type: StringName) -> Event:

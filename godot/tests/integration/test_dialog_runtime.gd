@@ -165,9 +165,14 @@ func _test_coin_toll_transfers_and_pacifies(map: CompiledMapController, failures
 	var chieftain := map.battle_state.actors[talker_id] as ActorState
 	_expect(player.coins == 0 and chieftain.coins == 10, "paying the toll should debit the Knight and credit the speaking chieftain", failures)
 	_expect(map.hud.coins_label.text == "COINS: 0", "the HUD should refresh after the coin transfer", failures)
+	_expect(map._dialog_session.is_active() and map.hud.dialog_panel.text_label.text.contains("Ten coins buys you the road"), "the chief should answer the paid toll with a threatening warning", failures)
+	map._dialog_session.choose(0)
 	for actor_id in map.hostile_views:
 		_expect((map.battle_state.actors[int(actor_id)] as ActorState).disposition == &"neutral", "paying the toll should safely pacify the entire camp", failures)
-	_expect(not map._dialog_session.is_active() and not map.hud.dialog_panel.visible, "a paid toll should close the dialog after granting passage", failures)
+	_expect(map.battle_state.cleared_encounter_ids.has("emberwatch_ambush"), "a peaceful toll resolution should clear the encounter that gates the objective", failures)
+	_expect(not map._dialog_session.is_active() and not map.hud.dialog_panel.visible, "the chief's final passage response should close the dialog", failures)
+	var objective := map.battle_state.objectives.get("emberwatch_camp") as ObjectiveState
+	_expect(objective != null and objective.requirements_met(map.battle_state.cleared_encounter_ids), "a paid peaceful resolution should unlock the objective marker for the player's next move", failures)
 	_expect(_open_dialog(map, talker_id), "the chieftain should remain talkable after granting passage", failures)
 	var unaffordable_option := _payment_option(map)
 	_expect(unaffordable_option != -1 and (map.hud.dialog_panel.option_list.get_child(unaffordable_option) as Button).disabled, "a payment option should disable once the player lacks its coins", failures)
