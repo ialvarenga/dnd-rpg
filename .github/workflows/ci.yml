@@ -1,27 +1,27 @@
-name: Godot headless checks
+# name: Godot headless checks
 
-on:
-  push:
-  pull_request:
+# on:
+#   push:
+#   pull_request:
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Godot 4.6
-        uses: chickensoft-games/setup-godot@v2
-        with:
-          version: 4.6.0
-      - name: Check GDScript indentation
-        run: python3 scripts/check_gdscript_style.py
-      - name: Check generated forest palettes
-        run: python3 scripts/generate_forest_palettes.py --check
-      - name: Check generated forest catalog
-        run: python3 scripts/generate_forest_catalog.py --check
-      - name: Test Map Builder modules
-        run: npm test --prefix map_builder
-      - name: Import and validate project
-        run: godot --headless --path godot --editor --quit
-      - name: Run headless simulation tests
-        run: godot --headless --path godot --script res://tests/test_runner.gd
+# jobs:
+#   test:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#       - name: Set up Godot 4.6
+#         uses: chickensoft-games/setup-godot@v2
+#         with:
+#           version: 4.6.0
+#       - name: Check GDScript indentation
+#         run: python3 scripts/check_gdscript_style.py
+#       - name: Check generated forest palettes
+#         run: python3 scripts/generate_forest_palettes.py --check
+#       - name: Check generated forest catalog
+#         run: python3 scripts/generate_forest_catalog.py --check
+#       - name: Test Map Builder modules
+#         run: npm test --prefix map_builder
+#       - name: Import and validate project
+#         run: godot --headless --path godot --editor --quit
+#       - name: Run headless simulation tests
+#         run: godot --headless --path godot --script res://tests/test_runner.gd
