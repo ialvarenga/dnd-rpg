@@ -125,7 +125,7 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if camera == null or nav_provider == null:
 		return
-	if hud != null and hud.is_pause_menu_open():
+	if hud != null and hud.is_world_paused():
 		get_viewport().set_input_as_handled()
 		return
 	if battle_state.phase == &"game_over":
@@ -453,7 +453,7 @@ func _update_world_health_bar(view: CharacterView) -> void:
 func _process(delta: float) -> void:
 	if session == null or character == null:
 		return
-	if hud != null and hud.is_pause_menu_open():
+	if hud != null and hud.is_world_paused():
 		return
 	_animate_interactable_highlight(delta)
 	if music != null:
@@ -733,6 +733,9 @@ func _setup_hud() -> void:
 	hud.restart_requested.connect(_on_restart_requested)
 	hud.quicksave_requested.connect(_on_hud_quicksave_requested)
 	hud.quickload_requested.connect(_on_hud_quickload_requested)
+	hud.world_pause_changed.connect(func(paused: bool):
+		if camera_rig != null: camera_rig.input_enabled = not paused
+	)
 
 
 func _setup_music(settings: Dictionary) -> void:

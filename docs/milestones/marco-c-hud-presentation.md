@@ -106,6 +106,12 @@ loading it.
 - Keep replay and replay-log suites green. CI gates are GDScript style,
   headless editor import, and the complete test runner.
 
+## Character sheet modal — concluída
+
+- Add a paused, tabbed Character Sheet for Stats, Equipment, and Inventory.
+- Keep the sheet as a pure `BattleState` projection; inventory use continues
+  through the existing HUD intent and `EncounterSession` controller path.
+
 ### Exit criteria
 
 ```text

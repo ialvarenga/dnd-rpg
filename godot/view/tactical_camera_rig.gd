@@ -15,6 +15,7 @@ var target_focus := Vector3.ZERO
 var target_yaw := deg_to_rad(35.0)
 var target_zoom := 20.0
 var _middle_dragging := false
+var input_enabled := true
 ## Optional presentation target.  Keeping this on the rig (rather than in
 ## simulation) allows a rig to be parented to, or simply follow, a view node.
 var follow_target: Node3D
@@ -34,7 +35,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if follow_target != null and is_instance_valid(follow_target):
 		target_focus = follow_target.global_position + follow_offset
-	var input_vector := Input.get_vector(&"camera_pan_left", &"camera_pan_right", &"camera_pan_forward", &"camera_pan_back")
+	var input_vector := Input.get_vector(&"camera_pan_left", &"camera_pan_right", &"camera_pan_forward", &"camera_pan_back") if input_enabled else Vector2.ZERO
 	if input_vector.length_squared() > 0.0:
 		var forward := Vector3(-sin(target_yaw), 0.0, -cos(target_yaw))
 		var right := Vector3(-forward.z, 0.0, forward.x)
@@ -43,9 +44,9 @@ func _process(delta: float) -> void:
 		# so pressing forward actually moves toward `forward`, not away from it.
 		target_focus += (right * input_vector.x - forward * input_vector.y) * pan_speed * delta
 		_clamp_focus()
-	if Input.is_action_pressed(&"camera_rotate_left"):
+	if input_enabled and Input.is_action_pressed(&"camera_rotate_left"):
 		target_yaw -= rotation_speed * delta
-	if Input.is_action_pressed(&"camera_rotate_right"):
+	if input_enabled and Input.is_action_pressed(&"camera_rotate_right"):
 		target_yaw += rotation_speed * delta
 
 	var weight := 1.0 - exp(-smoothing_speed * delta)
@@ -55,6 +56,9 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not input_enabled:
+		_middle_dragging = false
+		return
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_MIDDLE:
 			_middle_dragging = event.pressed

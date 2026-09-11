@@ -1,0 +1,200 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://view/ui/character_sheet.gd" id="1_script"]
+[ext_resource type="Theme" path="res://data/ui/hud_theme.tres" id="2_theme"]
+[ext_resource type="Resource" path="res://data/ui/hud_icons.tres" id="3_icons"]
+
+[sub_resource type="ButtonGroup" id="TabGroup"]
+
+[node name="CharacterSheet" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+theme = ExtResource("2_theme")
+script = ExtResource("1_script")
+icon_set = ExtResource("3_icons")
+
+[node name="Shade" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0.02, 0.015, 0.012, 0.55)
+
+[node name="Anchor" type="CenterContainer" parent="Shade"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="Shade/Anchor"]
+custom_minimum_size = Vector2(820, 560)
+theme_type_variation = &"SheetPanel"
+
+[node name="Margin" type="MarginContainer" parent="Shade/Anchor/Panel"]
+theme_override_constants/margin_left = 22
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 22
+theme_override_constants/margin_bottom = 18
+
+[node name="Rows" type="VBoxContainer" parent="Shade/Anchor/Panel/Margin"]
+theme_override_constants/separation = 10
+
+[node name="Header" type="HBoxContainer" parent="Shade/Anchor/Panel/Margin/Rows"]
+
+[node name="Name" type="Label" parent="Shade/Anchor/Panel/Margin/Rows/Header"]
+size_flags_horizontal = 3
+theme_type_variation = &"SheetTitle"
+text = "CHARACTER"
+
+[node name="HP" type="Label" parent="Shade/Anchor/Panel/Margin/Rows/Header"]
+text = "HP 0/0"
+
+[node name="HPBar" type="ProgressBar" parent="Shade/Anchor/Panel/Margin/Rows/Header"]
+custom_minimum_size = Vector2(140, 20)
+theme_type_variation = &"HpBar"
+show_percentage = false
+
+[node name="AC" type="Label" parent="Shade/Anchor/Panel/Margin/Rows/Header"]
+text = "AC 0"
+
+[node name="Coins" type="Label" parent="Shade/Anchor/Panel/Margin/Rows/Header"]
+text = "◎ 0"
+
+[node name="Close" type="Button" parent="Shade/Anchor/Panel/Margin/Rows/Header"]
+custom_minimum_size = Vector2(28, 28)
+focus_mode = 0
+text = "×"
+
+[node name="Tabs" type="HBoxContainer" parent="Shade/Anchor/Panel/Margin/Rows"]
+theme_override_constants/separation = 6
+
+[node name="Stats" type="Button" parent="Shade/Anchor/Panel/Margin/Rows/Tabs"]
+toggle_mode = true
+button_group = SubResource("TabGroup")
+theme_type_variation = &"HudTab"
+focus_mode = 0
+text = "Stats [C]"
+
+[node name="Equipment" type="Button" parent="Shade/Anchor/Panel/Margin/Rows/Tabs"]
+toggle_mode = true
+button_group = SubResource("TabGroup")
+theme_type_variation = &"HudTab"
+focus_mode = 0
+text = "Equipment"
+
+[node name="Inventory" type="Button" parent="Shade/Anchor/Panel/Margin/Rows/Tabs"]
+toggle_mode = true
+button_group = SubResource("TabGroup")
+theme_type_variation = &"HudTab"
+focus_mode = 0
+text = "Inventory [I]"
+
+[node name="Pages" type="Control" parent="Shade/Anchor/Panel/Margin/Rows"]
+custom_minimum_size = Vector2(776, 410)
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="StatsPage" type="Control" parent="Shade/Anchor/Panel/Margin/Rows/Pages"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Body" type="HBoxContainer" parent="Shade/Anchor/Panel/Margin/Rows/Pages/StatsPage"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 18
+
+[node name="Abilities" type="GridContainer" parent="Shade/Anchor/Panel/Margin/Rows/Pages/StatsPage/Body"]
+custom_minimum_size = Vector2(470, 0)
+size_flags_horizontal = 3
+columns = 3
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+
+[node name="Derived" type="VBoxContainer" parent="Shade/Anchor/Panel/Margin/Rows/Pages/StatsPage/Body"]
+custom_minimum_size = Vector2(270, 0)
+size_flags_horizontal = 3
+theme_override_constants/separation = 7
+
+[node name="EquipmentPage" type="Control" parent="Shade/Anchor/Panel/Margin/Rows/Pages"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Body" type="HBoxContainer" parent="Shade/Anchor/Panel/Margin/Rows/Pages/EquipmentPage"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 18
+
+[node name="Slots" type="VBoxContainer" parent="Shade/Anchor/Panel/Margin/Rows/Pages/EquipmentPage/Body"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="Combat" type="Label" parent="Shade/Anchor/Panel/Margin/Rows/Pages/EquipmentPage/Body"]
+custom_minimum_size = Vector2(310, 0)
+theme_type_variation = &"SheetCard"
+
+[node name="InventoryPage" type="Control" parent="Shade/Anchor/Panel/Margin/Rows/Pages"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Body" type="HBoxContainer" parent="Shade/Anchor/Panel/Margin/Rows/Pages/InventoryPage"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 18
+
+[node name="Grid" type="GridContainer" parent="Shade/Anchor/Panel/Margin/Rows/Pages/InventoryPage/Body"]
+size_flags_horizontal = 3
+columns = 5
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+
+[node name="Detail" type="VBoxContainer" parent="Shade/Anchor/Panel/Margin/Rows/Pages/InventoryPage/Body"]
+custom_minimum_size = Vector2(310, 0)
+theme_type_variation = &"SheetCard"
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="Shade/Anchor/Panel/Margin/Rows/Pages/InventoryPage/Body/Detail"]
+theme_type_variation = &"SheetTitle"
+text = "Your pack is empty."
+
+[node name="Body" type="Label" parent="Shade/Anchor/Panel/Margin/Rows/Pages/InventoryPage/Body/Detail"]
+size_flags_vertical = 3
+autowrap_mode = 2
+
+[node name="Use" type="Button" parent="Shade/Anchor/Panel/Margin/Rows/Pages/InventoryPage/Body/Detail"]
+focus_mode = 0
+text = "Use"
+
+[node name="Footer" type="HBoxContainer" parent="Shade/Anchor/Panel/Margin/Rows"]
+
+[node name="Hint" type="Label" parent="Shade/Anchor/Panel/Margin/Rows/Footer"]
+size_flags_horizontal = 3
+theme_type_variation = &"SheetMuted"
+text = "C Character · I Inventory · Esc Close"

@@ -3,6 +3,8 @@ extends CanvasLayer
 
 const OutcomeOverlayScript = preload("res://view/ui/outcome_overlay.gd")
 const DialogPanelScript = preload("res://view/ui/dialog_panel.gd")
+const CharacterSheetScript = preload("res://view/ui/character_sheet.gd")
+const CharacterSheetViewModelScript = preload("res://view/ui/character_sheet_view_model.gd")
 
 ## Presentation adapter. It listens to the shared session but never submits a
 ## command itself; the owning world controller decides targets and calls it.
@@ -14,6 +16,7 @@ signal retry_requested
 signal restart_requested
 signal quicksave_requested
 signal quickload_requested
+signal world_pause_changed(paused: bool)
 
 ## DefinitionLibrary is a RefCounted catalog, not an inspector Resource.
 ## Controllers may inject it at runtime; otherwise _ready() uses the default.
@@ -34,6 +37,7 @@ var actor_id := -1
 @onready var coins_label: Label = $Margin/TopBar/CoinsLabel
 @onready var dialog_panel: DialogPanelScript = $DialogPanel
 @onready var pause_menu: Control = $PauseMenu
+@onready var character_sheet: CharacterSheetScript = $CharacterSheet
 
 func _ready() -> void:
 	definitions = definitions if definitions != null else DefinitionLibrary.get_default()
@@ -42,11 +46,16 @@ func _ready() -> void:
 	$Margin/Layout/EndTurn.pressed.connect(func(): end_turn_requested.emit())
 	$Margin/Layout/Settings.disabled = false
 	$Margin/Layout/Settings.pressed.connect(_toggle_pause_menu)
+	$Margin/Layout/Character.pressed.connect(func(): toggle_character_sheet(CharacterSheetScript.TAB_STATS))
 	$PauseMenu/Panel/Rows/Resume.pressed.connect(func(): _set_pause_menu_visible(false))
 	$PauseMenu/Panel/Rows/QuickSave.pressed.connect(func(): quicksave_requested.emit())
 	$PauseMenu/Panel/Rows/QuickLoad.pressed.connect(func(): quickload_requested.emit())
 	outcome_overlay.retry_requested.connect(func(): retry_requested.emit())
 	outcome_overlay.restart_requested.connect(func(): restart_requested.emit())
+	character_sheet.item_use_requested.connect(func(item_id): inventory_item_requested.emit(item_id))
+	character_sheet.closed.connect(func(): world_pause_changed.emit(is_world_paused()))
+	dialog_panel.visibility_changed.connect(_close_sheet_for_other_modal)
+	outcome_overlay.visibility_changed.connect(_close_sheet_for_other_modal)
 
 func bind(next_session: EncounterSession, next_actor_id: int) -> void:
 	if session != null:
@@ -71,19 +80,20 @@ func sync() -> void:
 	objective_label.text = "OBJECTIVE: %s" % HudViewModel.objective_prompt(session.battle_state)
 	coins_label.text = "COINS: %d" % int(data.get("coins", 0))
 	_sync_inventory(session.battle_state.actors[actor_id] as ActorState)
+	if character_sheet.visible:
+		character_sheet.present(CharacterSheetViewModelScript.for_actor(session.battle_state, actor_id, definitions))
 
 
 func _sync_inventory(actor: ActorState) -> void:
-	var counts: Dictionary = {}
-	for item_id in actor.inventory:
-		counts[item_id] = int(counts.get(item_id, 0)) + 1
+	var stacks: Array[Dictionary] = CharacterSheetViewModelScript.inventory_stacks(session.battle_state, actor.id, definitions)
 	var index := 0
-	for item_id in counts.keys():
+	for stack in stacks:
 		if index >= item_slots.get_child_count():
 			break
 		var button := item_slots.get_child(index) as Button
+		var item_id := StringName(stack["item_id"])
 		button.disabled = false
-		button.text = "×%d" % counts[item_id]
+		button.text = "×%d" % int(stack["count"])
 		button.icon = hotbar.icon_set.texture_for(StringName(str(item_id))) if hotbar.icon_set != null else null
 		button.tooltip_text = _inventory_tooltip(actor, StringName(str(item_id)))
 		button.set_meta("item_id", item_id)
@@ -143,14 +153,44 @@ func is_pause_menu_open() -> bool:
 	return pause_menu.visible
 
 
+func is_world_paused() -> bool:
+	return pause_menu.visible or character_sheet.visible
+
+
+func toggle_character_sheet(tab: int) -> void:
+	if outcome_overlay.visible or dialog_panel.visible or pause_menu.visible:
+		return
+	if character_sheet.visible:
+		if character_sheet.current_tab() == tab:
+			close_character_sheet()
+		else:
+			character_sheet.show_tab(tab)
+		return
+	if session == null or session.battle_state == null:
+		return
+	character_sheet.present(CharacterSheetViewModelScript.for_actor(session.battle_state, actor_id, definitions))
+	character_sheet.open(tab)
+	world_pause_changed.emit(true)
+
+
+func close_character_sheet() -> void:
+	character_sheet.close()
+
+
 func _toggle_pause_menu() -> void:
 	_set_pause_menu_visible(not pause_menu.visible)
 
 
 func _set_pause_menu_visible(visible: bool) -> void:
 	pause_menu.visible = visible
+	world_pause_changed.emit(is_world_paused())
 	if visible:
 		combat_log.append_line("Game paused.")
+
+
+func _close_sheet_for_other_modal() -> void:
+	if dialog_panel.visible or outcome_overlay.visible:
+		close_character_sheet()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -162,7 +202,31 @@ func _unhandled_input(event: InputEvent) -> void:
 			quickload_requested.emit()
 			get_viewport().set_input_as_handled()
 			return
+	if character_sheet.visible:
+		if event.is_action_pressed(&"tactical_cancel"):
+			close_character_sheet()
+			get_viewport().set_input_as_handled()
+			return
+		if event.is_action_pressed(&"hud_character_sheet"):
+			toggle_character_sheet(CharacterSheetScript.TAB_STATS)
+			get_viewport().set_input_as_handled()
+			return
+		if event.is_action_pressed(&"hud_inventory"):
+			toggle_character_sheet(CharacterSheetScript.TAB_INVENTORY)
+			get_viewport().set_input_as_handled()
+			return
+		# The sheet is a modal: no hotbar/end-turn/cancel intent may leak to the
+		# world while it owns the screen.
+		return
 	if outcome_overlay.visible or dialog_panel.visible or pause_menu.visible:
+		return
+	if event.is_action_pressed(&"hud_character_sheet"):
+		toggle_character_sheet(CharacterSheetScript.TAB_STATS)
+		get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed(&"hud_inventory"):
+		toggle_character_sheet(CharacterSheetScript.TAB_INVENTORY)
+		get_viewport().set_input_as_handled()
 		return
 	for slot in range(6):
 		if event.is_action_pressed(StringName("hotbar_%d" % (slot + 1))):

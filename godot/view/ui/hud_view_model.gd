@@ -63,7 +63,7 @@ static func for_actor(state: BattleState, actor_id: int, defs: DefinitionLibrary
 	return {
 		"actor_id": actor_id, "name": name, "hp": actor.hp, "max_hp": actor.max_hp,
 		"hp_fraction": clampf(float(actor.hp) / maxf(1.0, actor.max_hp), 0.0, 1.0),
-		"armor_class": int(AttackMathRules.armor_class(actor, defs)["total"]) if defs != null else 0, "movement_remaining": actor.movement_remaining,
+		"armor_class": int(AttackMathRules.armor_class(actor, defs)["total"]) if defs != null else 10 + actor.ability_modifier(&"dexterity"), "movement_remaining": actor.movement_remaining,
 		"movement_speed": actor.movement_speed, "movement_fraction": clampf(actor.movement_remaining / maxf(0.01, actor.movement_speed), 0.0, 1.0),
 		"action_available": actor.action_available, "bonus_action_available": actor.bonus_action_available,
 		"reaction_available": actor.reaction_available, "conditions": actor.condition_ids(),
@@ -84,14 +84,14 @@ static func action_presentation(actor: ActorState, availability: Dictionary, def
 	var ability := defs.get_ability(ability_id) if defs != null else null
 	var display_name := ability.display_name if ability != null and not ability.display_name.is_empty() else generated_name
 	var description := ability.description if ability != null else ""
-	var mechanics: Array[String] = _action_mechanics(actor, ability, defs)
+	var mechanics: Array[String] = action_mechanics(actor, ability, defs)
 	var sections: Array[String] = [display_name]
 	if not description.is_empty():
 		sections.append(description)
 	if not mechanics.is_empty():
 		sections.append(" • ".join(mechanics))
 	if not bool(data.get("available", false)):
-		sections.append("Unavailable: %s" % _availability_reason(StringName(str(data.get("reason", "")))))
+		sections.append("Unavailable: %s" % availability_reason(StringName(str(data.get("reason", "")))))
 	data["display_name"] = display_name
 	data["description"] = description
 	data["tooltip"] = "\n\n".join(sections)
@@ -105,7 +105,7 @@ static func _present_actions(actor: ActorState, actions: Array[Dictionary], defs
 	return presented
 
 
-static func _action_mechanics(actor: ActorState, ability: AbilityDefinition, defs: DefinitionLibrary) -> Array[String]:
+static func action_mechanics(actor: ActorState, ability: AbilityDefinition, defs: DefinitionLibrary) -> Array[String]:
 	var mechanics: Array[String] = []
 	if ability == null:
 		return mechanics
@@ -116,7 +116,7 @@ static func _action_mechanics(actor: ActorState, ability: AbilityDefinition, def
 	if ability.costs_reaction:
 		mechanics.append("Reaction")
 	if ability.movement_cost > 0.0:
-		mechanics.append("%s m movement" % _format_number(ability.movement_cost))
+		mechanics.append("%s m movement" % format_number(ability.movement_cost))
 	if mechanics.is_empty():
 		mechanics.append("No action cost")
 
@@ -128,7 +128,7 @@ static func _action_mechanics(actor: ActorState, ability: AbilityDefinition, def
 				has_attack = true
 				_append_attack_mechanics(mechanics, actor, ability, effect, defs)
 			&"add_base_movement":
-				mechanics.append("Gain %s m movement" % _format_number(actor.movement_speed * effect.multiplier))
+				mechanics.append("Gain %s m movement" % format_number(actor.movement_speed * effect.multiplier))
 			&"saving_throw":
 				var difficulty_class := effect.save_dc_base + actor.proficiency_bonus + actor.ability_modifier(effect.save_dc_ability)
 				mechanics.append("Save DC %d" % difficulty_class)
@@ -139,14 +139,14 @@ static func _action_mechanics(actor: ActorState, ability: AbilityDefinition, def
 					mechanics.append(" or ".join(ability_names))
 			&"heal":
 				has_self_effect = true
-				mechanics.append("Heal %s HP" % _format_roll(effect.heal_dice_count, effect.heal_die, effect.heal_modifier))
+				mechanics.append("Heal %s HP" % format_roll(effect.heal_dice_count, effect.heal_die, effect.heal_modifier))
 			&"apply_condition":
 				mechanics.append(_condition_mechanic(effect, defs))
 			&"apply_disengage":
 				mechanics.append("No opportunity attacks this turn")
 
 	if not has_attack and ability.targeting == &"actor" and ability.target_range_meters >= 0.0:
-		mechanics.append("Range %s m" % _format_number(AbilityTargetingRules.target_range(defs, ability.id)))
+		mechanics.append("Range %s m" % format_number(AbilityTargetingRules.target_range(defs, ability.id)))
 	if has_self_effect and ability.targeting == &"none":
 		mechanics.insert(1, "Self")
 	if ability.usable_in_exploration:
@@ -164,12 +164,12 @@ static func _append_attack_mechanics(mechanics: Array[String], actor: ActorState
 		var normal_range := EquipmentRules.normal_range(actor, defs, maximum_range)
 		var long_range := EquipmentRules.long_range(actor, defs, maximum_range)
 		mechanics.append("Ranged")
-		mechanics.append("Range %s m / %s m long" % [_format_number(normal_range), _format_number(long_range)])
+		mechanics.append("Range %s m / %s m long" % [format_number(normal_range), format_number(long_range)])
 	else:
 		mechanics.append("Melee")
-		mechanics.append("Range %s m" % _format_number(maximum_range))
+		mechanics.append("Range %s m" % format_number(maximum_range))
 	var profile := AttackMathRules.weapon_profile(actor, defs)
-	mechanics.append("Attack %s (%s)" % [_format_modifier(int(profile["attack_bonus"])), ", ".join(_attack_bonus_parts(profile))])
+	mechanics.append("Attack %s (%s)" % [format_modifier(int(profile["attack_bonus"])), ", ".join(_attack_bonus_parts(profile))])
 	var damage := _format_damage(int(profile["damage_dice_count"]), int(profile["damage_die"]), int(profile["damage_modifier"]))
 	var damage_type := String(profile["damage_type"])
 	mechanics.append("Damage %s%s" % [damage, " " + damage_type if not damage_type.is_empty() else ""])
@@ -178,11 +178,11 @@ static func _append_attack_mechanics(mechanics: Array[String], actor: ActorState
 ## The same parts, in the same order, AttackMath added into attack_bonus.
 static func _attack_bonus_parts(profile: Dictionary) -> PackedStringArray:
 	var parts := PackedStringArray()
-	parts.append("%s %s" % [String(profile["attack_ability"]).substr(0, 3).capitalize(), _format_modifier(int(profile["ability_modifier"]))])
+	parts.append("%s %s" % [String(profile["attack_ability"]).substr(0, 3).capitalize(), format_modifier(int(profile["ability_modifier"]))])
 	if int(profile["proficiency_bonus"]) != 0:
-		parts.append("Prof %s" % _format_modifier(int(profile["proficiency_bonus"])))
+		parts.append("Prof %s" % format_modifier(int(profile["proficiency_bonus"])))
 	if int(profile["magic_bonus"]) != 0:
-		parts.append("Magic %s" % _format_modifier(int(profile["magic_bonus"])))
+		parts.append("Magic %s" % format_modifier(int(profile["magic_bonus"])))
 	return parts
 
 
@@ -190,7 +190,7 @@ static func _attack_bonus_parts(profile: Dictionary) -> PackedStringArray:
 static func _format_damage(dice_count: int, die: int, modifier: int) -> String:
 	if dice_count <= 0 or die <= 0:
 		return str(maxi(1, modifier))
-	return _format_roll(dice_count, die, modifier)
+	return format_roll(dice_count, die, modifier)
 
 
 static func _condition_mechanic(effect: AbilityEffect, defs: DefinitionLibrary) -> String:
@@ -204,22 +204,22 @@ static func _condition_mechanic(effect: AbilityEffect, defs: DefinitionLibrary) 
 	return label + suffix
 
 
-static func _format_roll(count: int, sides: int, modifier: int) -> String:
+static func format_roll(count: int, sides: int, modifier: int) -> String:
 	var roll := "%dd%d" % [count, sides]
 	if modifier != 0:
 		roll += " %s %d" % ["+" if modifier > 0 else "-", absi(modifier)]
 	return roll
 
 
-static func _format_modifier(modifier: int) -> String:
+static func format_modifier(modifier: int) -> String:
 	return "+%d" % modifier if modifier >= 0 else str(modifier)
 
 
-static func _format_number(value: float) -> String:
+static func format_number(value: float) -> String:
 	return str(roundi(value)) if is_equal_approx(value, roundf(value)) else "%.1f" % value
 
 
-static func _availability_reason(reason: StringName) -> String:
+static func availability_reason(reason: StringName) -> String:
 	if AVAILABILITY_REASON_TEXT.has(reason):
 		return AVAILABILITY_REASON_TEXT[reason]
 	var fallback := String(reason).replace("_", " ").capitalize()

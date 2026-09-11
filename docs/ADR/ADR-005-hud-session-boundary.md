@@ -24,6 +24,12 @@ decorative layout is pass-through, so a HUD click cannot reach the terrain
 picker. Icon lookup is a view-side `IconSet` resource keyed by stable ids;
 controllers do not branch on an actor, ability, or icon id.
 
+HUD modals may pause world-side processing. `HudRoot` owns the C/I/Esc sheet
+shortcuts and exposes the combined modal pause state to controllers and the
+camera rig. The sheet remains a read-model: its Use button only re-emits the
+existing inventory-item intent, which the world controller submits through
+`EncounterSession`.
+
 ## Consequences
 
 ADR-001 remains intact: input and UI are not simulation dependencies, and

@@ -54,6 +54,7 @@ func _ready() -> void:
 	hud.inventory_item_requested.connect(_on_inventory_item_requested)
 	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
 	hud.cancel_requested.connect(_on_hud_cancel_requested)
+	hud.world_pause_changed.connect(func(paused: bool): camera_rig.input_enabled = not paused)
 
 
 ## The hand-authored arena consumes the same ID-only catalog as the future map
@@ -77,6 +78,9 @@ func _process(_delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if camera == null or not is_instance_valid(camera):
+		return
+	if hud != null and hud.is_world_paused():
+		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseMotion:
 		var preview_target: Variant = ScreenPickerScript.terrain_point(camera, get_world_3d().direct_space_state, event.position)
