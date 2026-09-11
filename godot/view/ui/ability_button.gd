@@ -9,9 +9,11 @@ var ability_id: StringName
 func configure(data: Dictionary, slot: int, icon_set: IconSet) -> void:
 	ability_id = StringName(data.get("ability_id", ""))
 	text = ""
-	hotkey_label.text = str(slot + 1)
+	hotkey_label.text = str((slot + 1) % 10)
 	icon = icon_set.texture_for(ability_id) if icon_set != null else null
-	disabled = not data.get("available", false)
+	# Always pressable: an action that cannot be used right now explains why
+	# when clicked (and in its tooltip) instead of sitting greyed out.
+	disabled = false
 	var display_name := String(ability_id).replace("_", " ").capitalize()
 	tooltip_text = String(data.get("tooltip", display_name))
 

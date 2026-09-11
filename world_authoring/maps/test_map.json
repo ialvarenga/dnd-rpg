@@ -409,7 +409,30 @@
         96
       ],
       "rotation_deg": 180,
-      "navigable": true
+      "jumpable": true,
+      "height_m": 4.2
+    },
+    {
+      "id": "emberwatch_terrace_upper",
+      "asset": "forest_hill_12x6x4",
+      "position": [
+        151,
+        96
+      ],
+      "rotation_deg": 90,
+      "jumpable": true,
+      "height_m": 3.0
+    },
+    {
+      "id": "emberwatch_terrace_lower",
+      "asset": "forest_hill_12x12x2",
+      "position": [
+        148,
+        90
+      ],
+      "rotation_deg": 0,
+      "jumpable": true,
+      "height_m": 1.5
     },
     {
       "id": "emberwatch_scarp",

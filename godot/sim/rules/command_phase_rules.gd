@@ -36,5 +36,16 @@ static func rejection_for_ability(state: BattleState, actor_id: int, ability: Ab
 	return rejection_for_combat_turn(state, actor_id)
 
 
+## True when using this ability outside combat starts the fight: an attack, or
+## anything else aimed at a creature on the other side (Shove). Talk is aimed
+## at the other side too, but it is exploration-only, so it never opens combat.
+static func opens_combat_from_exploration(ability: AbilityDefinition) -> bool:
+	if ability == null or ability.exploration_only:
+		return false
+	if ability.effects.any(func(effect: AbilityEffect): return effect.type == &"perform_attack"):
+		return true
+	return ability.targeting == &"actor" and ability.target_filter == &"hostile"
+
+
 static func rejection_for_conscious(actor: ActorState) -> StringName:
 	return &"" if actor.is_conscious() else RejectionReasonRules.ACTOR_CANNOT_ACT

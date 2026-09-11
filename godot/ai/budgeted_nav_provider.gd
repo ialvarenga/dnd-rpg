@@ -41,3 +41,18 @@ func is_reachable(from: Vector3, to: Vector3) -> bool:
 
 func snap_to_navmesh(pos: Vector3) -> Vector3:
 	return source.snap_to_navmesh(pos)
+
+
+func surface_point(pos: Vector3) -> Vector3:
+	return source.surface_point(pos)
+
+
+func jump_between(from: Vector3, to: Vector3) -> Dictionary:
+	return source.jump_between(from, to)
+
+
+## Keeps the shared query budget: the Strength-scoped view counts against the
+## same allowance as this decorator.
+func for_jumper(strength: int) -> NavProvider:
+	var scoped: NavProvider = source.for_jumper(strength)
+	return self if scoped == source else BudgetedNavProvider.new(scoped, budget)

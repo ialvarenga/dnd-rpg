@@ -115,6 +115,7 @@ them by stable UI id; no icon is gameplay authority.
 | `godot/assets/game_icons/healing.svg` | Healing | Delapouite | https://game-icons.net/1x1/delapouite/healing.html |
 | `godot/assets/game_icons/gear-hammer.svg` | Gear Hammer | Lorc | https://game-icons.net/1x1/lorc/gear-hammer.html |
 | `godot/assets/game_icons/info.svg` | Info | Delapouite | https://game-icons.net/1x1/delapouite/info.html |
+| `godot/assets/game_icons/jump-across.svg` | Jump Across | Delapouite | https://game-icons.net/1x1/delapouite/jump-across.html |
 
 ### KayKit Character Animations 1.1
 

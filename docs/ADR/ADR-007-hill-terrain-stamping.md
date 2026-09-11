@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted.
+Accepted. Amended by ADR-009: hills may overlap (terraces), bases are read
+from the pre-stamp terrain for every hill, `height_m` lowers a summit, and
+`jumpable` hills are reached through Strength-gated ledge jump links.
 
 ## Context
 
@@ -75,7 +77,7 @@ Terrain collision owns the physical surface, steep decorative sides remain
 non-walkable through the navmesh slope limit, and the generated ramp connects
 the flat summit to the surrounding ground. This makes selected authored high ground reachable while
 remaining a single continuous navigation surface; stacked floors, climbing,
-ladders, and jump links stay out of scope.
+and ladders stay out of scope. (Ledge jump links were added later by ADR-009.)
 
 `AssetDefinition` gains no new fields: hills reuse `collision_size` (already
 present for wall assets) to carry nominal `(width, height, depth)`, and

@@ -21,12 +21,16 @@ const MOVEMENT_EPSILON := 0.0001
 
 ## Empty StringName means the ability's resources are affordable; the caller
 ## still has to look up/validate the ability and its targeting separately.
-static func rejection_for_cost(actor: ActorState, ability: AbilityDefinition, definitions: DefinitionLibrary = null) -> StringName:
+## Outside combat there is no action economy: turn flags and movement never
+## gate an ability there, only its use pool and any consumed item do.
+static func rejection_for_cost(actor: ActorState, ability: AbilityDefinition, definitions: DefinitionLibrary = null, in_combat: bool = true) -> StringName:
 	# Checked before the action/bonus-action flags so an exhausted pool reports
 	# the reason the player can act on ("no uses left") rather than whichever
 	# economy slot happened to be spent first this turn.
 	if ability.max_uses >= 0 and remaining_uses(actor, ability) <= 0:
 		return RejectionReasonRules.ABILITY_USES_EXHAUSTED
+	if not in_combat:
+		return _item_rejection(actor, ability, definitions)
 	if ability.costs_action and not actor.action_available:
 		return RejectionReasonRules.ACTION_UNAVAILABLE
 	if ability.costs_bonus_action and not actor.bonus_action_available:
@@ -35,9 +39,13 @@ static func rejection_for_cost(actor: ActorState, ability: AbilityDefinition, de
 		return RejectionReasonRules.REACTION_UNAVAILABLE
 	if ability.movement_cost > 0.0 and actor.movement_remaining + MOVEMENT_EPSILON < ability.movement_cost:
 		return RejectionReasonRules.INSUFFICIENT_MOVEMENT
-	# A consume effect is an ability cost too: validate it before any event is
-	# emitted, so Resolver and advisory availability agree and never partially
-	# spend an action for an absent item.
+	return _item_rejection(actor, ability, definitions)
+
+
+## A consume effect is an ability cost too: validate it before any event is
+## emitted, so Resolver and advisory availability agree and never partially
+## spend an action for an absent item.
+static func _item_rejection(actor: ActorState, ability: AbilityDefinition, definitions: DefinitionLibrary) -> StringName:
 	for effect in ability.effects:
 		if effect.type == &"consume_item" and effect.consumes_item_id != &"":
 			var required_item := definitions.get_item(effect.consumes_item_id) if definitions != null else null

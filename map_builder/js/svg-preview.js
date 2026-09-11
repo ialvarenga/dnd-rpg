@@ -129,6 +129,16 @@ export function render(svg, state, ui) {
       }
       if (key === 'encounters') attributes['stroke-dasharray'] = '4 3';
       addSelectable(element(tag, attributes), key, item.id, index);
+      if (key === 'hills') {
+        // Summit height decides who can jump it, so terraces show it at a glance.
+        const modelHeight = Number(String(item.asset || '').split('x').pop());
+        const height = item.height_m ?? modelHeight;
+        if (Number.isFinite(height)) {
+          const label = element('text', {x: x + 8, y: y - 8, fill: '#f3e6cf', 'font-size': 11, 'pointer-events': 'none'});
+          label.textContent = `${height} m${item.jumpable ? ' ⤓' : ''}`;
+          svg.append(label);
+        }
+      }
     });
   });
 

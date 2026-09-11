@@ -18,6 +18,9 @@ const TestDialogRuntimeScript = preload("res://tests/integration/test_dialog_run
 const TestRangedAttackPresentationScript = preload("res://tests/integration/test_ranged_attack_presentation.gd")
 const TestHelpAndAttackConditionsScript = preload("res://tests/unit/test_help_and_attack_conditions.gd")
 const TestCombatDepthScript = preload("res://tests/unit/test_combat_depth.gd")
+const TestJumpingScript = preload("res://tests/unit/test_jumping.gd")
+const TestJumpNavigationScript = preload("res://tests/integration/test_jump_navigation.gd")
+const TestJumpPresentationScript = preload("res://tests/integration/test_jump_presentation.gd")
 
 func _init() -> void:
 	call_deferred("_run")
@@ -25,7 +28,7 @@ func _init() -> void:
 
 func _run() -> void:
 	var failure_count := 0
-	var suites := [TestSimulation, TestDefinitions, TestActionAvailability, TestHudViewModel, TestCharacterSheetViewModel, TestEquipment, TestAttackMath, TestGameplayRules, TestInteractables, TestAssetCatalog, TestTerrainProviderScript, TestMapCompilerScript, TestCharacterAnimatorScript, TestEnemyAI, TestConsumablesScript, TestAbilityUsesScript, TestTargetedActionPlannerScript, TestAbilityTargetingScript, TestInteractableActionPlannerScript, TestPathPreviewRendererScript, TestAbilityCheck, TestDialogSession, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion, TestEncounterSession, TestHelpAndAttackConditionsScript, TestCombatDepthScript]
+	var suites := [TestSimulation, TestDefinitions, TestActionAvailability, TestHudViewModel, TestCharacterSheetViewModel, TestEquipment, TestAttackMath, TestGameplayRules, TestInteractables, TestAssetCatalog, TestTerrainProviderScript, TestMapCompilerScript, TestCharacterAnimatorScript, TestEnemyAI, TestConsumablesScript, TestAbilityUsesScript, TestTargetedActionPlannerScript, TestAbilityTargetingScript, TestInteractableActionPlannerScript, TestPathPreviewRendererScript, TestAbilityCheck, TestDialogSession, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion, TestEncounterSession, TestHelpAndAttackConditionsScript, TestCombatDepthScript, TestJumpingScript]
 	for suite in suites:
 		var report: Dictionary = suite.run()
 		var failures: Array = report["failures"]
@@ -35,7 +38,7 @@ func _run() -> void:
 			for failure in failures:
 				push_error("FAIL %s: %s" % [report["name"], failure])
 			failure_count += failures.size()
-	for async_suite_script in [TestArenaRuntimeScript, TestEventPlayerFeedbackScript, TestCompiledMapHealthBarsScript, TestHudBindingScript, TestDialogRuntimeScript, TestGameplayOutcomeRuntimeScript, TestRangedAttackPresentationScript]:
+	for async_suite_script in [TestArenaRuntimeScript, TestEventPlayerFeedbackScript, TestCompiledMapHealthBarsScript, TestHudBindingScript, TestDialogRuntimeScript, TestGameplayOutcomeRuntimeScript, TestRangedAttackPresentationScript, TestJumpNavigationScript, TestJumpPresentationScript]:
 		var async_suite := async_suite_script.new() as Node
 		root.add_child(async_suite)
 		var async_report: Dictionary = await async_suite.run()

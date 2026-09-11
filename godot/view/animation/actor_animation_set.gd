@@ -6,7 +6,13 @@ extends Resource
 
 @export var idle: StringName = &"Idle_A"
 @export var locomotion: StringName = &"Walking_A"
-@export var jump: StringName = &"Jump_A"
+# A ledge jump (ADR-009) plays in three parts from KayKit's MovementBasic:
+# the crouch-and-push takeoff, the airborne hang (looped on import, so a tall
+# drop never freezes on a last frame), and the landing absorb. There is no
+# climb clip in any rig, so a climb plays the same jump upward.
+@export var jump_start: StringName = &"Jump_Start"
+@export var jump_air: StringName = &"Jump_Idle"
+@export var jump_land: StringName = &"Jump_Land"
 @export var crouch: StringName = &"Crouch_A"
 # MovementAdvanced has no plain "Dodge_A" -- Backward is the reactive step
 # used to narrate a missed incoming attack.
@@ -44,10 +50,15 @@ extends Resource
 ## the release clip starts and the arrow leaves the bow.
 @export_range(0.0, 2.0, 0.01) var ranged_release_seconds := 0.8
 
+## Seconds from the start of the (speed-scaled) takeoff clip to the push-off,
+## when the view leaves the ledge and the airborne hang begins.
+@export_range(0.0, 2.0, 0.01) var jump_takeoff_seconds := 0.2
+
 ## verb -> playback speed. Lie_StandUp is paced for idle scenes, which is too
 ## slow to hold up an enemy's turn; the bow clips likewise, so a shot takes
-## about as long as a sword swing.
-@export var clip_speed_scales: Dictionary = {&"stand_up": 1.4, &"ranged_draw": 1.6, &"ranged_release": 1.4}
+## about as long as a sword swing. A jump's takeoff and landing are sped up so
+## a staircase of ledges does not drag out a turn.
+@export var clip_speed_scales: Dictionary = {&"stand_up": 1.4, &"ranged_draw": 1.6, &"ranged_release": 1.4, &"jump_start": 1.6, &"jump_land": 1.4}
 
 ## MovementBasic ships Jump_Idle even when the optional General idle clip is
 ## unavailable.  Individual actor resources can replace this safe fallback.
@@ -70,7 +81,9 @@ func clip_for(verb: StringName) -> StringName:
 	match verb:
 		&"idle": return idle
 		&"locomotion": return locomotion
-		&"jump": return jump
+		&"jump", &"jump_start": return jump_start
+		&"jump_air": return jump_air
+		&"jump_land": return jump_land
 		&"crouch": return crouch
 		&"dodge": return dodge
 		&"interact": return interact

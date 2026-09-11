@@ -124,7 +124,9 @@
         "asset": { "$ref": "#/$defs/stableId" },
         "position": { "$ref": "#/$defs/vector2" },
         "rotation_deg": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 },
-        "navigable": { "type": "boolean", "default": false, "description": "Generate one <=30-degree approach ramp on the hill's rotated +Z side." }
+        "navigable": { "type": "boolean", "default": false, "description": "Generate one <=30-degree approach ramp on the hill's rotated +Z side." },
+        "jumpable": { "type": "boolean", "default": false, "description": "Keep the summit walkable and connect every ledge (except a ramp side) with Strength-gated jump links: drop down, or climb up to a creature's High Jump." },
+        "height_m": { "type": "number", "exclusiveMinimum": 0, "description": "Summit height above the ground, at most the asset's own height. A lower hill sinks its model so the look is kept." }
       }
     },
     "vegetationPlacement": { "$ref": "#/$defs/assetPlacement" },

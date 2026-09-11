@@ -98,7 +98,8 @@ regra ou conteúdo.
   and a separate autosave captured after encounter start.
 - [x] Rebalance the shipping map to two healing potions total (one chest,
   one loot barrel) and add the archer stat block. E2 later moved the archer
-  onto the reachable, ramped Emberwatch rise.
+  onto the reachable, ramped Emberwatch rise; ADR-009 replaced that ramp with
+  jumpable terraces.
 - [x] Derive attack and damage from ability scores, proficiency, weapon
   category, finesse, and magic bonus. Derive armor class from armor category
   and Dexterity. Actors author `weapon_proficiencies` instead of attack/AC

@@ -145,7 +145,11 @@ function editableFields(key, entity, {identity = true, spatial = true} = {}) {
   if (['vegetation', 'structures', 'hills', 'actors', 'interactables', 'pickups'].includes(key)) {
     html += `<label>Rotation (degrees, optional)<input data-field="rotation_deg" data-optional type="number" value="${entity.rotation_deg ?? ''}"></label>`;
   }
-  if (key === 'hills') html += `<label><input data-field="navigable" type="checkbox" ${entity.navigable ? 'checked' : ''}> Generate reachable summit ramp</label>`;
+  if (key === 'hills') {
+    html += `<label><input data-field="navigable" type="checkbox" ${entity.navigable ? 'checked' : ''}> Generate reachable summit ramp</label>`;
+    html += `<label><input data-field="jumpable" type="checkbox" ${entity.jumpable ? 'checked' : ''}> Jumpable ledges (walkable summit, reached by jumping)</label>`;
+    html += `<label>Height (m, optional, at most the model's)<input data-field="height_m" data-optional type="number" step="0.1" min="0.1" value="${entity.height_m ?? ''}"></label>`;
+  }
   if (config.bridge) {
     html += referenceSelect('River', 'river_id', entity.river_id, (state.rivers || []).map(value => value.id));
     html += referenceSelect('Road', 'road_id', entity.road_id, (state.roads || []).map(value => value.id));

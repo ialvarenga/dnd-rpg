@@ -25,7 +25,8 @@ interactive visual checklist at the end remains a release/manual QA pass.
   the same evaluation.
 - Heightfield hills have a rotated <=30° generated ramp. Their decorative
   sides remain steep, their summit is reachable, and the same surface feeds
-  mesh, collision, navigation, and push/drop queries.
+  mesh, collision, navigation, and push/drop queries. (ADR-009 later replaced
+  the Emberwatch ramp with jumpable terraces.)
 - River paths and thicket/rubble polygons compile to weighted movement
   regions. `path_cost()` drives previews, movement clamping/spend, and AI
   scoring. Bridges avoid the river multiplier rather than being the only way
@@ -81,8 +82,11 @@ Use `world_authoring/maps/test_map.json` and verify:
 
 1. Sap/Vex/Graze/Topple/Nick feedback and combat-log text.
 2. Shove mode selection, resistance, a wall-blocked Push, displacement, and a
-   push from the Emberwatch rise that produces fall damage.
-3. Reachable hilltop combat and both high/low-ground modifiers.
+   push from the Emberwatch rise that produces fall damage and Prone.
+3. Reachable hilltop combat and both high/low-ground modifiers. The archer
+   drops down the Emberwatch terraces (4.2 / 3.0 / 1.5 m); the Knight climbs
+   them with run-ups; hovering the 4.2 m south face previews
+   "Fall 4.2 m · 1d6 · Prone" only for creatures that would be hurt.
 4. River, thicket, and rubble path-preview costs; the bridge should be cheaper.
 5. (Deferred until a bomb/throw ability ships) Explosive radius preview,
    saves, damage, barrel destruction, and AI refusal when an ally or itself

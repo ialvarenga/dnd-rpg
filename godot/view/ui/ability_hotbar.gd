@@ -3,6 +3,8 @@ extends GridContainer
 
 signal ability_requested(ability_id: StringName)
 const BUTTON_SCENE = preload("res://view/ui/ability_button.tscn")
+## Two rows of five, bound to the number keys 1-9 and 0.
+const MAX_SLOTS := 10
 
 @export var icon_set: IconSet
 var _actions: Array[Dictionary] = []
@@ -16,7 +18,7 @@ func set_actions(actions: Array[Dictionary]) -> void:
 	for child in get_children():
 		remove_child(child)
 		child.queue_free()
-	for index in mini(_actions.size(), 8):
+	for index in mini(_actions.size(), MAX_SLOTS):
 		var button: AbilityButton = BUTTON_SCENE.instantiate()
 		add_child(button)
 		button.configure(_actions[index], index, icon_set)

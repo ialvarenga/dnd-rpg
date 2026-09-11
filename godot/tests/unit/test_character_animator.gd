@@ -12,6 +12,7 @@ static func run() -> Dictionary:
 	_test_state_finished_reports_only_the_current_clip(failures)
 	_test_hold_pose_relabels_without_changing_clip(failures)
 	_test_ranged_stance_selects_bow_ready(failures)
+	_test_jump_verbs_resolve_to_real_rig_clips(failures)
 	return {"name": "unit/test_character_animator", "failures": failures}
 
 
@@ -31,12 +32,33 @@ static func _test_ranged_stance_selects_bow_ready(failures: Array[String]) -> vo
 
 static func _test_stable_verb_vocabulary(failures: Array[String]) -> void:
 	var animation_set := ActorAnimationSet.new()
-	for verb in [&"idle", &"locomotion", &"jump", &"crouch", &"dodge", &"interact", &"attack", &"combat_ready", &"block", &"hit", &"death", &"shove", &"knockdown", &"prone", &"stand_up", &"ranged_ready", &"ranged_draw", &"ranged_release"]:
+	for verb in [&"idle", &"locomotion", &"jump", &"jump_start", &"jump_air", &"jump_land", &"crouch", &"dodge", &"interact", &"attack", &"combat_ready", &"block", &"hit", &"death", &"shove", &"knockdown", &"prone", &"stand_up", &"ranged_ready", &"ranged_draw", &"ranged_release"]:
 		_expect(animation_set.clip_for(verb) != &"", "animation set has no clip mapping for %s" % verb, failures)
 	_expect(animation_set.clip_for(&"unknown") == &"", "animation set mapped an unknown verb", failures)
 	_expect(is_equal_approx(animation_set.speed_scale_for(&"stand_up"), 1.4) and is_equal_approx(animation_set.speed_scale_for(&"idle"), 1.0), "animation set did not scale only the stand-up clip", failures)
 	_expect(animation_set.clip_for(&"ranged_ready") == &"Ranged_Bow_Idle" and animation_set.clip_for(&"ranged_draw") == &"Ranged_Bow_Draw" and animation_set.clip_for(&"ranged_release") == &"Ranged_Bow_Release", "the ranged verbs should map to KayKit's bow clips", failures)
 	_expect(animation_set.animation_library_paths.has("res://assets/kaykit_character_animations/Rig_Medium_CombatRanged.glb"), "the default set should load the CombatRanged library for the bow clips", failures)
+
+
+## ADR-009: the jump verbs must name clips the MovementBasic rig really ships
+## (the old "Jump_A" existed in none), and the airborne hang must loop so a
+## tall drop never freezes on its last frame.
+static func _test_jump_verbs_resolve_to_real_rig_clips(failures: Array[String]) -> void:
+	var scene := load("res://assets/kaykit_character_animations/Rig_Medium_MovementBasic.glb") as PackedScene
+	_expect(scene != null, "the MovementBasic rig did not load", failures)
+	if scene == null:
+		return
+	var root := scene.instantiate()
+	var player := root.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	var animation_set := ActorAnimationSet.new()
+	var clips := {}
+	for name in player.get_animation_list():
+		clips[String(name).get_file()] = player.get_animation(name)
+	for verb in [&"jump_start", &"jump_air", &"jump_land"]:
+		_expect(clips.has(String(animation_set.clip_for(verb))), "jump verb %s maps to a clip the rig does not ship" % verb, failures)
+	var hang: Animation = clips.get(String(animation_set.clip_for(&"jump_air")))
+	_expect(hang != null and hang.loop_mode != Animation.LOOP_NONE, "the airborne jump clip does not loop", failures)
+	root.free()
 
 
 static func _test_state_finished_reports_only_the_current_clip(failures: Array[String]) -> void:

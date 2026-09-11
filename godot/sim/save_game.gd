@@ -19,7 +19,8 @@ extends RefCounted
 ## the related actor scope carried by attack-triggered condition instances.
 ## Bump 7 adds skill/stealth/detection/morale state, offhand equipment,
 ## surprised-turn bookkeeping, and explosive-interactable blast state.
-const SCHEMA_VERSION: int = 7
+## Bump 8: ActorState serializes run_up_m, the on-foot run-up a jump reads.
+const SCHEMA_VERSION: int = 8
 const GAME_VERSION: String = "0.1.0"
 
 var schema_version: int = SCHEMA_VERSION

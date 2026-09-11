@@ -5,16 +5,46 @@ extends NavProvider
 ## port; NavigationServer3D and the NavigationRegion3D remain on this side of
 ## the simulation boundary.
 
+const JumpRulesScript = preload("res://sim/rules/jump_rules.gd")
+const JumpLinkCompilerScript = preload("res://world/jump_link_compiler.gd")
+
 var navigation_region: NavigationRegion3D
 var navigation_layers: int = 1
 var snap_tolerance := 0.35
 var movement_regions: Array[Dictionary] = []
+## ADR-009 ledge jumps. Segment keys (planar, see _segment_key) map to
+## {"kind"}; a running climb's link also maps to the ground point at the ledge
+## base, where its run-up ends and the jump itself begins.
+var _jump_segments: Dictionary = {}
+var _run_up_ends: Dictionary = {}
 
 
-func _init(region: NavigationRegion3D = null, layers: int = 1, weighted_regions: Array[Dictionary] = []) -> void:
+func _init(region: NavigationRegion3D = null, layers: int = 1, weighted_regions: Array[Dictionary] = [], jump_links: Array[Dictionary] = []) -> void:
 	navigation_region = region
 	navigation_layers = layers
 	movement_regions = weighted_regions.duplicate(true)
+	for link in jump_links:
+		var jump_from: Vector3 = link.get("via", link["from"])
+		_jump_segments[_segment_key(jump_from, link["to"])] = {"kind": link["kind"]}
+		if link.has("via"):
+			_run_up_ends[_segment_key(link["from"], link["to"])] = link["via"]
+
+
+## Same navmesh and ledges, restricted to the links this Strength can take.
+func for_jumper(strength: int) -> NavProvider:
+	if _jump_segments.is_empty():
+		return self
+	var scoped := GodotNavProvider.new(navigation_region, JumpLinkCompilerScript.layers_for_strength(strength))
+	scoped.snap_tolerance = snap_tolerance
+	scoped.movement_regions = movement_regions
+	scoped._jump_segments = _jump_segments
+	scoped._run_up_ends = _run_up_ends
+	return scoped
+
+
+func jump_between(from: Vector3, to: Vector3) -> Dictionary:
+	var jump: Dictionary = _jump_segments.get(_segment_key(from, to), {})
+	return jump.duplicate()
 
 
 func find_path(from: Vector3, to: Vector3) -> PackedVector3Array:
@@ -33,8 +63,14 @@ func find_path(from: Vector3, to: Vector3) -> PackedVector3Array:
 	# character's center snapped to the terrain surface.
 	var surface_clearance := from.y - closest_from.y
 	var path := PackedVector3Array()
-	for point in raw_path:
-		path.append(point + Vector3.UP * surface_clearance)
+	for index in range(raw_path.size()):
+		# A traversed link appears as its exact start and end points. A running
+		# climb's link starts one run-up out; split it so the run-up is walked
+		# and only the leap from the ledge base is a jump.
+		if index > 0 and _run_up_ends.has(_segment_key(raw_path[index - 1], raw_path[index])):
+			var run_up_end: Vector3 = _run_up_ends[_segment_key(raw_path[index - 1], raw_path[index])]
+			path.append(run_up_end + Vector3.UP * surface_clearance)
+		path.append(raw_path[index] + Vector3.UP * surface_clearance)
 	if path.size() == 1 and from.distance_to(path[0]) > 0.001:
 		path.insert(0, from)
 	return path
@@ -47,6 +83,10 @@ func path_cost(path: PackedVector3Array) -> float:
 	for index in range(1, path.size()):
 		var start := path[index - 1]
 		var finish := path[index]
+		var jump := jump_between(start, finish)
+		if not jump.is_empty():
+			cost += JumpRulesScript.jump_cost(StringName(jump["kind"]), start, finish)
+			continue
 		var length := start.distance_to(finish)
 		var steps := maxi(1, ceili(length / 0.25))
 		for step in range(steps):
@@ -91,7 +131,19 @@ func is_reachable(from: Vector3, to: Vector3) -> bool:
 	if _planar_distance(from, closest_from) > snap_tolerance or _planar_distance(to, closest_to) > snap_tolerance:
 		return false
 	var path := NavigationServer3D.map_get_path(map, closest_from, closest_to, true, navigation_layers)
-	return not path.is_empty()
+	# The server answers an unreachable target with a path to the nearest point
+	# it can reach. On the same level that is the long-standing "get as close as
+	# you can" behaviour (a chest inside its blocker). A summit only ledge jumps
+	# connect is another level entirely, an island for anyone who cannot make
+	# them, so a route ending a storey away from its target has not arrived.
+	return not path.is_empty() and absf(path[path.size() - 1].y - closest_to.y) <= JumpRulesScript.STEP_HEIGHT_M
+
+
+func surface_point(pos: Vector3) -> Vector3:
+	if not _is_finite_vector(pos) or not _has_navigation_map():
+		return Vector3.INF
+	var surface := _vertical_closest_point(_navigation_map(), pos)
+	return surface if _planar_distance(pos, surface) <= snap_tolerance else Vector3.INF
 
 
 func snap_to_navmesh(pos: Vector3) -> Vector3:
@@ -134,6 +186,12 @@ func _path_stays_on_push_line(path: PackedVector3Array, from: Vector3, to: Vecto
 		if index > 0:
 			path_length += _planar_distance(path[index - 1], path[index])
 	return path_length <= requested_distance + snap_tolerance
+
+
+## Planar, centimetre-snapped key: path points carry the character's height
+## above the surface, but a ledge's horizontal endpoints are exact.
+func _segment_key(from: Vector3, to: Vector3) -> String:
+	return "%.2f,%.2f>%.2f,%.2f" % [from.x, from.z, to.x, to.z]
 
 
 func _vertical_closest_point(map: RID, point: Vector3) -> Vector3:

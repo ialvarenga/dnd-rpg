@@ -29,6 +29,7 @@ script = ExtResource("1")
 id = &"shove"
 display_name = "Shove"
 description = "Choose Push or Prone, then force a nearby enemy to resist."
+usable_in_exploration = true
 costs_action = true
 targeting = &"actor"
 target_range_meters = 1.5

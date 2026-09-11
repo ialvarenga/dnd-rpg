@@ -53,12 +53,18 @@ Sem grid visível.
 
 #### V1 / Marco E
 
-“Sem combate vertical” significa que não há pavimentos empilhados, escadas,
-ladder/climbing, jump traversal nem uma rede de `NavigationLink3D`. O campo
-continua sendo uma única superfície navegável contínua. Essa superfície pode
-ter colinas com rampas, bordas e quedas: Marco E aplica ±2 a ataques com pelo
-menos 2,5 m de diferença de altura e permite Shove Push com projeção e dano de
-queda. Isso não cria um sistema geral de navegação multinível.
+“Sem combate vertical” significa que não há pavimentos empilhados, escadas
+nem ladder/climbing. O campo continua sendo um único heightfield. Essa
+superfície pode ter colinas com rampas, bordas e quedas: Marco E aplica ±2 a
+ataques com pelo menos 2,5 m de diferença de altura e permite Shove Push com
+projeção e dano de queda (e Prone).
+
+Desde a ADR-009, colinas `jumpable` ligam seus patamares com
+`NavigationLink3D` de mão única (descer e subir bordas). Cada link fica numa
+camada que codifica a Força mínima para usá-lo (`JumpRules`, SRD 5.2.1 Long/
+High Jump e Falling), e `NavProvider.for_jumper()` roteia cada criatura apenas
+pelas bordas que ela consegue. Isso continua não sendo um sistema geral de
+navegação multinível.
 
 ### 1.6 Linha de visão
 

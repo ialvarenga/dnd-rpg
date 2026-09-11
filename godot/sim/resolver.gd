@@ -34,7 +34,13 @@ extends RefCounted
 ## through explicit events after the relevant attack.
 ## Bump 14: weapon masteries, ability modes, forced movement/falls, elevation,
 ## weighted paths, area saves, stealth/surprise, and surrender are authoritative.
-const RULES_VERSION: int = 14
+## Bump 15: moves route per Strength across ledge jumps (JumpRules), a hard
+## landing deals SRD fall damage and leaves the jumper Prone, and a Shove fall
+## now leaves its target Prone too.
+## Bump 16: the Jump action leaps to a point, reading the on-foot run-up that
+## movement now tracks; outside combat every ability resolves with no action
+## economy, and any ability aimed at the other side opens combat.
+const RULES_VERSION: int = 16
 
 const ATTACK_RANGE_METERS := 1.5
 const THREAT_RANGE_METERS := 1.5
@@ -53,6 +59,7 @@ const AbilityCheckRules = preload("res://sim/rules/ability_check.gd")
 const AttackMathRules = preload("res://sim/rules/attack_math.gd")
 const MasteryRulesScript = preload("res://sim/rules/mastery_rules.gd")
 const DetectionRulesScript = preload("res://sim/rules/detection_rules.gd")
+const JumpRulesScript = preload("res://sim/rules/jump_rules.gd")
 
 const EFFECT_ADD_BASE_MOVEMENT := &"add_base_movement"
 const EFFECT_APPLY_CONDITION := &"apply_condition"
@@ -66,6 +73,7 @@ const EFFECT_START_DIALOG := &"start_dialog"
 const EFFECT_FORCED_MOVEMENT := &"forced_movement"
 const EFFECT_AREA_DAMAGE := &"area_damage"
 const EFFECT_TOGGLE_SNEAK := &"toggle_sneak"
+const EFFECT_LEAP := &"leap"
 
 ## Every social stance set_disposition accepts. Kept beside the interactable
 ## transition table: a small fixed vocabulary the resolver validates against
@@ -225,6 +233,9 @@ static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, lo
 	var conscious_rejection := CommandPhaseRulesScript.rejection_for_conscious(actor)
 	if conscious_rejection != &"":
 		return _rejected(result, cmd, conscious_rejection)
+	# Routing, reachability, and clamping only see the ledges this creature's
+	# Strength can take (ADR-009).
+	nav = nav.for_jumper(actor.strength)
 	var nav_path := nav.find_path(actor.position, cmd.target_pos)
 	if nav_path.is_empty() or not nav.is_reachable(actor.position, cmd.target_pos):
 		return _rejected(result, cmd, RejectionReasonRules.UNREACHABLE)
@@ -233,10 +244,17 @@ static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, lo
 	if requested_path_cost <= MOVEMENT_EPSILON:
 		return _rejected(result, cmd, RejectionReasonRules.NO_MOVEMENT)
 	if state.phase == EncounterRules.EXPLORATION:
-		_append_movement_event(result, actor.id, actor.position, path, requested_path_cost, requested_path_cost, false)
+		var detection_state := state.clone()
+		for leg in _movement_legs(path, nav):
+			if leg["kind"] == &"walk":
+				var leg_path: PackedVector3Array = leg["path"]
+				var leg_cost := requested_path_cost if leg_path.size() == path.size() else nav.path_cost(leg_path)
+				_append_movement_event(result, actor.id, (detection_state.actors[actor.id] as ActorState).position, leg_path, leg_cost, requested_path_cost, false)
+				apply(detection_state, result.events.back())
+			elif not _append_jump_leg(result, detection_state, actor.id, leg, false):
+				break
+		result.next_rng_state = detection_state.rng_state
 		if actor.sneaking:
-			var detection_state := state.clone()
-			apply(detection_state, result.events.back())
 			var moved_actor := detection_state.actors[actor.id] as ActorState
 			var observer_ids: Array = detection_state.actors.keys()
 			observer_ids.sort()
@@ -269,34 +287,170 @@ static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, lo
 			return _rejected(result, cmd, RejectionReasonRules.NO_MOVEMENT_REMAINING)
 		was_clamped = true
 
+	for leg in _movement_legs(resolved_path, nav):
+		if not (working.actors[cmd.actor_id] as ActorState).is_alive():
+			break
+		if leg["kind"] == &"walk":
+			_resolve_walking_leg(result, working, cmd.actor_id, leg["path"], nav, los, definitions, requested_path_cost, was_clamped)
+			continue
+		_resolve_jump_reactions(result, working, cmd.actor_id, leg, los, definitions)
+		if not (working.actors[cmd.actor_id] as ActorState).is_alive() or not _append_jump_leg(result, working, cmd.actor_id, leg, true):
+			break
+	result.next_rng_state = working.rng_state
+	return result
+
+
+## Splits a path into walking polylines and single ledge-jump segments, in
+## travel order. A jump is a segment the NavProvider reports through
+## jump_between; everything between jumps is ordinary walking.
+static func _movement_legs(path: PackedVector3Array, nav: NavProvider) -> Array[Dictionary]:
+	var legs: Array[Dictionary] = []
+	var walk := PackedVector3Array([path[0]])
+	for index in range(1, path.size()):
+		var jump := nav.jump_between(path[index - 1], path[index])
+		if jump.is_empty():
+			walk.append(path[index])
+			continue
+		if walk.size() >= 2:
+			legs.append({"kind": &"walk", "path": walk})
+		legs.append({"kind": &"jump", "from": path[index - 1], "to": path[index], "jump": jump})
+		walk = PackedVector3Array([path[index]])
+	if walk.size() >= 2:
+		legs.append({"kind": &"walk", "path": walk})
+	return legs
+
+
+static func _resolve_walking_leg(result: ResolutionResult, working: BattleState, mover_id: int, leg_path: PackedVector3Array, nav: NavProvider, los: LosProvider, definitions: DefinitionLibrary, requested_path_cost: float, was_clamped: bool) -> void:
 	var traversed_distance := 0.0
-	var resolved_distance := PolylineUtil.length(resolved_path)
-	while traversed_distance + MOVEMENT_EPSILON < resolved_distance and (working.actors[cmd.actor_id] as ActorState).is_alive():
-		var remaining_path := _path_from_distance(resolved_path, traversed_distance)
+	var leg_distance := PolylineUtil.length(leg_path)
+	while traversed_distance + MOVEMENT_EPSILON < leg_distance and (working.actors[mover_id] as ActorState).is_alive():
+		var remaining_path := _path_from_distance(leg_path, traversed_distance)
 		var remaining_distance := PolylineUtil.length(remaining_path)
-		var reaction := _next_opportunity_reaction(working, cmd.actor_id, remaining_path, los)
+		var reaction := _next_opportunity_reaction(working, mover_id, remaining_path, los)
 		var segment_distance := remaining_distance if reaction.is_empty() else float(reaction["distance"])
 		if segment_distance > MOVEMENT_EPSILON:
 			var segment_path := PolylineUtil.clamp(remaining_path, segment_distance)
 			var segment_cost := nav.path_cost(segment_path)
-			_append_movement_event(result, cmd.actor_id, (working.actors[cmd.actor_id] as ActorState).position, segment_path, segment_cost, requested_path_cost, was_clamped)
+			_append_movement_event(result, mover_id, (working.actors[mover_id] as ActorState).position, segment_path, segment_cost, requested_path_cost, was_clamped)
 			# Apply only to the private working clone so following reactions see the
 			# exact authoritative boundary position.
 			apply(working, result.events.back())
-			_append_movement_spent(result, working, cmd.actor_id, segment_cost)
+			_append_movement_spent(result, working, mover_id, segment_cost)
 			traversed_distance += segment_distance
 		if reaction.is_empty():
 			break
 		var reactor_id := int(reaction["actor_id"])
 		var reactor: ActorState = working.actors[reactor_id]
-		var mover: ActorState = working.actors[cmd.actor_id]
+		var mover: ActorState = working.actors[mover_id]
 		_append_and_apply(result, working, Event.create(&"reaction_triggered", {"actor_id": reactor_id, "target_id": mover.id, "reaction": &"opportunity_attack"}))
 		_resolve_attack_between(working, reactor, mover, los, definitions, result, false, true, &"opportunity")
-		if not (working.actors[cmd.actor_id] as ActorState).is_alive():
+		if not (working.actors[mover_id] as ActorState).is_alive():
 			break
 		# Remaining enemies at this same boundary have distance zero; their spent
 		# reaction is filtered, so each other eligible enemy resolves once.
+
+
+## Jumping out of a threatened space still provokes. Every eligible reaction
+## resolves at the takeoff point, before the creature is airborne, so a jump is
+## never split mid-air.
+static func _resolve_jump_reactions(result: ResolutionResult, working: BattleState, mover_id: int, leg: Dictionary, los: LosProvider, definitions: DefinitionLibrary) -> void:
+	var jump_path := PackedVector3Array([leg["from"], leg["to"]])
+	while (working.actors[mover_id] as ActorState).is_alive():
+		var reaction := _next_opportunity_reaction(working, mover_id, jump_path, los)
+		if reaction.is_empty():
+			return
+		var reactor: ActorState = working.actors[int(reaction["actor_id"])]
+		_append_and_apply(result, working, Event.create(&"reaction_triggered", {"actor_id": reactor.id, "target_id": mover_id, "reaction": &"opportunity_attack"}))
+		_resolve_attack_between(working, reactor, working.actors[mover_id], los, definitions, result, false, true, &"opportunity")
+
+
+## Emits one ledge jump and its landing. Returns false when the move must end
+## here: a hard landing (fall damage, and Prone in combat) stops the creature
+## wherever it came down. Exploration charges no movement and applies no Prone.
+static func _append_jump_leg(result: ResolutionResult, working: BattleState, actor_id: int, leg: Dictionary, in_combat: bool) -> bool:
+	var jump: Dictionary = leg["jump"]
+	var from: Vector3 = leg["from"]
+	var to: Vector3 = leg["to"]
+	var kind := StringName(jump.get("kind", JumpRulesScript.DROP))
+	var cost := JumpRulesScript.jump_cost(kind, from, to)
+	var height := absf(from.y - to.y)
+	var jumper: ActorState = working.actors[actor_id]
+	# The Jump action knows whether it had its run-up. A routed ledge climb was
+	# only offered if the jumper can make it, so one beyond its standing High
+	# Jump must be the running jump, taken after a 3 m run-up.
+	var running := bool(jump["running"]) if jump.has("running") else (kind == JumpRulesScript.CLIMB and JumpRulesScript.high_jump_m(jumper.strength, false) + JumpRulesScript.EPSILON < height)
+	_append_and_apply(result, working, Event.create(&"jump_performed", {
+		"actor_id": actor_id,
+		"kind": kind,
+		"from": from,
+		"to": to,
+		"height": height,
+		"running": running,
+		"movement_cost": cost,
+	}))
+	if in_combat:
+		_append_movement_spent(result, working, actor_id, cost)
+	if kind != JumpRulesScript.DROP:
+		return true
+	var actor: ActorState = working.actors[actor_id]
+	var outcome := JumpRulesScript.drop_outcome(actor.strength, height)
+	if int(outcome["dice"]) <= 0:
+		return true
+	_append_fall(result, working, actor, actor_id, from, to, height, outcome, in_combat, true)
+	return false
+
+
+## The Jump action (ADR-009): one straight leap to cmd.target_pos -- across a
+## gap, down a ledge, or up onto one -- limited by the jumper's own Long and
+## High Jump, halved without a 3 m run-up (ActorState.run_up_m). It costs
+## movement like any jump and never an action; a prone jumper stands first,
+## and leaving an enemy's reach provokes at the takeoff.
+static func _resolve_leap(state: BattleState, cmd: Command, nav: NavProvider, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult) -> ResolutionResult:
+	var actor: ActorState = state.actors[cmd.actor_id]
+	if not is_finite(cmd.target_pos.x) or not is_finite(cmd.target_pos.y) or not is_finite(cmd.target_pos.z):
+		return _rejected(result, cmd, RejectionReasonRules.INVALID_TARGET_POINT)
+	var ground := nav.surface_point(cmd.target_pos)
+	if not is_finite(ground.x):
+		return _rejected(result, cmd, RejectionReasonRules.NO_LANDING)
+	# Positions carry the body's height above the ground; keep it on landing.
+	var standing_on := nav.surface_point(actor.position)
+	var clearance := actor.position.y - standing_on.y if is_finite(standing_on.x) else 0.0
+	var landing := ground + Vector3.UP * clearance
+	var running := actor.run_up_m + JumpRulesScript.EPSILON >= JumpRulesScript.RUN_UP_M
+	var leap := JumpRulesScript.leap_check(actor.strength, running, actor.position, landing)
+	if not bool(leap["ok"]):
+		return _rejected(result, cmd, StringName(leap["reason"]))
+	if los.cover_between(actor.position, landing) == LosProvider.COVER_TOTAL:
+		return _rejected(result, cmd, RejectionReasonRules.NO_LINE_OF_SIGHT)
+	var in_combat := state.phase == EncounterRules.COMBAT
+	var working := state.clone()
+	if in_combat:
+		var standing_condition := _condition_requiring_stand(actor, definitions)
+		var stand_cost := _stand_cost(actor) if standing_condition != &"" else 0.0
+		if actor.movement_remaining + MOVEMENT_EPSILON < stand_cost + float(leap["cost"]):
+			return _rejected(result, cmd, RejectionReasonRules.INSUFFICIENT_MOVEMENT)
+		if standing_condition != &"":
+			_append_stand_up(result, working, actor.id, standing_condition)
+	var leg := {"from": actor.position, "to": landing, "jump": {"kind": leap["kind"], "running": running}}
+	_resolve_jump_reactions(result, working, actor.id, leg, los, definitions)
+	if (working.actors[actor.id] as ActorState).is_alive():
+		_append_jump_leg(result, working, actor.id, leg, in_combat)
+	result.next_rng_state = working.rng_state
 	return result
+
+
+## Shared by a hard landing and a Shove fall: SRD Falling damage, then Prone
+## when the fall hurt a creature that is still conscious and standing. The
+## fall_started event says whether Prone follows, so presentation outside
+## combat can knock the creature down and stand it straight back up.
+static func _append_fall(result: ResolutionResult, working: BattleState, target: ActorState, source_actor_id: int, from: Vector3, to: Vector3, fall_distance: float, outcome: Dictionary, applies_prone: bool, deliberate: bool) -> void:
+	var fall_roll := Dice.roll_dice(working.rng_state, int(outcome["dice"]), JumpRulesScript.FALL_DIE_SIDES)
+	working.rng_state = int(fall_roll["next_rng_state"])
+	var knocks_prone := applies_prone and bool(outcome["prone"])
+	_append_and_apply(result, working, Event.create(&"fall_started", {"actor_id": target.id, "from": from, "to": to, "fall_distance": fall_distance, "effective_fall": float(outcome["effective_m"]), "deliberate": deliberate, "prone": knocks_prone}))
+	_append_damage_and_consequence(result, working, target, source_actor_id, int(fall_roll["total"]), &"fall", {"rolls": fall_roll["values"]})
+	if knocks_prone and target.is_conscious() and not target.is_prone():
+		_append_and_apply(result, working, Event.create(&"condition_added", {"actor_id": target.id, "condition": &"prone", "source_actor_id": source_actor_id, "remaining_triggers": -1, "expiration_timing": &"none", "related_actor_id": -1}))
 
 
 ## exploration -> free (costs_action false); combat -> costs the actor's
@@ -337,8 +491,11 @@ static func _resolve_ability_command(state: BattleState, cmd: Command, nav: NavP
 	if conscious_rejection != &"": return _rejected(result, cmd, conscious_rejection)
 	var ability := definitions.get_ability(ability_id)
 	if ability == null: return _rejected(result, cmd, RejectionReasonRules.UNKNOWN_ABILITY_DEFINITION)
-	var cost_rejection := AbilityCostRulesScript.rejection_for_cost(actor, ability, definitions)
+	var in_combat := state.phase == EncounterRules.COMBAT
+	var cost_rejection := AbilityCostRulesScript.rejection_for_cost(actor, ability, definitions, in_combat)
 	if cost_rejection != &"": return _rejected(result, cmd, cost_rejection)
+	if ability.effects.any(func(effect: AbilityEffect): return effect.type == EFFECT_LEAP):
+		return _resolve_leap(state, cmd, nav, los, definitions, result)
 	var selected_mode := StringName(str(cmd.metadata.get("mode", "")))
 	if not ability.modes.is_empty() and not ability.modes.has(selected_mode):
 		return _rejected(result, cmd, RejectionReasonRules.INVALID_ABILITY_MODE)
@@ -378,7 +535,10 @@ static func _resolve_ability_command(state: BattleState, cmd: Command, nav: NavP
 	if ability.effects.any(func(effect: AbilityEffect): return effect.type == EFFECT_START_DIALOG) and (target == null or target.dialog_id == &""):
 		return _rejected(result, cmd, RejectionReasonRules.TARGET_HAS_NO_DIALOG)
 	var working := state.clone()
-	if state.phase == EncounterRules.EXPLORATION and has_attack:
+	# Out of combat, an attack or anything else aimed at the other side opens
+	# the fight; every other action just resolves, with no economy to spend.
+	var opens_combat := state.phase == EncounterRules.EXPLORATION and CommandPhaseRulesScript.opens_combat_from_exploration(ability)
+	if opens_combat:
 		var start := Command.create(&"start_combat", actor.id)
 		start.metadata = {
 			"encounter_id": str(cmd.metadata.get("encounter_id", "")),
@@ -397,7 +557,7 @@ static func _resolve_ability_command(state: BattleState, cmd: Command, nav: NavP
 			apply(working, opening_event)
 		working.rng_state = result.next_rng_state
 		result.events.append(Event.create(&"exploration_attack_opened", {"actor_id": actor.id, "target_id": target.id if target != null else -1, "surprise": target != null and actor.hidden_from.has(target.id)}))
-	_spend_ability_cost(result, actor, ability, not has_attack, not has_attack, target.id if target != null else -1)
+	_spend_ability_cost(result, actor, ability, not has_attack, not has_attack, target.id if target != null else -1, in_combat or opens_combat)
 	var source: ActorState = working.actors[actor.id]
 	var working_target: ActorState = working.actors.get(cmd.target_id) as ActorState
 	var context := {
@@ -550,7 +710,8 @@ static func _resolve_surrender(state: BattleState, cmd: Command, result: Resolut
 	return result
 
 
-static func _spend_ability_cost(result: ResolutionResult, actor: ActorState, ability: AbilityDefinition, include_action: bool = true, include_reaction: bool = true, target_id: int = -1) -> void:
+## `spends_economy` is false outside combat, where only the use pool drains.
+static func _spend_ability_cost(result: ResolutionResult, actor: ActorState, ability: AbilityDefinition, include_action: bool = true, include_reaction: bool = true, target_id: int = -1, spends_economy: bool = true) -> void:
 	# Unlike the action/bonus-action flags this is emitted for attacks too: the
 	# attack_rolled event carries only the action/reaction spend flags, so a
 	# limited-use attack would otherwise never decrement its pool.
@@ -560,6 +721,8 @@ static func _spend_ability_cost(result: ResolutionResult, actor: ActorState, abi
 			"actor_id": actor.id, "ability_id": ability.id,
 			"uses_spent": spent, "uses_remaining": maxi(0, ability.max_uses - spent),
 		}))
+	if not spends_economy:
+		return
 	if include_action and ability.costs_action:
 		var action_data := {"actor_id": actor.id, "action": ability.id}
 		# Presentation needs the recipient before any save/effect event names it
@@ -636,13 +799,10 @@ static func _apply_generic_effect(result: ResolutionResult, working: BattleState
 				return
 			var landing: Vector3 = projection.get("landing_position", target.position)
 			_append_and_apply(result, working, Event.create(&"forced_movement", {"actor_id": target.id, "source_actor_id": actor.id, "from": target.position, "to": landing, "distance": target.position.distance_to(landing)}))
-			if bool(projection.get("fell", false)):
-				var fall_distance := float(projection.get("fall_distance", 0.0))
-				var dice_count := maxi(1, floori(fall_distance / 3.0))
-				var fall_roll := Dice.roll_dice(working.rng_state, dice_count, 6)
-				working.rng_state = int(fall_roll["next_rng_state"])
-				_append_and_apply(result, working, Event.create(&"fall_started", {"actor_id": target.id, "from": target.position, "to": landing, "fall_distance": fall_distance}))
-				_append_damage_and_consequence(result, working, target, actor.id, int(fall_roll["total"]), &"fall", {"rolls": fall_roll["values"]})
+			var fall_distance := float(projection.get("fall_distance", 0.0))
+			var fall := JumpRulesScript.forced_fall_outcome(fall_distance)
+			if bool(projection.get("fell", false)) and int(fall["dice"]) > 0:
+				_append_fall(result, working, target, actor.id, target.position, landing, fall_distance, fall, true, false)
 		EFFECT_TOGGLE_SNEAK:
 			if actor.sneaking:
 				_append_and_apply(result, working, Event.create(&"sneaking_changed", {"actor_id": actor.id, "sneaking": false, "stealth_total": 0}))
@@ -1088,8 +1248,16 @@ static func _append_reached_objectives(result: ResolutionResult, working: Battle
 
 static func apply(state: BattleState, event: Event) -> void:
 	match event.type:
-		&"movement_segment": (state.actors[event.data["actor_id"]] as ActorState).position = event.data["to"]
-		&"forced_movement": (state.actors[event.data["actor_id"]] as ActorState).position = event.data["to"]
+		&"movement_segment":
+			var walker := state.actors[event.data["actor_id"]] as ActorState
+			walker.run_up_m += PolylineUtil.length(event.data.get("path", PackedVector3Array([walker.position, event.data["to"]])))
+			walker.position = event.data["to"]
+		&"forced_movement", &"jump_performed":
+			# Landing from a leap or a shove is not movement on foot: the next
+			# jump needs a fresh run-up.
+			var flier := state.actors[event.data["actor_id"]] as ActorState
+			flier.position = event.data["to"]
+			flier.run_up_m = 0.0
 		&"hidden_revealed": (state.actors[event.data["actor_id"]] as ActorState).hidden_from.erase(int(event.data["target_id"]))
 		&"sneaking_changed":
 			var sneaking_actor := state.actors[event.data["actor_id"]] as ActorState
@@ -1108,8 +1276,14 @@ static func apply(state: BattleState, event: Event) -> void:
 			var moving_actor: ActorState = state.actors[event.data["actor_id"]]
 			moving_actor.movement_remaining = maxf(0.0, moving_actor.movement_remaining - event.data["amount"])
 		&"movement_gained": (state.actors[event.data["actor_id"]] as ActorState).movement_remaining += event.data["amount"]
-		&"action_spent": (state.actors[event.data["actor_id"]] as ActorState).action_available = false
-		&"bonus_action_spent": (state.actors[event.data["actor_id"]] as ActorState).bonus_action_available = false
+		# Stopping to act breaks a run-up: the SRD wants the 3 m immediately
+		# before the jump.
+		&"action_spent":
+			(state.actors[event.data["actor_id"]] as ActorState).action_available = false
+			(state.actors[event.data["actor_id"]] as ActorState).run_up_m = 0.0
+		&"bonus_action_spent":
+			(state.actors[event.data["actor_id"]] as ActorState).bonus_action_available = false
+			(state.actors[event.data["actor_id"]] as ActorState).run_up_m = 0.0
 		&"disengage_applied": (state.actors[event.data["actor_id"]] as ActorState).disengaged = true
 		&"disposition_changed": (state.actors[event.data["actor_id"]] as ActorState).disposition = StringName(str(event.data["disposition"]))
 		&"actor_surrendered":
@@ -1120,6 +1294,7 @@ static func apply(state: BattleState, event: Event) -> void:
 		&"reaction_triggered": (state.actors[event.data["actor_id"]] as ActorState).reaction_available = false
 		&"attack_rolled":
 			var attacking_actor: ActorState = state.actors[event.data["actor_id"]]
+			attacking_actor.run_up_m = 0.0
 			if event.data["action_spent"]: attacking_actor.action_available = false
 			if event.data.get("reaction_spent", false): attacking_actor.reaction_available = false
 		&"damage_taken": (state.actors[event.data["actor_id"]] as ActorState).hp = max(0, (state.actors[event.data["actor_id"]] as ActorState).hp - event.data["amount"])
@@ -1225,6 +1400,7 @@ static func apply(state: BattleState, event: Event) -> void:
 			turn_actor.bonus_action_available = event.data["bonus_action_available"]
 			turn_actor.reaction_available = event.data["reaction_available"]
 			turn_actor.disengaged = event.data["disengaged"]
+			turn_actor.run_up_m = 0.0
 			turn_actor.ability_uses_spent.erase(&"nick_attack")
 			_recharge_per_turn_uses(turn_actor)
 

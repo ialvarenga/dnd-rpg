@@ -24,6 +24,10 @@ static func run() -> Dictionary:
 	_test_hills_are_compiled_and_present_in_navmesh(failures)
 	_test_hill_excludes_generated_vegetation(failures)
 	_test_hill_rejects_overlapping_placement(failures)
+	_test_jumpable_hill_has_ledges_and_links(failures)
+	_test_hill_height_override(failures)
+	_test_hills_overlap_into_terraces(failures)
+	_test_shipped_emberwatch_terraces(failures)
 	_test_walkover_scatter_has_no_blocker(failures)
 	_test_collision_is_measured_at_walk_height(failures)
 	_test_dense_forest_stays_walkable(failures)
@@ -371,6 +375,78 @@ static func _test_hill_rejects_overlapping_placement(failures: Array[String]) ->
 	var spec := {"map": {"id": "hill_overlap_map", "seed": 1, "bounds": {"width_m": 32, "height_m": 32}}, "terrain": {"profile": "flat"}, "hills": [{"id": "mound", "asset": "forest_hill_4x4x4", "position": [16, 16]}], "vegetation": [{"id": "too_close", "asset": "tree_oak_01", "position": [17, 16]}]}
 	var result := compiler.compile(spec)
 	_expect(not result.is_valid() and not result.errors.is_empty() and result.errors[0].code == &"OVERLAP", "vegetation placed inside a hill's footprint was not rejected", failures)
+
+
+## ADR-009: a jumpable hill keeps a walkable summit with no blocker, drops the
+## navmesh cells straddling its ledges (so no ledge is ever walked as a slope),
+## and bridges them with one-way links whose layer is the Strength they need.
+static func _test_jumpable_hill_has_ledges_and_links(failures: Array[String]) -> void:
+	var spec := {"map": {"id": "ledge_map", "seed": 1, "bounds": {"width_m": 32, "height_m": 32}}, "terrain": {"profile": "flat"}, "hills": [{"id": "block", "asset": "forest_hill_12x12x4", "position": [16, 16], "jumpable": true, "height_m": 3.0}], "spawn_points": [{"id": "start", "position": [2, 2]}], "objectives": [{"id": "summit", "position": [16, 16]}]}
+	var result := CompilerScript.new().compile(spec)
+	_expect(result.is_valid(), "jumpable hill fixture did not compile: %s" % str(result.error_dicts()), failures)
+	if not result.is_valid():
+		return
+	var navigation := result.navigation
+	_expect(is_equal_approx(navigation.surface_height_at(Vector2(18.1, 16.1)), 3.0), "a jumpable hill's summit is not walkable navmesh", failures)
+	_expect(is_nan(navigation.surface_height_at(Vector2(22.9, 16.1))), "the navmesh kept a triangle straddling the ledge", failures)
+	_expect(is_zero_approx(navigation.surface_height_at(Vector2(24.1, 16.1))), "the ground beyond the ledge is not walkable", failures)
+	var drops := navigation.jump_links.filter(func(link: Dictionary): return link.kind == JumpRules.DROP)
+	var climbs := navigation.jump_links.filter(func(link: Dictionary): return link.kind == JumpRules.CLIMB)
+	_expect(not drops.is_empty() and drops.all(func(link: Dictionary): return float(link.from.y) > float(link.to.y) + 2.9), "every drop link should fall the full 3 m ledge", failures)
+	_expect(drops.any(func(link: Dictionary): return int(link.layers) == JumpLinkCompiler.layer_for_required_strength(6)), "a 3 m drop should be safe from STR 6 on", failures)
+	_expect(drops.any(func(link: Dictionary): return int(link.layers) == JumpLinkCompiler.HARMFUL_DROP_LAYER and float(link.enter_cost) > 0.0), "weaker creatures should keep a costly, hurtful way down", failures)
+	_expect(not climbs.is_empty() and climbs.all(func(link: Dictionary): return int(link.layers) == JumpLinkCompiler.layer_for_required_strength(24) and link.has("via")), "a 3 m ledge should only be climbable running, from STR 24", failures)
+	_expect(navigation.is_reachable(Vector2(2, 2), Vector2(16, 16)), "the reachability grid did not follow the ledge links to the summit", failures)
+	var knight := JumpLinkCompiler.layers_for_strength(14)
+	var archer := JumpLinkCompiler.layers_for_strength(10)
+	_expect(knight & JumpLinkCompiler.layer_for_required_strength(14) != 0 and archer & JumpLinkCompiler.layer_for_required_strength(14) == 0, "Strength layers should admit STR 14 ledges for the Knight only", failures)
+	_expect(archer & JumpLinkCompiler.WALK_LAYERS != 0 and archer & JumpLinkCompiler.HARMFUL_DROP_LAYER != 0, "every creature should walk and keep the hurtful way down", failures)
+	if result.root != null:
+		result.root.free()
+
+
+static func _test_hill_height_override(failures: Array[String]) -> void:
+	var spec := {"map": {"id": "height_map", "seed": 1, "bounds": {"width_m": 32, "height_m": 32}}, "terrain": {"profile": "flat"}, "hills": [{"id": "block", "asset": "forest_hill_8x8x4", "position": [16, 16], "height_m": 1.5}], "spawn_points": [{"id": "start", "position": [2, 2]}]}
+	var result := CompilerScript.new().compile(spec)
+	_expect(result.is_valid() and is_equal_approx(result.terrain.height_at(16, 16), 1.5), "height_m did not lower the stamped summit", failures)
+	if result.is_valid():
+		_expect(is_equal_approx(result.placements[0].position.y, -2.5), "a lowered hill's model was not sunk to meet its summit", failures)
+		result.root.free()
+	spec["hills"][0]["height_m"] = 5.0
+	var too_tall := CompilerScript.new().compile(spec)
+	_expect(not too_tall.is_valid() and too_tall.errors[0].code == &"INVALID_HILL_HEIGHT", "a height_m above the model's own height was accepted", failures)
+
+
+static func _test_hills_overlap_into_terraces(failures: Array[String]) -> void:
+	var spec := {"map": {"id": "terrace_map", "seed": 1, "bounds": {"width_m": 40, "height_m": 40}}, "terrain": {"profile": "flat"}, "hills": [
+		{"id": "upper", "asset": "forest_hill_8x8x4", "position": [20, 20], "jumpable": true, "height_m": 3.0},
+		{"id": "lower", "asset": "forest_hill_12x12x2", "position": [20, 16], "jumpable": true, "height_m": 1.5},
+	], "spawn_points": [{"id": "start", "position": [2, 2]}]}
+	var result := CompilerScript.new().compile(spec)
+	_expect(result.is_valid(), "overlapping hills should compile as a terrace: %s" % str(result.error_dicts()), failures)
+	if not result.is_valid():
+		return
+	_expect(is_equal_approx(result.terrain.height_at(20, 20), 3.0) and is_equal_approx(result.terrain.height_at(20, 12), 1.5), "overlapping stamps did not keep the taller summit", failures)
+	_expect(result.placements.all(func(placement: Dictionary): return placement.id not in [&"upper", &"lower"] or float(placement.position.y) < 0.0), "an overlapping terrace stood on its neighbour instead of the pre-stamp ground", failures)
+	_expect(result.navigation.jump_links.any(func(link: Dictionary): return link.hill_id == &"upper" and link.kind == JumpRules.DROP and is_equal_approx(float(link.to.y), 1.5)), "the upper terrace should drop onto the lower one", failures)
+	result.root.free()
+
+
+## The shipped map replaced the Emberwatch ramp with a staircase of jumpable
+## terraces (4.2 / 3.0 / 1.5 m) that the archer's perch drops down.
+static func _test_shipped_emberwatch_terraces(failures: Array[String]) -> void:
+	var spec: Dictionary = MapSpecSourceScript.new("../world_authoring/maps/test_map.json").load_spec()
+	var compilation: MapCompilationResult = CompilerScript.new().compile(spec)
+	if not compilation.is_valid():
+		return
+	var tops := {}
+	for placement in compilation.placements:
+		if String(placement.id).begins_with("emberwatch_") and bool(placement.get("jumpable", false)):
+			tops[placement.id] = float(placement.top_elevation)
+			_expect(not bool(placement.get("navigable", false)), "'%s' still generates a ramp" % placement.id, failures)
+	_expect(tops.size() == 3 and is_equal_approx(tops.get(&"emberwatch_rise", 0.0), 4.2) and is_equal_approx(tops.get(&"emberwatch_terrace_upper", 0.0), 3.0) and is_equal_approx(tops.get(&"emberwatch_terrace_lower", 0.0), 1.5), "the Emberwatch terraces are not 4.2 / 3.0 / 1.5 m: %s" % str(tops), failures)
+	_expect(compilation.navigation.jump_links.any(func(link: Dictionary): return link.hill_id == &"emberwatch_rise"), "the archer's perch has no ledge links", failures)
+	compilation.root.free()
 
 
 ## Grass and low rocks must leave no physics body behind: a walk-over prop that

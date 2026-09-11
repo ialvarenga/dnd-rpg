@@ -263,8 +263,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		toggle_character_sheet(CharacterSheetScript.TAB_INVENTORY)
 		get_viewport().set_input_as_handled()
 		return
-	for slot in range(6):
-		if event.is_action_pressed(StringName("hotbar_%d" % (slot + 1))):
+	for slot in range(AbilityHotbar.MAX_SLOTS):
+		if InputMap.has_action(StringName("hotbar_%d" % (slot + 1))) and event.is_action_pressed(StringName("hotbar_%d" % (slot + 1))):
 			hotbar.request_slot(slot)
 			get_viewport().set_input_as_handled()
 			return

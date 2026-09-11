@@ -41,6 +41,8 @@ static func plan(state: BattleState, actor_id: int, interactable_id: String, nav
 	if state.phase == &"combat" and actor.movement_remaining <= EPSILON:
 		return result
 	var interactable: InteractableState = state.interactables[interactable_id]
+	# Approach the way the resolver will route this creature (ADR-009).
+	nav = nav.for_jumper(actor.strength)
 	var best := _best_direct_path_candidate(state, interact_command, actor, interactable, nav, los)
 	var radial := _best_radial_candidate(state, interact_command, actor, interactable, nav, los)
 	if not radial.is_empty() and (best.is_empty() or float(radial["movement_cost"]) < float(best["movement_cost"])):
@@ -103,7 +105,7 @@ static func _best_radial_candidate(state: BattleState, interact_command: Command
 			var path := PolylineUtil.with_start(nav.find_path(actor.position, requested), actor.position)
 			if path.size() < 2:
 				continue
-			if state.phase == &"combat" and PolylineUtil.length(path) > actor.movement_remaining + EPSILON:
+			if state.phase == &"combat" and nav.path_cost(path) > actor.movement_remaining + EPSILON:
 				continue
 			var candidate := path[path.size() - 1]
 			var evaluation := _evaluate_candidate(state, interact_command, candidate, nav, los)

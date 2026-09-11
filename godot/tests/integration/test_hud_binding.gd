@@ -26,9 +26,11 @@ func run() -> Dictionary:
 func _test_initial_binding(hud: HudRoot, failures: Array[String]) -> void:
 	var hp_label: Label = hud.get_node("Margin/Layout/ActorPortrait/Margin/Rows/HPText")
 	_expect(hp_label.text == "HP 30/30", "HUD bind did not project actor health", failures)
-	# Eight is also the hotbar's hard cap (AbilityHotbar._actions is clamped to 8),
-	# so this doubles as the guard against a loadout that would silently truncate.
-	_expect(hud.hotbar.get_child_count() == 8, "HUD hotbar should contain the knight's eight combat-depth actions, without contextual Talk or inventory consumables", failures)
+	# The hotbar holds AbilityHotbar.MAX_SLOTS (10); the Knight's nine actions
+	# must all fit, so a loadout never silently truncates.
+	_expect(hud.hotbar.get_child_count() == 9 and hud.hotbar.get_child_count() <= AbilityHotbar.MAX_SLOTS, "HUD hotbar should contain the knight's nine actions (Jump included), without contextual Talk or inventory consumables", failures)
+	for child in hud.hotbar.get_children():
+		_expect(not (child as AbilityButton).disabled, "hotbar actions should never be greyed out", failures)
 	_expect(_ability_button(hud, &"talk") == null, "contextual Talk action appeared in the persistent hotbar", failures)
 	var end_turn: Button = hud.get_node("Margin/Layout/EndTurn")
 	_expect(hud.hotbar.mouse_filter == Control.MOUSE_FILTER_IGNORE, "empty hotbar space should remain pass-through", failures)
@@ -90,8 +92,8 @@ func _test_session_synchronization(session: EncounterSession, hud: HudRoot, stat
 	_expect(not result.events.is_empty() and result.events[0].type == &"action_spent", "session did not resolve dash through Resolver", failures)
 	_expect(not (state.actors[1] as ActorState).action_available, "dash result was not applied before HUD synchronization", failures)
 	var dash_button := _ability_button(hud, &"dash")
-	_expect(dash_button.disabled, "HUD did not synchronize action availability after session state_changed", failures)
-	_expect(dash_button.tooltip_text.contains("Gain extra movement") and dash_button.tooltip_text.contains("Unavailable: Action already used this turn."), "disabled hotbar tooltip did not preserve the description and append a readable reason", failures)
+	_expect(not dash_button.disabled, "a spent action should stay pressable and explain itself instead of greying out", failures)
+	_expect(dash_button.tooltip_text.contains("Gain extra movement") and dash_button.tooltip_text.contains("Unavailable: Action already used this turn."), "HUD did not synchronize the spent action's tooltip reason after session state_changed", failures)
 	_expect(hud.combat_log.get_parsed_text().contains("Knight uses an action."), "HUD did not narrate resolved events in the combat log", failures)
 
 

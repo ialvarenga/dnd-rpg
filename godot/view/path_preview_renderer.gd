@@ -5,21 +5,54 @@ extends RefCounted
 ## remains untouched; this helper trims the already-travelled prefix and rounds
 ## visual corners before writing the line mesh.
 
+const JumpArcScript = preload("res://view/jump_arc.gd")
+
 const LINE_LIFT := 0.12
 const CORNER_RADIUS := 0.45
 const CORNER_SEGMENTS := 5
 const POINT_EPSILON_SQUARED := 0.000001
+const JUMP_MATCH_EPSILON := 0.05
 
 
-static func draw(line_mesh: ImmediateMesh, path: PackedVector3Array, origin: Vector3) -> void:
+## `jumps` are MovePreview jump entries ({from, to, ...}); their segments draw
+## as the arc the character will fly instead of a straight line.
+static func draw(line_mesh: ImmediateMesh, path: PackedVector3Array, origin: Vector3, jumps: Array = []) -> void:
 	line_mesh.clear_surfaces()
-	var display_path := smooth_path(rebase_path(path, origin))
-	if display_path.size() < 2:
+	var display := display_path(path, origin, jumps)
+	if display.size() < 2:
 		return
 	line_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-	for point in display_path:
+	for point in display:
 		line_mesh.surface_add_vertex(point + Vector3.UP * LINE_LIFT)
 	line_mesh.surface_end()
+
+
+## Rebased, corner-smoothed walking with each jump segment replaced by its arc.
+## Walking stretches are smoothed separately so no corner cut crosses a ledge.
+static func display_path(path: PackedVector3Array, origin: Vector3, jumps: Array = []) -> PackedVector3Array:
+	var rebased := rebase_path(path, origin)
+	if jumps.is_empty():
+		return smooth_path(rebased)
+	var display := PackedVector3Array()
+	var walk := PackedVector3Array()
+	for index in range(rebased.size()):
+		if index > 0 and _is_jump(rebased[index - 1], rebased[index], jumps):
+			for point in smooth_path(walk):
+				_append_distinct(display, point)
+			for point in JumpArcScript.polyline(rebased[index - 1], rebased[index]):
+				_append_distinct(display, point)
+			walk = PackedVector3Array()
+		walk.append(rebased[index])
+	for point in smooth_path(walk):
+		_append_distinct(display, point)
+	return display
+
+
+static func _is_jump(from: Vector3, to: Vector3, jumps: Array) -> bool:
+	for jump in jumps:
+		if from.distance_to(jump["from"]) <= JUMP_MATCH_EPSILON and to.distance_to(jump["to"]) <= JUMP_MATCH_EPSILON:
+			return true
+	return false
 
 
 ## Starts the displayed path at the live character and drops waypoints that are

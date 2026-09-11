@@ -35,7 +35,8 @@ static func _test_help_cost_and_gates(failures: Array[String]) -> void:
 	_expect(_rejection(spent) == &"action_unavailable" and _event(spent, &"condition_added") == null, "Help bypassed Action economy on a second use", failures)
 	var exploration := _help_state()
 	exploration.phase = &"exploration"
-	_expect(_rejection(Resolver.resolve(exploration, _help_command(1, 3), FakeNavProvider.new(), FakeLosProvider.new())) == &"not_in_combat", "Help bypassed its combat phase gate", failures)
+	var explored := Resolver.resolve(exploration, _help_command(1, 3), FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(_rejection(explored) == &"" and _event(explored, &"condition_added") != null and _event(explored, &"action_spent") == null, "Help outside combat should apply without spending an Action", failures)
 	var blocked_los := FakeLosProvider.new()
 	blocked_los.set_cover((state.actors[1] as ActorState).position, (state.actors[3] as ActorState).position, LosProvider.COVER_TOTAL)
 	var los_result := Resolver.resolve(_help_state(), _help_command(1, 3), FakeNavProvider.new(), blocked_los)

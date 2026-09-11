@@ -20,6 +20,7 @@ script = ExtResource("1_ability")
 id = &"quaff_healing_potion"
 display_name = "Quaff Healing Potion"
 description = "Drink a healing potion to recover hit points."
+usable_in_exploration = true
 costs_bonus_action = true
 targeting = &"none"
 ai_tags = Array[StringName]([&"healing"])

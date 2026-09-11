@@ -15,6 +15,7 @@ script = ExtResource("1")
 id = &"second_wind"
 display_name = "Second Wind"
 description = "Draw on your reserves of stamina to regain hit points."
+usable_in_exploration = true
 costs_bonus_action = true
 targeting = &"none"
 max_uses = 2

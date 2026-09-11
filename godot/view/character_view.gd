@@ -7,6 +7,9 @@ extends CharacterBody3D
 signal movement_completed(actor_id: int)
 ## The bow was loosed: EventPlayer launches the arrow from projectile_origin().
 signal ranged_released(actor_id: int)
+## A ledge jump touched down: EventPlayer resumes the narration it held, so a
+## hard landing's fall, damage, and Prone play on the ground, not mid-air.
+signal jump_landed(actor_id: int)
 
 @export var actor_id := 1
 @export var movement_speed := 5.0
@@ -45,6 +48,26 @@ const HURT_SOUNDS: Array[AudioStream] = [
 	preload("res://assets/sfx/characters/hurt_01.mp3"),
 	preload("res://assets/sfx/characters/hurt_05.mp3"),
 ]
+## Ledge jumps (ADR-009) play on their own MovementSfx player, so the thud of
+## a hard landing is not cut off by the hurt grunt that follows it.
+const JUMP_SOUNDS: Array[AudioStream] = [
+	preload("res://assets/sfx/movement/Fist_Swing_01.ogg"),
+	preload("res://assets/sfx/movement/Fist_Swing_03.ogg"),
+	preload("res://assets/sfx/movement/Fist_Swing_05.ogg"),
+]
+const LAND_SOUNDS: Array[AudioStream] = [
+	preload("res://assets/sfx/movement/Impact_Body_03.ogg"),
+	preload("res://assets/sfx/movement/Impact_Body_06.ogg"),
+	preload("res://assets/sfx/movement/Impact_Body_09.ogg"),
+]
+const HARD_LAND_SOUNDS: Array[AudioStream] = [
+	preload("res://assets/sfx/movement/Impact_Body_01.ogg"),
+	preload("res://assets/sfx/movement/Impact_Body_05.ogg"),
+	preload("res://assets/sfx/movement/Impact_Body_10.ogg"),
+]
+const JUMP_TAKEOFF_VOLUME_DB := -4.0
+const LAND_VOLUME_DB := -8.0
+const JumpArcScript = preload("res://view/jump_arc.gd")
 
 var destination := Vector3.ZERO
 var destination_state: StringName = &"idle"
@@ -72,8 +95,14 @@ var _shot_pending := false
 # or loose scheduled against the previous presentation never fires into the
 # new one.
 var _presentation_generation := 0
+# A ledge jump in flight ({from, to, hard, elapsed, duration, airborne}), and
+# one narrated while this view is still walking the leg that leads to it.
+var _jump: Dictionary = {}
+var _queued_jump: Dictionary = {}
 @onready var animator: CharacterAnimator = get_node_or_null("CharacterAnimator") as CharacterAnimator
 @onready var combat_sfx: AudioStreamPlayer3D = get_node_or_null("CombatSfx") as AudioStreamPlayer3D
+@onready var movement_sfx: AudioStreamPlayer3D = get_node_or_null("MovementSfx") as AudioStreamPlayer3D
+@onready var _movement_sfx_volume_db: float = movement_sfx.volume_db if movement_sfx != null else 0.0
 
 
 func _ready() -> void:
@@ -114,6 +143,87 @@ func play_movement(path: PackedVector3Array, target: Vector3) -> bool:
 	return true
 
 
+## Flies an already-resolved ledge jump (ADR-009): takeoff clip, a parabolic
+## arc with collision bypassed (sliding would snag on the cliff's terrain
+## collision), then the landing. A hard landing skips the landing clip; the
+## fall_started narrated after touchdown plays the knockdown instead. A jump
+## narrated while the leg before it is still being walked waits for that walk.
+## A creature `pushed` off a ledge by a Shove flies the same arc, but leaves
+## the ground when the push connects and without a takeoff of its own.
+func play_jump(from: Vector3, to: Vector3, hard_landing: bool = false, pushed: bool = false) -> void:
+	var jump := {"from": from, "to": to, "hard": hard_landing, "pushed": pushed}
+	if _is_dead:
+		global_position = to
+		jump_landed.emit(actor_id)
+		return
+	if _locomotion.is_active() or not _pending_movement.is_empty():
+		_queued_jump = jump
+		return
+	_begin_jump(jump)
+
+
+func is_jumping() -> bool:
+	return not _jump.is_empty() or not _queued_jump.is_empty()
+
+
+func _begin_jump(jump: Dictionary) -> void:
+	_locomotion.stop()
+	velocity = Vector3.ZERO
+	_locomotion_was_active = false
+	global_position = jump["from"]
+	# A jumper faces where it leaps; a pushed creature keeps facing its shover.
+	if not bool(jump.get("pushed", false)):
+		_face_toward(jump["to"])
+	destination = jump["to"]
+	destination_state = &"jumping"
+	var pushed := bool(jump.get("pushed", false))
+	var takeoff_delay := 0.0
+	if animator != null and animator.animation_set != null:
+		takeoff_delay = animator.animation_set.shove_impact_seconds if pushed else animator.animation_set.jump_takeoff_seconds
+	jump["elapsed"] = -takeoff_delay
+	jump["duration"] = JumpArcScript.duration(jump["from"], jump["to"])
+	jump["airborne"] = false
+	_jump = jump
+	if pushed:
+		return
+	if animator != null and not _is_grounded():
+		animator.present(&"jump_start")
+	_play_movement_sound(JUMP_SOUNDS, JUMP_TAKEOFF_VOLUME_DB)
+
+
+func _advance_jump(delta: float) -> void:
+	_jump["elapsed"] = float(_jump["elapsed"]) + delta
+	var elapsed := float(_jump["elapsed"])
+	if elapsed < 0.0:
+		return
+	if not bool(_jump["airborne"]):
+		_jump["airborne"] = true
+		if animator != null and not _is_grounded():
+			animator.request_state(&"jump_air")
+	var weight := clampf(elapsed / maxf(float(_jump["duration"]), 0.001), 0.0, 1.0)
+	global_position = JumpArcScript.point(_jump["from"], _jump["to"], weight)
+	if weight >= 1.0:
+		_land_jump()
+
+
+func _land_jump() -> void:
+	var landed := _jump
+	_jump = {}
+	global_position = landed["to"]
+	destination_state = &"reached"
+	if bool(landed["hard"]):
+		_play_movement_sound(HARD_LAND_SOUNDS, 0.0)
+	else:
+		_play_movement_sound(LAND_SOUNDS, LAND_VOLUME_DB, 1.05, 1.1)
+		if animator != null and not _is_grounded():
+			animator.present(&"jump_land")
+	# Resumes the held narration first: it may start the next walking leg, in
+	# which case this move is not complete yet.
+	jump_landed.emit(actor_id)
+	if not is_moving() and not _is_dead:
+		movement_completed.emit(actor_id)
+
+
 func get_resolved_path() -> PackedVector3Array:
 	return _locomotion.get_path()
 
@@ -123,7 +233,7 @@ func get_debug_velocity() -> Vector3:
 
 
 func is_moving() -> bool:
-	return _locomotion.is_active() or not _pending_movement.is_empty()
+	return _locomotion.is_active() or not _pending_movement.is_empty() or is_jumping()
 
 
 ## True while this view still lags the simulation in a way the next command
@@ -142,6 +252,8 @@ func synchronize_to_authoritative_position(position: Vector3) -> void:
 
 func reset_presentation(actor: ActorState, in_combat: bool = false) -> void:
 	_locomotion.stop()
+	_jump = {}
+	_queued_jump = {}
 	_is_dead = false
 	_clear_knockdown_sequence()
 	destination = actor.position
@@ -166,6 +278,9 @@ func reset_presentation(actor: ActorState, in_combat: bool = false) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if not _jump.is_empty():
+		_advance_jump(delta)
+		return
 	if not _locomotion.is_active():
 		velocity = Vector3.ZERO
 		# A combat event can arrive just as an actor finishes visual movement.
@@ -198,6 +313,13 @@ func _finish_movement() -> void:
 	destination_state = &"reached"
 	global_position = destination
 	_locomotion_was_active = false
+	# The walk led to a ledge: the move continues through the jump, and only
+	# its landing completes it.
+	if not _queued_jump.is_empty():
+		var queued := _queued_jump
+		_queued_jump = {}
+		_begin_jump(queued)
+		return
 	_notify_locomotion_stopped()
 	movement_completed.emit(actor_id)
 
@@ -372,8 +494,9 @@ func present_ability(verb: StringName, target_position: Vector3) -> void:
 
 
 ## The simulation already applied Prone. Face the shover so the backward fall
-## lands away from it, and hold the fall until the push connects.
-func present_knockdown(source_position: Vector3) -> void:
+## lands away from it, and hold the fall until the push connects. A landing
+## (`immediate`) has already connected: it falls at once.
+func present_knockdown(source_position: Vector3, immediate: bool = false) -> void:
 	if _is_dead or (_is_prone and not _standing_up):
 		return
 	_is_prone = true
@@ -381,7 +504,10 @@ func present_knockdown(source_position: Vector3) -> void:
 	_stand_pending = false
 	_knockdown_pending = true
 	_face_toward(source_position)
-	_after_impact(&"knockdown")
+	if immediate:
+		_on_impact(_presentation_generation, &"knockdown")
+	else:
+		_after_impact(&"knockdown")
 
 
 ## A successful save against a push: stagger in place once the push connects.
@@ -475,6 +601,16 @@ func _on_animator_state_finished(state: StringName) -> void:
 			# Settle back into the bow at the ready once the follow-through ends.
 			if _in_combat and animator != null and not _is_grounded():
 				animator.present_combat_ready()
+		&"jump_land":
+			# The next walking leg may already be under way; otherwise settle.
+			if animator == null or _is_grounded():
+				return
+			if _locomotion.is_active():
+				animator.locomotion_started()
+			elif _in_combat:
+				animator.present_combat_ready()
+			else:
+				animator.present_combat_ended()
 
 
 func _on_knockdown_landed() -> void:
@@ -568,3 +704,13 @@ func _play_combat_sound(sounds: Array[AudioStream]) -> void:
 	combat_sfx.stream = sounds.pick_random()
 	combat_sfx.pitch_scale = randf_range(0.96, 1.04)
 	combat_sfx.play()
+
+
+## `volume_offset_db` is relative to the MovementSfx node's authored volume.
+func _play_movement_sound(sounds: Array[AudioStream], volume_offset_db: float, pitch_min: float = 0.96, pitch_max: float = 1.04) -> void:
+	if movement_sfx == null or sounds.is_empty():
+		return
+	movement_sfx.stream = sounds.pick_random()
+	movement_sfx.volume_db = _movement_sfx_volume_db + volume_offset_db
+	movement_sfx.pitch_scale = randf_range(pitch_min, pitch_max)
+	movement_sfx.play()

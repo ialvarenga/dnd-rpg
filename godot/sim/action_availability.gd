@@ -42,7 +42,7 @@ static func evaluate(state: BattleState, actor_id: int, ability_id: StringName, 
 		return _result(ability_id, false, conscious_rejection)
 	if ability == null:
 		return _result(ability_id, false, RejectionReasonRules.UNKNOWN_ABILITY_DEFINITION)
-	var cost_rejection := AbilityCostRulesScript.rejection_for_cost(actor, ability, definitions)
+	var cost_rejection := AbilityCostRulesScript.rejection_for_cost(actor, ability, definitions, state.phase == &"combat")
 	if cost_rejection != &"":
 		return _result(ability_id, false, cost_rejection)
 	return _result(ability_id, true, &"")

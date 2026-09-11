@@ -12,6 +12,7 @@ script = ExtResource("2_gelea")
 id = &"disengage"
 display_name = "Disengage"
 description = "Move without provoking opportunity attacks for the rest of this turn."
+usable_in_exploration = true
 costs_action = true
 ai_tags = Array[StringName]([&"escape"])
 effects = Array[ExtResource("1_6jqrh")]([SubResource("Resource_pjy1h")])

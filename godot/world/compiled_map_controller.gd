@@ -20,6 +20,8 @@ var objective: Vector3
 var _path_line: MeshInstance3D
 var _line_mesh := ImmediateMesh.new()
 var _preview_path := PackedVector3Array()
+var _preview_jumps: Array[Dictionary] = []
+var _jump_label: Label3D
 var _destination_marker: DestinationClickMarker
 var _area_preview: MeshInstance3D
 var hud: HudRoot
@@ -65,10 +67,12 @@ const MusicDirectorScript = preload("res://view/music_director.gd")
 const WORLD_HEALTH_BAR_SCENE = preload("res://view/ui/world_health_bar.tscn")
 const PathPreviewRendererScript = preload("res://view/path_preview_renderer.gd")
 const DestinationClickMarkerScript = preload("res://view/destination_click_marker.gd")
+const JumpRulesScript = preload("res://sim/rules/jump_rules.gd")
 
 const INTERACTABLE_READY_COLOR := Color("76e887")
 const INTERACTABLE_APPROACH_COLOR := Color("f5d742")
 const INTERACTABLE_BLOCKED_COLOR := Color("ef625d")
+const JUMP_HURT_COLOR := Color("ef625d")
 
 ## MapSpec interactable kinds this map runtime owns. Every other kind is
 ## authored as scenery: compiled and collision-checked, never registered.
@@ -113,7 +117,7 @@ func _ready() -> void:
 	_setup_light()
 	_setup_path_preview()
 	_setup_destination_marker()
-	nav_provider = GodotNavProvider.new(compilation.navigation.navigation_region, 1, compilation.movement_regions)
+	nav_provider = GodotNavProvider.new(compilation.navigation.navigation_region, 1, compilation.movement_regions, compilation.navigation.jump_links)
 	los_provider = GodotLosProvider.new(get_world_3d(), 8)
 	session = EncounterSessionScript.new()
 	session.configure(battle_state, nav_provider, los_provider)
@@ -123,7 +127,14 @@ func _ready() -> void:
 	_setup_music(compilation.music)
 	_setup_hud()
 	_setup_dialogs(spec)
-	NavigationServer3D.map_force_update(compilation.navigation.navigation_region.get_navigation_map())
+	# Godot syncs navigation asynchronously by default, so map_force_update
+	# alone would leave the navmesh -- and its ledge links, which take several
+	# more frames -- unqueryable for the first clicks. The compiled map never
+	# changes after load, so sync it once, synchronously, here.
+	var navigation_map := compilation.navigation.navigation_region.get_navigation_map()
+	NavigationServer3D.map_set_use_async_iterations(navigation_map, false)
+	NavigationServer3D.region_set_use_async_iterations(compilation.navigation.navigation_region.get_rid(), false)
+	NavigationServer3D.map_force_update(navigation_map)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -152,7 +163,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			if targeting_definition != null and targeting_definition.targeting == &"ground_point":
 				var area_point: Variant = ScreenPickerScript.terrain_point(camera, get_world_3d().direct_space_state, event.position)
 				if area_point is Vector3:
-					_show_area_preview(area_point, targeting_definition.target_radius_meters)
+					if _is_jump_ability(targeting_definition):
+						_show_jump_preview(area_point)
+					else:
+						_show_area_preview(area_point, targeting_definition.target_radius_meters)
 				return
 			if targeting_definition != null and targeting_definition.targeting == &"interactable":
 				_update_interactable_highlight(ScreenPickerScript.interactable_id(camera, get_world_3d().direct_space_state, event.position))
@@ -499,7 +513,9 @@ func _process(delta: float) -> void:
 		_clear_path_preview()
 		return
 	if battle_state.phase == &"exploration":
-		_clear_path_preview()
+		# The exploration walk has no path line, but a Jump being aimed does.
+		if not _is_jump_ability(DefinitionLibrary.get_default().get_ability(_targeting_ability_id)):
+			_clear_path_preview()
 		# Detection is _process-driven, so the panel's mouse_filter alone would
 		# not stop a sentry noticing you mid-sentence.
 		if _dialog_session == null or not _dialog_session.is_active():
@@ -507,7 +523,7 @@ func _process(delta: float) -> void:
 		return
 	if _destination_marker != null:
 		_destination_marker.hide_marker()
-	PathPreviewRendererScript.draw(_line_mesh, _preview_path, character.global_position)
+	PathPreviewRendererScript.draw(_line_mesh, _preview_path, character.global_position, _preview_jumps)
 	_enemy_action_cooldown = maxf(0.0, _enemy_action_cooldown - delta)
 	if _enemy_action_cooldown <= 0.0:
 		_take_enemy_turn()
@@ -766,6 +782,15 @@ func _setup_path_preview() -> void:
 	material.emission = Color("f5d742")
 	_path_line.material_override = material
 	add_child(_path_line)
+	_jump_label = Label3D.new()
+	_jump_label.name = "JumpPreviewLabel"
+	_jump_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_jump_label.no_depth_test = true
+	_jump_label.font_size = 40
+	_jump_label.outline_size = 10
+	_jump_label.pixel_size = 0.009
+	_jump_label.visible = false
+	add_child(_jump_label)
 
 
 func _setup_destination_marker() -> void:
@@ -812,10 +837,26 @@ func _on_hud_ability_requested(ability_id: StringName) -> void:
 	_clear_interactable_highlight()
 	var definitions := DefinitionLibrary.get_default()
 	var ability := definitions.get_ability(ability_id)
+	# Hotbar buttons are never greyed out; one that cannot be used right now
+	# says why over the character instead of silently doing nothing.
+	var availability := ActionAvailability.evaluate(battle_state, character.actor_id, ability_id, definitions)
+	if not bool(availability["available"]):
+		_present_unavailable(ability_id, StringName(availability["reason"]))
+		return
 	if ability != null and not ability.modes.is_empty():
 		hud.choose_ability_mode(ability)
 		return
 	_begin_ability_targeting(ability_id)
+
+
+func _present_unavailable(ability_id: StringName, reason: StringName) -> void:
+	var unavailable: Array[Event] = [Event.create(&"command_rejected", {
+		"actor_id": character.actor_id,
+		"command_type": ability_id,
+		"reason": reason,
+		"message": HudViewModel.availability_reason(reason),
+	})]
+	event_player.play_events(unavailable)
 
 
 func _on_hud_ability_mode_requested(ability_id: StringName, mode: StringName) -> void:
@@ -1175,10 +1216,13 @@ func _clear_targeting() -> void:
 	if hostile_views.has(_highlighted_target_id):
 		hostile_views[_highlighted_target_id].set_target_highlight(false)
 	_highlighted_target_id = -1
+	var was_jumping := _is_jump_ability(DefinitionLibrary.get_default().get_ability(_targeting_ability_id)) if _targeting_ability_id != &"" else false
 	_targeting_ability_id = &""
 	_targeting_mode = &""
 	if _area_preview != null:
 		_area_preview.visible = false
+	if was_jumping:
+		_clear_path_preview()
 	if hud != null:
 		hud.set_selected_ability(&"")
 
@@ -1195,6 +1239,8 @@ func _show_area_preview(position: Vector3, radius: float) -> void:
 		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		material.albedo_color = Color(1.0, 0.34, 0.08, 0.72)
+		# A Jump's reach ring must stay readable where a terrace rises over it.
+		material.no_depth_test = true
 		material.emission_enabled = true
 		material.emission = Color(1.0, 0.18, 0.03)
 		_area_preview.material_override = material
@@ -1303,9 +1349,76 @@ func _show_path_preview(target: Vector3) -> void:
 		return
 	var preview = session.preview_move(1, target, character.global_position)
 	_preview_path = preview.path
-	PathPreviewRendererScript.draw(_line_mesh, _preview_path, character.global_position)
+	_preview_jumps = preview.jumps
+	PathPreviewRendererScript.draw(_line_mesh, _preview_path, character.global_position, _preview_jumps)
+	_show_jump_label(preview)
 	if hud != null:
 		hud.resources.set_movement_preview(preview.cost, preview.remaining, preview.ignores_budget)
+
+
+## Names the route's jump beside its landing, in the warning colour when the
+## landing will hurt: "Fall 4.2 m · 1d6 · Prone" (JumpRules, deterministic).
+func _show_jump_label(preview) -> void:
+	var jump: Dictionary = preview.hard_landing()
+	if jump.is_empty() and not preview.jumps.is_empty():
+		jump = preview.jumps[0]
+	if jump.is_empty():
+		if _jump_label != null:
+			_jump_label.visible = false
+		return
+	_place_jump_label(_jump_text(jump), jump["to"], int(jump["dice"]) > 0)
+
+
+func _jump_text(jump: Dictionary) -> String:
+	var height := float(jump["height"])
+	if int(jump.get("dice", 0)) > 0:
+		return "Fall %.1f m · %s%s" % [height, JumpRulesScript.dice_label(int(jump["dice"])), " · Prone" if bool(jump["prone"]) else ""]
+	match StringName(jump["kind"]):
+		JumpRulesScript.DROP: return "Jump ↓ %.1f m" % height
+		JumpRulesScript.CLIMB: return "Jump ↑ %.1f m" % height
+	return "Jump %.1f m" % float(jump.get("distance", 0.0))
+
+
+func _place_jump_label(text: String, at: Vector3, warning: bool) -> void:
+	if _jump_label == null:
+		return
+	_jump_label.text = text
+	_jump_label.modulate = JUMP_HURT_COLOR if warning else INTERACTABLE_APPROACH_COLOR
+	_jump_label.position = at + Vector3.UP * 1.4
+	_jump_label.visible = true
+
+
+func _is_jump_ability(ability: AbilityDefinition) -> bool:
+	return ability != null and ability.effects.any(func(effect: AbilityEffect): return effect.type == &"leap")
+
+
+## Aiming the Jump action: a ring of how far this character can leap right
+## now (halved without a run-up), and the arc to the hovered spot -- or why it
+## cannot be reached.
+func _show_jump_preview(point: Vector3) -> void:
+	var preview: Dictionary = session.preview_jump(character.actor_id, point, character.global_position)
+	var feet: Vector3 = nav_provider.surface_point(character.global_position)
+	_show_area_preview(feet if is_finite(feet.x) else character.global_position, float(preview["max_distance"]))
+	if bool(preview["accepted"]):
+		var jump: Dictionary = preview["jump"]
+		_preview_path = PackedVector3Array([jump["from"], jump["to"]])
+		_preview_jumps = [jump]
+		PathPreviewRendererScript.draw(_line_mesh, _preview_path, character.global_position, _preview_jumps)
+		var text := _jump_text(jump)
+		if not bool(preview["running"]):
+			text += " · standing"
+		_place_jump_label(text, jump["to"], int(jump.get("dice", 0)) > 0)
+		if hud != null:
+			hud.resources.set_movement_preview(float(jump["cost"]), float(preview["remaining"]), preview["ignores_budget"])
+		return
+	_preview_path = PackedVector3Array()
+	_preview_jumps = []
+	_line_mesh.clear_surfaces()
+	var reason := StringName(preview["reason"])
+	var text := HudViewModel.availability_reason(reason)
+	if reason in [JumpRulesScript.JUMP_TOO_FAR, JumpRulesScript.JUMP_TOO_HIGH] and not bool(preview["running"]):
+		text += " Run 3 m first to jump farther."
+	_place_jump_label(text, point, true)
 
 
 func _show_exploration_destination(target: Vector3) -> void:
@@ -1315,6 +1428,9 @@ func _show_exploration_destination(target: Vector3) -> void:
 
 func _clear_path_preview() -> void:
 	_preview_path = PackedVector3Array()
+	_preview_jumps = []
+	if _jump_label != null:
+		_jump_label.visible = false
 	_line_mesh.clear_surfaces()
 	if hud != null and session != null:
 		hud.sync()

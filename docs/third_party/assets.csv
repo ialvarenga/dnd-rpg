@@ -2,6 +2,9 @@ asset,source,author,license,download_date,local_path,modified
 explosive_barrel_01,KayKit Dungeon Pack 1.1 (www.kaylousberg.com),Kay Lousberg,CC0 1.0,2026-09-06,godot/assets/kaykit_dungeon/barrel_large.gltf,yes
 sfx_sword_swing_long,Forge & Fantasy Weapon SFX Pack (caseportman.itch.io),Case Portman Audio,Royalty-Free Sound Effects License,2026-09-06,godot/assets/sfx/combat/Sword_Swing_Long_01.ogg; Sword_Swing_Long_03.ogg; Sword_Swing_Long_05.ogg,no
 sfx_hurt,Hurt Sound Effects (opengameart.org),EZduzziteh,CC0 1.0,2026-09-06,godot/assets/sfx/characters/hurt_01.mp3; hurt_05.mp3,no
+sfx_jump_takeoff,Forge & Fantasy Weapon SFX Pack (caseportman.itch.io),Case Portman Audio,Royalty-Free Sound Effects License,2026-09-11,godot/assets/sfx/movement/Fist_Swing_01.ogg; Fist_Swing_03.ogg; Fist_Swing_05.ogg,no
+sfx_jump_landing,Forge & Fantasy Weapon SFX Pack (caseportman.itch.io),Case Portman Audio,Royalty-Free Sound Effects License,2026-09-11,godot/assets/sfx/movement/Impact_Body_03.ogg; Impact_Body_06.ogg; Impact_Body_09.ogg,no
+sfx_jump_hard_landing,Forge & Fantasy Weapon SFX Pack (caseportman.itch.io),Case Portman Audio,Royalty-Free Sound Effects License,2026-09-11,godot/assets/sfx/movement/Impact_Body_01.ogg; Impact_Body_05.ogg; Impact_Body_10.ogg,no
 floor_dirt_large,KayKit Dungeon Pack 1.1 (www.kaylousberg.com),Kay Lousberg,CC0 1.0,2026-09-04,godot/assets/kaykit_dungeon/floor_dirt_large.gltf,no
 floor_tile_small,KayKit Dungeon Pack 1.1 (www.kaylousberg.com),Kay Lousberg,CC0 1.0,2026-09-04,godot/assets/kaykit_dungeon/floor_tile_small.gltf,no
 bridge_wood_01,KayKit Dungeon Pack 1.1 (www.kaylousberg.com),Kay Lousberg,CC0 1.0,2026-09-04,godot/assets/kaykit_dungeon/floor_dirt_large.gltf,yes

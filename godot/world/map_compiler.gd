@@ -105,7 +105,7 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 		result.root = null
 		return result
 	result.navigation = MapNavigationCompiler.new()
-	result.navigation.build(terrain, _navigation_blockers(result.placements, result.paths, result.bridges), result.root)
+	result.navigation.build(terrain, _navigation_blockers(result.placements, result.paths, result.bridges), result.root, _ledge_hills(result.placements))
 	_validate_reachability(spec, result.navigation, result.errors)
 	if not result.errors.is_empty():
 		result.root.queue_free()
@@ -143,9 +143,20 @@ func _compile_movement_regions(spec: Dictionary, result: MapCompilationResult) -
 ## placements, and vegetation all see the stamped result for free. Unlike
 ## _compile_placements, there is no slope gate: a hill's whole purpose is to
 ## override the terrain it is placed on, not be rejected by it.
+##
+## Hills may overlap one another (ADR-009): stamps combine with max(), so an
+## overlap builds a terrace rather than corrupting either hill. Every base is
+## read from the pre-stamp terrain, so a terrace never stands on its neighbour.
+## `height_m` lowers a hill below its model's height by sinking the model, and
+## `jumpable` keeps its summit walkable, reached by ledge jumps.
 func _compile_hills(raw_hills: Array, terrain: TerrainProvider, bounds: Vector2, result: MapCompilationResult) -> Array[Dictionary]:
 	var reserved: Array[Dictionary] = []
+	var base_elevations: Array[float] = []
 	for raw in raw_hills:
+		var base_point := _point(raw.get("position", []))
+		base_elevations.append(terrain.height_at(base_point.x, base_point.y) if _fits_bounds(base_point, 0.0, bounds) else 0.0)
+	for index in range(raw_hills.size()):
+		var raw: Dictionary = raw_hills[index]
 		var id := StringName(raw.get("id", ""))
 		var asset := StringName(raw.get("asset", ""))
 		var definition := AssetCatalog.get_definition(asset)
@@ -156,20 +167,46 @@ func _compile_hills(raw_hills: Array, terrain: TerrainProvider, bounds: Vector2,
 		if not _fits_bounds(point, definition.footprint_radius, bounds):
 			_add(result.errors, &"OUT_OF_BOUNDS", "'%s' footprint is outside map bounds" % id, id)
 			continue
-		for other in reserved:
-			if point.distance_to(other.point) < definition.footprint_radius + float(other.radius):
-				_add(result.errors, &"OVERLAP", "'%s' overlaps reserved area '%s'" % [id, other.get("id", "area")], id)
-				break
-		if not result.errors.is_empty() and result.errors.back().entity_id == id:
+		var nominal := definition.collision_size
+		var height := float(raw.get("height_m", nominal.y))
+		if height <= 0.0 or height > nominal.y + 0.0001:
+			_add(result.errors, &"INVALID_HILL_HEIGHT", "'%s' height_m %.2f must be above 0 and at most its model's %.2f m" % [id, height, nominal.y], id, {"asset": asset})
 			continue
+		var size := Vector3(nominal.x, height, nominal.z)
 		var rotation_y := deg_to_rad(float(raw.get("rotation_deg", 0.0)))
-		var base_elevation := terrain.height_at(point.x, point.y)
+		var base_elevation := base_elevations[index]
 		var navigable := bool(raw.get("navigable", false))
+		var jumpable := bool(raw.get("jumpable", false))
 		if terrain.has_method("stamp_hill"):
-			terrain.call("stamp_hill", point, rotation_y, definition.collision_size, base_elevation, navigable)
+			terrain.call("stamp_hill", point, rotation_y, size, base_elevation, navigable)
 		reserved.append({"point": point, "radius": definition.footprint_radius, "id": id})
-		result.placements.append({"id": id, "asset": asset, "position": Vector3(point.x, base_elevation, point.y), "rotation_y": rotation_y, "radius": definition.footprint_radius, "navigable": navigable})
+		# A lowered hill keeps its model's look by sinking it: the mesh top still
+		# meets the stamped summit.
+		result.placements.append({
+			"id": id, "asset": asset,
+			"position": Vector3(point.x, base_elevation - (nominal.y - height), point.y),
+			"rotation_y": rotation_y, "radius": definition.footprint_radius,
+			"navigable": navigable, "jumpable": jumpable,
+			"collision_size": size, "top_elevation": base_elevation + height,
+		})
 	return reserved
+
+
+## Jumpable hills in the shape MapNavigationCompiler and JumpLinkCompiler use.
+func _ledge_hills(placements: Array[Dictionary]) -> Array[Dictionary]:
+	var hills: Array[Dictionary] = []
+	for placement in placements:
+		if not bool(placement.get("jumpable", false)):
+			continue
+		hills.append({
+			"id": placement.id,
+			"center": Vector2(placement.position.x, placement.position.z),
+			"rotation_y": placement.rotation_y,
+			"size": placement.collision_size,
+			"top": float(placement.top_elevation),
+			"navigable": bool(placement.get("navigable", false)),
+		})
+	return hills
 
 
 func _compile_placements(raw_placements: Array, expected_type: StringName, terrain: TerrainProvider, bounds: Vector2, occupied: Array[Dictionary], result: MapCompilationResult) -> void:
@@ -486,9 +523,10 @@ func _navigation_blockers(placements: Array[Dictionary], paths: Array[Dictionary
 	for placement in placements:
 		var definition := AssetCatalog.get_definition(placement.asset)
 		# Terrain-feature hills already reshape the authoritative terrain into a
-		# walkable summit plus ramp. Treating their mesh footprint as a blocker
-		# would disconnect the very high ground the terrain stamp exposes.
-		if definition != null and definition.blocks_navigation and (definition.asset_type != &"terrain_feature" or not bool(placement.get("navigable", false))):
+		# walkable summit reached by a ramp or by ledge jumps. Treating their mesh
+		# footprint as a blocker would remove the very high ground the stamp exposes.
+		var walkable_hill := bool(placement.get("navigable", false)) or bool(placement.get("jumpable", false))
+		if definition != null and definition.blocks_navigation and (definition.asset_type != &"terrain_feature" or not walkable_hill):
 			var blocker := {"point": Vector2(placement.position.x, placement.position.z), "radius": definition.blocking_radius(), "id": placement.id}
 			if definition.has_box_collision():
 				blocker["kind"] = &"box"

@@ -8,6 +8,7 @@ const AbilityCheckRules = preload("res://sim/rules/ability_check.gd")
 const AbilityCostRules = preload("res://sim/rules/ability_cost_rules.gd")
 const AttackMathRules = preload("res://sim/rules/attack_math.gd")
 const EquipmentRules = preload("res://sim/equipment.gd")
+const JumpRulesScript = preload("res://sim/rules/jump_rules.gd")
 
 
 static func for_actor(state: BattleState, actor_id: int, defs: DefinitionLibrary) -> Dictionary:
@@ -102,6 +103,9 @@ static func _stats(state: BattleState, actor: ActorState, defs: DefinitionLibrar
 		{"label": "Proficiency", "value": HudViewModel.format_modifier(actor.proficiency_bonus), "detail": "Proficiency bonus"},
 		{"label": "Speed", "value": "%s m%s" % [HudViewModel.format_number(speed), " left" if state.phase == &"combat" else ""], "detail": "Movement"},
 		{"label": "Hit Points", "value": "%d / %d" % [actor.hp, actor.max_hp], "detail": "Current / maximum"},
+		{"label": "Long Jump", "value": "%s m" % _metres(JumpRulesScript.long_jump_m(actor.strength)), "detail": "Running; %s m standing" % _metres(JumpRulesScript.long_jump_m(actor.strength, false))},
+		{"label": "High Jump", "value": "%s m" % _metres(JumpRulesScript.high_jump_m(actor.strength)), "detail": "Running; %s m standing" % _metres(JumpRulesScript.high_jump_m(actor.strength, false))},
+		{"label": "Safe Drop", "value": "< %s m" % _metres(JumpRulesScript.safe_drop_m(actor.strength)), "detail": "Higher drops deal fall damage and leave you Prone"},
 	]
 	var limited: Array[Dictionary] = []
 	for ability_id in actor.ability_ids:
@@ -148,3 +152,12 @@ static func _item_kind(item: ItemDefinition) -> String:
 
 static func _title(id: StringName) -> String:
 	return String(id).replace("_", " ").capitalize()
+
+
+## Jump distances land on quarter metres (1 ft = 0.3 m, halved standing), so
+## they keep two decimals where a whole-number format would round 0.75 away.
+static func _metres(value: float) -> String:
+	var text := "%.2f" % value
+	while text.ends_with("0"):
+		text = text.left(text.length() - 1)
+	return text.trim_suffix(".")

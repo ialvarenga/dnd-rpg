@@ -19,6 +19,10 @@ const AVAILABILITY_REASON_TEXT := {
 	&"ability_uses_exhausted": "No uses remaining until the next encounter.",
 	&"reaction_unavailable": "Reaction already used this round.",
 	&"insufficient_movement": "Not enough movement remaining.",
+	&"jump_too_far": "Too far to jump from here.",
+	&"jump_too_high": "Too high to jump up to.",
+	&"no_landing": "Nowhere to land there.",
+	&"no_line_of_sight": "Something is in the way.",
 }
 
 
@@ -310,7 +314,13 @@ static func narrate(event: Event, state: BattleState, defs: DefinitionLibrary) -
 		&"forced_movement_resisted": return "%s resists the push." % target_name
 		&"forced_movement_blocked": return "%s cannot be pushed: the way is blocked." % target_name
 		&"forced_movement": return "%s is pushed %.1f m." % [actor_name, float(d.get("distance", 0.0))]
-		&"fall_started": return "%s falls %.1f m." % [actor_name, float(d.get("fall_distance", 0.0))]
+		&"fall_started":
+			if bool(d.get("deliberate", false)):
+				return "%s lands hard after a %.1f m drop." % [actor_name, float(d.get("fall_distance", 0.0))]
+			return "%s falls %.1f m." % [actor_name, float(d.get("fall_distance", 0.0))]
+		&"jump_performed":
+			var verb := "climbs" if StringName(d.get("kind", &"drop")) == &"climb" else "jumps down"
+			return "%s %s %.1f m%s." % [actor_name, verb, float(d.get("height", 0.0)), " with a running start" if bool(d.get("running", false)) else ""]
 		&"hidden_revealed": return "%s is revealed by attacking." % actor_name
 		&"stealth_rolled": return "%s rolls Stealth: %d." % [actor_name, int(d.get("total", 0))]
 		&"sneaking_changed": return "%s begins sneaking." % actor_name if d.get("sneaking", false) else "%s stops sneaking." % actor_name

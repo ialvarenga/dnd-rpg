@@ -21,6 +21,8 @@ const MISS_DROP_SHORT_METERS := 1.2
 ## Longer than any draw plus flight: if a loose or arrival never reports, the
 ## deferred narration is flushed anyway so combat cannot stall on presentation.
 const SHOT_WATCHDOG_SECONDS := 3.0
+## Longer than a walk to a ledge plus the jump itself, for the same reason.
+const FLIGHT_WATCHDOG_SECONDS := 12.0
 
 var _views_by_actor: Dictionary = {}
 var _last_paths: Dictionary = {}
@@ -30,6 +32,11 @@ var last_played_events: Array[Event] = []
 # a serial so a stale arrival or watchdog cannot resume a later shot.
 var _pending_shot: Dictionary = {}
 var _shot_serial := 0
+# Likewise a ledge jump (or a Shove fall) holds the rest of its batch until the
+# flier lands, so a hard landing's knockdown, damage, and Prone -- and any
+# walking leg after the jump -- play on the ground.
+var _pending_flight: Dictionary = {}
+var _flight_serial := 0
 
 
 func register_character_view(view: CharacterView) -> void:
@@ -38,33 +45,87 @@ func register_character_view(view: CharacterView) -> void:
 		view.movement_completed.connect(_on_character_movement_completed)
 	if not view.ranged_released.is_connected(_on_ranged_released):
 		view.ranged_released.connect(_on_ranged_released)
+	if not view.jump_landed.is_connected(_on_jump_landed):
+		view.jump_landed.connect(_on_jump_landed)
 
 
 func play_events(events: Array[Event]) -> void:
 	last_played_events = events.duplicate()
-	if is_busy():
+	if not _pending_shot.is_empty():
 		# Never narrate past an arrow still in the air: queue behind it.
 		(_pending_shot["events"] as Array).append_array(events)
+		return
+	if not _pending_flight.is_empty():
+		(_pending_flight["events"] as Array).append_array(events)
 		return
 	_play_from(events.duplicate(), 0)
 
 
-## True while a ranged attack's narration waits for its arrow. The composition
-## root holds the next command behind this, as it does behind a walking view.
+## True while a ranged attack's narration waits for its arrow, or a jump's for
+## its landing. The composition root holds the next command behind this, as it
+## does behind a walking view.
 func is_busy() -> bool:
-	return not _pending_shot.is_empty()
+	return not _pending_shot.is_empty() or not _pending_flight.is_empty()
 
 
 ## Narrates events[index..] in order. A ranged attack with a projectile to show
 ## stops here; the arrow's arrival resumes the rest of the batch, so the
 ## target's dodge, damage, and downing (and anything after them) wait for it.
+## A ledge jump or a fall stops here the same way until the flier lands.
 func _play_from(events: Array, index: int) -> void:
 	for i in range(index, events.size()):
 		var event := events[i] as Event
 		if _starts_shot(event):
 			_begin_shot(event, events, i + 1)
 			return
+		if _starts_flight(event, events, i):
+			_begin_flight(event, events, i + 1)
+			return
 		_narrate_event(event)
+
+
+## A jump always flies; forced movement flies only when a fall follows it (a
+## level push stays a straight shove).
+func _starts_flight(event: Event, events: Array, index: int) -> bool:
+	if get_character_view(int(event.data.get("actor_id", -1))) == null:
+		return false
+	if event.type == &"jump_performed":
+		return true
+	return event.type == &"forced_movement" and _fall_follows(events, index)
+
+
+## The fall_started, if any, that narrates this event's landing.
+func _fall_follows(events: Array, index: int) -> bool:
+	var actor_id := int((events[index] as Event).data.get("actor_id", -1))
+	return index + 1 < events.size() and (events[index + 1] as Event).type == &"fall_started" and int((events[index + 1] as Event).data.get("actor_id", -2)) == actor_id
+
+
+func _begin_flight(event: Event, events: Array, next_index: int) -> void:
+	_flight_serial += 1
+	var actor_id := int(event.data.get("actor_id", -1))
+	_pending_flight = {"serial": _flight_serial, "actor_id": actor_id, "events": events, "next_index": next_index}
+	if is_inside_tree():
+		get_tree().create_timer(FLIGHT_WATCHDOG_SECONDS).timeout.connect(_finish_flight.bind(_flight_serial))
+	var view := get_character_view(actor_id)
+	var from: Vector3 = event.data.get("from", view.global_position)
+	var to: Vector3 = event.data.get("to", view.global_position)
+	_last_paths[actor_id] = PackedVector3Array([from, to])
+	# May land (and so emit jump_landed) synchronously.
+	view.play_jump(from, to, _fall_follows(events, next_index - 1), event.type == &"forced_movement")
+
+
+func _on_jump_landed(actor_id: int) -> void:
+	if not _pending_flight.is_empty() and int(_pending_flight["actor_id"]) == actor_id:
+		_finish_flight(int(_pending_flight["serial"]))
+
+
+## Landing (or the watchdog): resume the batch the flight held.
+func _finish_flight(serial: int) -> void:
+	if _pending_flight.is_empty() or int(_pending_flight["serial"]) != serial:
+		return
+	var flight := _pending_flight
+	_pending_flight = {}
+	_play_from(flight["events"], flight["next_index"])
 
 
 func _starts_shot(event: Event) -> bool:
@@ -156,8 +217,12 @@ func _narrate_event(event: Event) -> void:
 				var forced_path := PackedVector3Array([event.data.get("from", view.global_position), event.data.get("to", view.global_position)])
 				view.play_movement(forced_path, event.data.get("to", view.global_position))
 		&"fall_started":
+			# Narrated once the flight has landed, so the fall hits at once. Out
+			# of combat no Prone follows: the creature gets straight back up.
 			if view != null:
-				view.present_knockdown(event.data.get("from", view.global_position))
+				view.present_knockdown(event.data.get("from", view.global_position), true)
+				if not bool(event.data.get("prone", true)):
+					view.present_stand_up()
 		&"mastery_triggered", &"hidden_revealed":
 			if view != null:
 				_present_floating_feedback(view, event)
@@ -255,6 +320,7 @@ func reset_views(state: BattleState) -> void:
 	if is_instance_valid(arrow):
 		(arrow as Node).queue_free()
 	_pending_shot = {}
+	_pending_flight = {}
 	for actor_id in _views_by_actor:
 		var view := _views_by_actor[actor_id] as CharacterView
 		if view != null and state.actors.has(actor_id):

@@ -58,6 +58,9 @@ static func plan(state: BattleState, actor_id: int, ability_id: StringName, targ
 	# so walking up to talk is limited only by navigation, like interactables.
 	if state.phase == &"combat" and actor.movement_remaining <= EPSILON:
 		return result
+	# Approach the way the resolver will route this creature: across only the
+	# ledges its Strength can take (ADR-009).
+	nav = nav.for_jumper(actor.strength)
 	var best := _best_direct_path_candidate(state, ability_command, actor, target, nav, los, defs)
 	var radial := _best_radial_candidate(state, ability_command, actor, target, target_range, nav, los, defs)
 	if not radial.is_empty() and (best.is_empty() or float(radial["movement_cost"]) < float(best["movement_cost"])):
@@ -113,7 +116,7 @@ static func _best_radial_candidate(state: BattleState, ability_command: Command,
 		var requested := target.position + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
 		requested = nav.snap_to_navmesh(requested)
 		var path := PolylineUtil.with_start(nav.find_path(actor.position, requested), actor.position)
-		if path.size() < 2 or (state.phase == &"combat" and PolylineUtil.length(path) > actor.movement_remaining + EPSILON):
+		if path.size() < 2 or (state.phase == &"combat" and nav.path_cost(path) > actor.movement_remaining + EPSILON):
 			continue
 		var candidate := path[path.size() - 1]
 		var evaluation := _evaluate_candidate(state, ability_command, candidate, nav, los, definitions)

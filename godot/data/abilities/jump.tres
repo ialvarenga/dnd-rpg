@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/ability_definition.gd" id="1"]
+[ext_resource type="Script" path="res://sim/definitions/ability_effect.gd" id="2"]
+
+[sub_resource type="Resource" id="Effect_leap"]
+script = ExtResource("2")
+type = &"leap"
+
+[resource]
+script = ExtResource("1")
+id = &"jump"
+display_name = "Jump"
+description = "Leap to a spot: across a gap, down a ledge, or up onto one. Long Jump reaches your Strength score in feet and High Jump 3 + your Strength modifier; run 3 m first or both are halved. Costs movement, never an action."
+targeting = &"ground_point"
+target_range_meters = 9.0
+usable_in_exploration = true
+effects = Array[ExtResource("2")]([SubResource("Effect_leap")])

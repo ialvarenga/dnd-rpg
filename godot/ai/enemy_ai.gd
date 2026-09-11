@@ -9,6 +9,7 @@ const ResolverRules = preload("res://sim/resolver.gd")
 const EquipmentRules = preload("res://sim/equipment.gd")
 const AttackMathRules = preload("res://sim/rules/attack_math.gd")
 const MasteryRulesScript = preload("res://sim/rules/mastery_rules.gd")
+const JumpRulesScript = preload("res://sim/rules/jump_rules.gd")
 ## SRD melee reach is 5 feet, represented as 1.5 m in the simulation. The
 ## resolver, targeting previews, and AI all use this same authored distance.
 const ATTACK_RANGE_METERS := 1.5
@@ -21,6 +22,9 @@ const MAX_TARGET_CANDIDATES := 2
 const MAX_AREA_CANDIDATES := 2
 const MAX_COVER_CANDIDATES := 2
 const SCORE_EPSILON := 0.001
+## Cost of ending a move Prone at the foot of a ledge: half a turn of Speed
+## to stand, and every melee attacker gains Advantage meanwhile.
+const PRONE_LANDING_PENALTY := 400.0
 
 
 func choose_command(snapshot: BattleState, actor_id: int, nav: NavProvider, los: LosProvider, budget: AIQueryBudget = null) -> Command:
@@ -418,8 +422,19 @@ func _score(before: BattleState, actor: ActorState, command: Command, result: Re
 	# end of the movement segment that precedes it.
 	var mover := actor.clone()
 	for event in result.events:
-		if event.type == &"movement_segment" and int(event.data.get("actor_id", -1)) == actor.id:
+		if event.type in [&"movement_segment", &"jump_performed"] and int(event.data.get("actor_id", -1)) == actor.id:
 			mover.position = event.data["to"]
+			continue
+		# A hard landing off a ledge (ADR-009) is scored like an opportunity
+		# attack: by its expected fall damage, plus the Prone it leaves behind.
+		if event.type == &"fall_started" and bool(event.data.get("deliberate", false)) and int(event.data.get("actor_id", -1)) == actor.id:
+			var landing := JumpRulesScript.drop_outcome(actor.strength, float(event.data.get("fall_distance", 0.0)))
+			var expected_fall := float(landing["dice"]) * (float(JumpRulesScript.FALL_DIE_SIDES) + 1.0) * 0.5
+			score -= expected_fall * 200.0
+			if bool(event.data.get("prone", false)):
+				score -= PRONE_LANDING_PENALTY
+			if expected_fall >= float(actor.hp):
+				score -= 1000000.0
 			continue
 		if event.type != &"reaction_triggered" or int(event.data.get("target_id", -1)) != actor.id:
 			continue

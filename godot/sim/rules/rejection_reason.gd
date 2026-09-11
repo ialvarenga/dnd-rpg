@@ -46,3 +46,8 @@ const INVALID_COIN_AMOUNT := &"invalid_coin_amount"
 const INSUFFICIENT_COINS := &"insufficient_coins"
 const INVALID_ABILITY_MODE := &"invalid_ability_mode"
 const INVALID_TARGET_POINT := &"invalid_target_point"
+## Jump action (ADR-009): beyond the jumper's Long/High Jump, or no walkable
+## ground to land on.
+const JUMP_TOO_FAR := &"jump_too_far"
+const JUMP_TOO_HIGH := &"jump_too_high"
+const NO_LANDING := &"no_landing"

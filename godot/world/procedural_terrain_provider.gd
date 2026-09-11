@@ -162,6 +162,23 @@ func stamp_hill(center: Vector2, rotation_rad: float, size: Vector3, base_elevat
 			_set_grid(x_index, z_index, maxf(_grid_at(x_index, z_index), target))
 
 
+## Hill-local offset (x across the width, y across the depth) to world XZ, in
+## exactly the rotation convention stamp_hill uses, so anything that samples a
+## hill's edges (ledge jump links, ADR-009) agrees with the stamped terrain.
+static func hill_local_to_world(center: Vector2, rotation_rad: float, local: Vector2) -> Vector2:
+	var cos_r := cos(rotation_rad)
+	var sin_r := sin(rotation_rad)
+	return center + Vector2(local.x * cos_r - local.y * sin_r, local.x * sin_r + local.y * cos_r)
+
+
+## Inverse of hill_local_to_world.
+static func hill_world_to_local(center: Vector2, rotation_rad: float, world: Vector2) -> Vector2:
+	var offset := world - center
+	var cos_r := cos(-rotation_rad)
+	var sin_r := sin(-rotation_rad)
+	return Vector2(offset.x * cos_r - offset.y * sin_r, offset.x * sin_r + offset.y * cos_r)
+
+
 func _configure_noise() -> void:
 	_noise.seed = seed
 	_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH

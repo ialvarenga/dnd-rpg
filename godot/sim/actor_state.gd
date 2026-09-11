@@ -29,6 +29,11 @@ var bonus_action_available: bool = true
 var reaction_available: bool = true
 var condition_states: Array[ConditionState] = []
 var disengaged: bool = false
+## Metres moved on foot immediately before now (ADR-009). SRD 5.2.1 gives a
+## Long/High Jump its full distance only after 10 ft (3 m) of such movement;
+## anything else the creature does (acting, jumping, being pushed, a new turn)
+## resets it. Maintained by Resolver.apply.
+var run_up_m: float = 0.0
 
 ## Ability id -> activations already spent from that ability's `max_uses` pool.
 ## Absent keys mean nothing spent. Unlike the per-turn flags above this survives
@@ -136,6 +141,7 @@ func clone() -> ActorState:
 	for condition_state in condition_states:
 		copy.condition_states.append(condition_state.clone())
 	copy.disengaged = disengaged
+	copy.run_up_m = run_up_m
 	copy.ability_ids = ability_ids.duplicate()
 	copy.equipment_slots = equipment_slots.duplicate()
 	copy.inventory = inventory.duplicate()
@@ -273,6 +279,7 @@ func to_dict() -> Dictionary:
 		"reaction_available": reaction_available,
 		"condition_states": condition_states.map(func(state: ConditionState): return state.to_dict()),
 		"disengaged": disengaged,
+		"run_up_m": run_up_m,
 		"ability_ids": SimulationSerialization.value_to_data(ability_ids),
 		"equipment_slots": _equipment_slots_to_data(equipment_slots),
 		"inventory": SimulationSerialization.value_to_data(inventory),
@@ -352,6 +359,7 @@ static func from_dict(data: Dictionary) -> ActorState:
 			for condition in legacy_conditions:
 				actor.add_condition(StringName(str(condition)))
 	actor.disengaged = bool(data.get("disengaged", false))
+	actor.run_up_m = float(data.get("run_up_m", 0.0))
 	actor.ability_ids = _string_names_from_data(data.get("ability_ids", []))
 	var restored_equipment: Variant = data.get("equipment_slots", {})
 	if restored_equipment is Dictionary:

@@ -25,7 +25,9 @@ func show_event(event: Event) -> void:
 			text = "-%s" % _condition_name(event)
 			modulate = Color("c9d3e6")
 		&"command_rejected":
-			text = "REJECTED: %s" % String(event.data.get("reason", "unavailable")).replace("_", " ")
+			# A hotbar click on an action that cannot be used right now carries
+			# the player-facing reason; resolver rejections carry only the id.
+			text = String(event.data["message"]) if event.data.has("message") else "REJECTED: %s" % String(event.data.get("reason", "unavailable")).replace("_", " ")
 			modulate = Color("ef625d")
 		&"attack_rolled":
 			text = "HIT" if event.data.get("hit", false) else "MISS"

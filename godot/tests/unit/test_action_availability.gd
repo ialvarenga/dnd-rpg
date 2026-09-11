@@ -40,11 +40,14 @@ static func _test_not_current_actor_agrees_with_resolver(failures: Array[String]
 	_assert_agrees_with_resolver(state, 2, &"dash", evaluation, "not_current_actor", failures)
 
 
+## Shipped actions are all usable outside combat now, so the combat-only gate
+## is exercised through an ability that does not declare usable_in_exploration.
 static func _test_not_in_combat_agrees_with_resolver(failures: Array[String]) -> void:
 	var state := TestHelpers.make_battle()
 	state.phase = &"exploration"
-	var evaluation := ActionAvailability.evaluate(state, 1, &"dash")
-	_assert_agrees_with_resolver(state, 1, &"dash", evaluation, "not_in_combat", failures)
+	var library := _custom_library_with_full_cost_dash()
+	var evaluation := ActionAvailability.evaluate(state, 1, &"dash", library)
+	_assert_agrees_with_resolver(state, 1, &"dash", evaluation, "not_in_combat", failures, library)
 
 
 static func _test_unconscious_actor_agrees_with_resolver(failures: Array[String]) -> void:
@@ -119,9 +122,9 @@ static func _custom_library_with_full_cost_dash() -> DefinitionLibrary:
 
 
 ## An ability that declares usable_in_exploration must be offered outside
-## combat, and the resolver must actually accept it -- while `dash`, which does
-## not declare it, must still report not_in_combat. That second half is the
-## regression guard for reordering Resolver's dispatch around the phase gate.
+## combat, and the resolver must actually accept it. Outside combat there is no
+## action economy: Dash stays available with its action already spent, and
+## resolving it spends nothing.
 static func _test_exploration_ability_is_available_and_agrees_with_resolver(failures: Array[String]) -> void:
 	var state := TestHelpers.make_battle()
 	state.phase = &"exploration"
@@ -137,8 +140,12 @@ static func _test_exploration_ability_is_available_and_agrees_with_resolver(fail
 	var talk_result := Resolver.resolve(state, talk_command, FakeNavProvider.new(), FakeLosProvider.new())
 	_expect(talk_result.events.any(func(event: Event): return event.type == &"dialog_started"), "the resolver should accept the ability ActionAvailability reported available", failures)
 
+	talker.action_available = false
 	var dash_evaluation := ActionAvailability.evaluate(state, 1, &"dash")
-	_assert_agrees_with_resolver(state, 1, &"dash", dash_evaluation, &"not_in_combat", failures)
+	_expect(bool(dash_evaluation["available"]), "a spent action should not gate an ability outside combat", failures)
+	var dash_result := Resolver.resolve(state, Command.create(&"dash", 1), FakeNavProvider.new(), FakeLosProvider.new())
+	_expect(dash_result.events[0].type != &"command_rejected", "the resolver should accept Dash outside combat", failures)
+	_expect(not dash_result.events.any(func(event: Event): return event.type in [&"action_spent", &"bonus_action_spent", &"movement_spent"]), "an exploration action should not spend the combat economy", failures)
 
 
 static func _test_exploration_only_ability_is_rejected_in_combat(failures: Array[String]) -> void:

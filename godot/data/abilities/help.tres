@@ -14,6 +14,7 @@ script = ExtResource("1")
 id = &"help"
 display_name = "Help"
 description = "Aid an ally's next attack, granting Advantage against its chosen target."
+usable_in_exploration = true
 costs_action = true
 targeting = &"actor"
 target_filter = &"ally"

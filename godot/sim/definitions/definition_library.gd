@@ -35,7 +35,9 @@ extends RefCounted
 ## Bump 17: adds Help plus reusable one-attack Help/Vex/Sap condition content.
 ## Bump 18: adds mastery/offhand content, Sneak, tactical AI tags, actor
 ## skills/morale, and the chieftain's Toppling Club.
-const CONTENT_VERSION: int = 18
+## Bump 19: adds the Jump ability to the Knight, and every hotbar action is
+## usable outside combat (usable_in_exploration).
+const CONTENT_VERSION: int = 19
 
 const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/basic_attack.tres",
@@ -49,6 +51,7 @@ const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/second_wind.tres",
 	"res://data/abilities/help.tres",
 	"res://data/abilities/sneak.tres",
+	"res://data/abilities/jump.tres",
 ]
 
 const CONDITION_MANIFEST: Array[String] = [

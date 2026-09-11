@@ -31,3 +31,8 @@ animation_set = ExtResource("3_animation_set")
 volume_db = -5.0
 unit_size = 20.0
 max_distance = 60.0
+
+[node name="MovementSfx" type="AudioStreamPlayer3D" parent="."]
+volume_db = -5.0
+unit_size = 20.0
+max_distance = 60.0
