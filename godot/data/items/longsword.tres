@@ -11,4 +11,5 @@ weapon_category = &"martial"
 weapon_properties = Array[StringName]([&"versatile"])
 damage_die = 8
 damage_type = &"slashing"
+mastery = &"sap"
 held_model_path = "res://assets/kaykit_adventurers_weapons/sword_1handed.gltf"

@@ -51,25 +51,14 @@ Sem grid visível.
 
 ### 1.5 Verticalidade
 
-#### V1
+#### V1 / Marco E
 
-Não teremos:
-
-- múltiplos pavimentos conectados;
-- jump traversal;
-- ladders;
-- cliffs;
-- knockback para quedas;
-- `NavigationLink3D` como mecânica;
-- diferença de altura como regra de combate.
-
-Permitido:
-
-```text
-colinas suaves
-```
-
-O terreno continua sendo uma superfície navegável contínua.
+“Sem combate vertical” significa que não há pavimentos empilhados, escadas,
+ladder/climbing, jump traversal nem uma rede de `NavigationLink3D`. O campo
+continua sendo uma única superfície navegável contínua. Essa superfície pode
+ter colinas com rampas, bordas e quedas: Marco E aplica ±2 a ataques com pelo
+menos 2,5 m de diferença de altura e permite Shove Push com projeção e dano de
+queda. Isso não cria um sistema geral de navegação multinível.
 
 ### 1.6 Linha de visão
 

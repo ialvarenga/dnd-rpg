@@ -18,4 +18,5 @@ costs_action = true
 targeting = &"actor"
 target_filter = &"ally"
 target_range_meters = 1.5
+ai_tags = Array[StringName]([&"control"])
 effects = Array[ExtResource("2")]([SubResource("Effect_help")])

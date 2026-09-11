@@ -151,6 +151,27 @@ func _narrate_event(event: Event) -> void:
 			_last_paths[actor_id] = path.duplicate()
 			if view.play_movement(path, event.data["to"]):
 				movement_started.emit(actor_id, path.duplicate())
+		&"forced_movement":
+			if view != null:
+				var forced_path := PackedVector3Array([event.data.get("from", view.global_position), event.data.get("to", view.global_position)])
+				view.play_movement(forced_path, event.data.get("to", view.global_position))
+		&"fall_started":
+			if view != null:
+				view.present_knockdown(event.data.get("from", view.global_position))
+		&"mastery_triggered", &"hidden_revealed":
+			if view != null:
+				_present_floating_feedback(view, event)
+		&"forced_movement_blocked":
+			var blocked_target := get_character_view(int(event.data.get("target_id", -1)))
+			if blocked_target != null:
+				_present_floating_feedback(blocked_target, event)
+		&"sneaking_changed":
+			if view != null:
+				view.present_sneaking(bool(event.data.get("sneaking", false)))
+				_present_floating_feedback(view, event)
+		&"detection_changed":
+			if view != null:
+				_present_floating_feedback(view, event)
 		&"attack_rolled":
 			if view != null:
 				view.present_attack()

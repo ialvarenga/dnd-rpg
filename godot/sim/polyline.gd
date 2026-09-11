@@ -44,3 +44,10 @@ static func clamp(path: PackedVector3Array, maximum_distance: float) -> PackedVe
 		clamped.append(segment_start.lerp(segment_end, ratio))
 		return clamped
 	return clamped
+
+
+static func distance_to_polyline(point: Vector2, path: PackedVector2Array) -> float:
+	var nearest := INF
+	for index in range(1, path.size()):
+		nearest = minf(nearest, Geometry2D.get_closest_point_to_segment(point, path[index - 1], path[index]).distance_to(point))
+	return nearest

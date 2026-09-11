@@ -145,6 +145,7 @@ function editableFields(key, entity, {identity = true, spatial = true} = {}) {
   if (['vegetation', 'structures', 'hills', 'actors', 'interactables', 'pickups'].includes(key)) {
     html += `<label>Rotation (degrees, optional)<input data-field="rotation_deg" data-optional type="number" value="${entity.rotation_deg ?? ''}"></label>`;
   }
+  if (key === 'hills') html += `<label><input data-field="navigable" type="checkbox" ${entity.navigable ? 'checked' : ''}> Generate reachable summit ramp</label>`;
   if (config.bridge) {
     html += referenceSelect('River', 'river_id', entity.river_id, (state.rivers || []).map(value => value.id));
     html += referenceSelect('Road', 'road_id', entity.road_id, (state.roads || []).map(value => value.id));
@@ -152,6 +153,7 @@ function editableFields(key, entity, {identity = true, spatial = true} = {}) {
   if (config.encounter) {
     html += multiReferenceSelect('Actors', 'actor_ids', entity.actor_ids || [], (state.actors || []).map(value => value.id));
     html += `<label>Trigger radius (m, optional)<input data-field="trigger_radius_m" data-optional type="number" value="${entity.trigger_radius_m ?? ''}"></label>`;
+    html += `<label><input data-field="skip_surprised_round_one" type="checkbox" ${entity.skip_surprised_round_one ? 'checked' : ''}> Skip surprised actors in round 1</label>`;
   }
   if (key === 'objectives') {
     html += `<label>Radius (m, optional)<input data-field="radius_m" data-optional type="number" value="${entity.radius_m ?? ''}"></label>`;
@@ -159,6 +161,7 @@ function editableFields(key, entity, {identity = true, spatial = true} = {}) {
   }
   if (key === 'interactables') {
     html += `<label>Contents <small>Comma-separated item IDs</small><input data-list-field="contents" value="${esc((entity.contents || []).join(', '))}"></label>`;
+    if (entity.kind === 'explosive_barrel') html += `<label>Blast radius (m)<input data-field="blast_radius_m" type="number" min="0.1" max="12" value="${entity.blast_radius_m ?? 3.5}"></label><label>Damage die<input data-field="blast_damage_die" type="number" min="4" max="12" step="2" value="${entity.blast_damage_die ?? 6}"></label><label>Damage dice count<input data-field="blast_damage_dice_count" type="number" min="1" max="8" value="${entity.blast_damage_dice_count ?? 2}"></label>`;
   }
   if (config.door) {
     html += select('Initial state', 'initial_state', entity.initial_state, ENUMS.doorState);
@@ -167,9 +170,12 @@ function editableFields(key, entity, {identity = true, spatial = true} = {}) {
   if (key === 'regions') {
     html += select('Vegetation profile', 'vegetation.profile', entity.vegetation?.profile, ENUMS.vegetationProfile, true);
     html += `<label>Vegetation density<input data-field="vegetation.density" data-optional type="number" min="0" max="1" step="0.05" value="${entity.vegetation?.density ?? ''}"></label>`;
+    html += select('Weighted terrain', 'terrain_type', entity.terrain_type, ENUMS.terrainType, true);
+    html += `<label>Movement cost multiplier<input data-field="movement_cost" data-optional type="number" min="1" max="4" step="0.25" value="${entity.movement_cost ?? ''}"></label>`;
   }
   if ((key === 'rivers' || key === 'roads')) {
     html += `<label>Width (m)<input data-field="width_m" type="number" min="0.1" max="24" value="${entity.width_m ?? 3}"></label>`;
+    html += `<label>Movement cost multiplier<input data-field="movement_cost" data-optional type="number" min="1" max="4" step="0.25" value="${entity.movement_cost ?? ''}"></label>`;
   }
   return html;
 }
@@ -280,6 +286,7 @@ function bindEditor(root, key, getValue, saveValue, {onRename, onDelete} = {}) {
     input.onchange = () => {
       const field = input.dataset.field;
       let value = input.value;
+      if (input.type === 'checkbox') value = input.checked;
       if (input.type === 'number') value = value === '' ? undefined : Number(value);
       if (input.dataset.optional !== undefined && value === '') value = undefined;
       if (field === 'polygon' || field === 'control_points' || field === 'nodes') {

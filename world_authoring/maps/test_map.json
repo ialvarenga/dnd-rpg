@@ -42,8 +42,10 @@
           96
         ]
       ],
+      "terrain_type": "thicket",
+      "movement_cost": 1.75,
       "vegetation": {
-        "profile": "temperate_sparse",
+        "profile": "thicket",
         "density": 0.42
       }
     },
@@ -117,8 +119,10 @@
           26
         ]
       ],
+      "terrain_type": "rubble",
+      "movement_cost": 2.0,
       "vegetation": {
-        "profile": "temperate_sparse",
+        "profile": "rocky_scrub",
         "density": 0.45
       }
     },
@@ -404,7 +408,8 @@
         160,
         96
       ],
-      "rotation_deg": 10
+      "rotation_deg": 180,
+      "navigable": true
     },
     {
       "id": "emberwatch_scarp",
@@ -441,7 +446,8 @@
           112
         ]
       ],
-      "width_m": 3
+      "width_m": 3,
+      "movement_cost": 2.0
     }
   ],
   "roads": [
@@ -700,8 +706,8 @@
       "initial_disposition": "neutral",
       "dialog": "emberwatch_grunt",
       "position": [
-        167,
-        74
+        160,
+        96
       ],
       "rotation_deg": 250
     },
@@ -759,6 +765,19 @@
       ]
     },
     {
+      "id": "camp_powder_barrel",
+      "kind": "explosive_barrel",
+      "asset": "explosive_barrel_01",
+      "position": [
+        164,
+        71
+      ],
+      "rotation_deg": 12,
+      "blast_radius_m": 3.5,
+      "blast_damage_die": 6,
+      "blast_damage_dice_count": 2
+    },
+    {
       "id": "camp_torch_north",
       "kind": "prop",
       "asset": "torch_lit_01",
@@ -812,7 +831,8 @@
         "camp_sentry",
         "camp_raider",
         "camp_chieftain"
-      ]
+      ],
+      "skip_surprised_round_one": false
     }
   ],
   "dialogs": [

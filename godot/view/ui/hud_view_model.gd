@@ -5,6 +5,7 @@ const AbilityTargetingRules = preload("res://sim/ability_targeting.gd")
 const EquipmentRules = preload("res://sim/equipment.gd")
 const AttackMathRules = preload("res://sim/rules/attack_math.gd")
 const AbilityCostRules = preload("res://sim/rules/ability_cost_rules.gd")
+const MasteryRulesScript = preload("res://sim/rules/mastery_rules.gd")
 
 const AVAILABILITY_REASON_TEXT := {
 	&"unknown_actor": "Unknown character.",
@@ -67,6 +68,7 @@ static func for_actor(state: BattleState, actor_id: int, defs: DefinitionLibrary
 		"movement_speed": actor.movement_speed, "movement_fraction": clampf(actor.movement_remaining / maxf(0.01, actor.movement_speed), 0.0, 1.0),
 		"action_available": actor.action_available, "bonus_action_available": actor.bonus_action_available,
 		"reaction_available": actor.reaction_available, "conditions": actor.condition_ids(),
+		"sneaking": actor.sneaking, "hidden_from": actor.hidden_from.duplicate(), "passive_perception": actor.passive_perception(),
 		"coins": actor.coins,
 		"is_current_turn": state.current_actor_id() == actor_id, "phase": state.phase,
 		"movement_budget_ignored": state.phase == &"exploration", "action_availability": _present_actions(actor, actions, defs),
@@ -119,6 +121,12 @@ static func action_mechanics(actor: ActorState, ability: AbilityDefinition, defs
 		mechanics.append("%s m movement" % format_number(ability.movement_cost))
 	if mechanics.is_empty():
 		mechanics.append("No action cost")
+	if not ability.modes.is_empty():
+		mechanics.append("Choose: %s" % " / ".join(ability.modes.map(func(mode: StringName): return String(mode).capitalize())))
+	if ability.targeting == &"ground_point":
+		mechanics.append("Point target")
+	if ability.target_radius_meters > 0.0:
+		mechanics.append("Radius %s m" % format_number(ability.target_radius_meters))
 
 	var has_attack := false
 	var has_self_effect := false
@@ -144,6 +152,11 @@ static func action_mechanics(actor: ActorState, ability: AbilityDefinition, defs
 				mechanics.append(_condition_mechanic(effect, defs))
 			&"apply_disengage":
 				mechanics.append("No opportunity attacks this turn")
+			&"area_damage":
+				if effect.half_damage_on_save:
+					mechanics.append("Dexterity save for half")
+				else:
+					mechanics.append("Dexterity save")
 
 	if not has_attack and ability.targeting == &"actor" and ability.target_range_meters >= 0.0:
 		mechanics.append("Range %s m" % format_number(AbilityTargetingRules.target_range(defs, ability.id)))
@@ -175,6 +188,10 @@ static func _append_attack_mechanics(mechanics: Array[String], actor: ActorState
 	var damage := _format_damage(int(profile["damage_dice_count"]), int(profile["damage_die"]), int(profile["damage_modifier"]))
 	var damage_type := String(profile["damage_type"])
 	mechanics.append("Damage %s%s" % [damage, " " + damage_type if not damage_type.is_empty() else ""])
+	var weapon := defs.get_item(StringName(str(profile.get("weapon_id", "")))) if defs != null else null
+	if weapon != null and MasteryRulesScript.is_supported(weapon.mastery):
+		mechanics.append("%s: %s" % [MasteryRulesScript.label(weapon.mastery), MasteryRulesScript.description(weapon.mastery)])
+	mechanics.append("High ground +2 / low ground -2 at 2.5 m")
 
 
 ## The same parts, in the same order, AttackMath added into attack_bonus.
@@ -288,6 +305,20 @@ static func narrate(event: Event, state: BattleState, defs: DefinitionLibrary) -
 		&"condition_added": return "%s gains %s." % [actor_name, String(d.get("condition", "a condition"))]
 		&"condition_removed": return "%s loses %s." % [actor_name, String(d.get("condition", "a condition"))]
 		&"condition_consumed": return "%s's %s benefit is consumed." % [actor_name, String(d.get("condition", "a condition"))]
+		&"mastery_triggered": return "%s triggers %s on %s." % [actor_name, String(d.get("mastery", "mastery")).capitalize(), target_name]
+		&"forced_movement_attempted": return "%s tries to push %s." % [actor_name, target_name]
+		&"forced_movement_resisted": return "%s resists the push." % target_name
+		&"forced_movement_blocked": return "%s cannot be pushed: the way is blocked." % target_name
+		&"forced_movement": return "%s is pushed %.1f m." % [actor_name, float(d.get("distance", 0.0))]
+		&"fall_started": return "%s falls %.1f m." % [actor_name, float(d.get("fall_distance", 0.0))]
+		&"hidden_revealed": return "%s is revealed by attacking." % actor_name
+		&"stealth_rolled": return "%s rolls Stealth: %d." % [actor_name, int(d.get("total", 0))]
+		&"sneaking_changed": return "%s begins sneaking." % actor_name if d.get("sneaking", false) else "%s stops sneaking." % actor_name
+		&"detection_changed": return "%s is hidden from observer %d." % [actor_name, int(d.get("observer_id", -1))] if d.get("hidden", false) else "%s is detected." % actor_name
+		&"surprise_turn_skipped": return "%s loses this turn to surprise." % actor_name
+		&"explosion_triggered": return "An explosive barrel erupts in a %.1f m radius." % float(d.get("radius", 0.0))
+		&"interactable_destroyed": return "%s is destroyed." % String(d.get("interactable_id", "object")).replace("_", " ").capitalize()
+		&"actor_surrendered": return "%s surrenders." % actor_name
 		&"interaction_completed": return "%s interacts with %s." % [actor_name, String(d.get("interactable_id", "the object"))]
 		&"skill_check_rolled":
 			var skill := String(d.get("skill", ""))
@@ -310,6 +341,9 @@ static func _attack_roll_narration(actor_name: String, target_name: String, data
 	var breakdown := "%d %+d = %d" % [roll, modifier, total]
 	if data.has("armor_class"):
 		breakdown += " vs AC %d" % int(data["armor_class"])
+	var elevation_modifier := int(data.get("elevation_modifier", 0))
+	if elevation_modifier != 0:
+		breakdown += "; %s %+d" % ["high ground" if elevation_modifier > 0 else "low ground", elevation_modifier]
 	var sources := _roll_sources(data, state, defs)
 	if not sources.is_empty():
 		breakdown += "; " + ", ".join(sources)
@@ -364,6 +398,7 @@ static func _roll_mode_causes(raw_sources: Variant, state: BattleState, defs: De
 		match source:
 			AttackMathRules.SOURCE_LONG_RANGE: causes.append("long range")
 			AttackMathRules.SOURCE_THREATENED: causes.append("adjacent enemy")
+			AttackMathRules.SOURCE_HIDDEN: causes.append("hidden attacker")
 			_:
 				var condition := defs.get_condition(source) if defs != null else null
 				var label := condition.display_name.to_lower() if condition != null and not condition.display_name.is_empty() else String(source).replace("_", " ")

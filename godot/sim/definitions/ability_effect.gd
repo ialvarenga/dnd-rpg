@@ -30,6 +30,21 @@ extends Resource
 @export var is_ranged: bool = false
 @export var attack_kind: StringName = &"basic"
 
+## Optional mode gate. Empty applies in every mode; otherwise this effect only
+## runs when command.metadata.mode matches.
+@export var mode: StringName = &""
+
+## forced_movement: horizontal distance requested away from the source.
+@export var forced_distance_meters: float = 0.0
+
+## area_damage: damage and save facts. The center and radius come from the
+## targeted ability so previews, AI, and resolution share one contract.
+@export var damage_die: int = 0
+@export var damage_dice_count: int = 1
+@export var damage_modifier: int = 0
+@export var damage_type: StringName = &"untyped"
+@export var half_damage_on_save: bool = false
+
 ## saving_throw: target chooses the listed ability with the highest modifier.
 ## DC = save_dc_base + source proficiency + source ability modifier.
 @export var save_abilities: Array[StringName] = []

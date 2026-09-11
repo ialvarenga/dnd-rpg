@@ -278,7 +278,8 @@ static func _test_paths_are_deterministic_and_crossings_fail(failures: Array[Str
 	var boundary_b := MapPathRenderer.ribbon_boundaries(second.paths[0].points, second.paths[0].width)
 	_expect(boundary_a == boundary_b and boundary_a.size() == 4, "river ribbon geometry is not deterministic", failures)
 	_expect(first.terrain.height_at(16, 16) < first.terrain.height_at(16, 19), "riverbed is not lower than its bank", failures)
-	_expect(not first.navigation.is_reachable(Vector2(16, 8), Vector2(16, 24)), "river did not block navigation", failures)
+	_expect(first.navigation.is_reachable(Vector2(16, 8), Vector2(16, 24)), "weighted river remained an impassable navigation blocker", failures)
+	_expect(first.movement_regions.size() == 1 and first.movement_regions[0].terrain_type == &"river" and is_equal_approx(first.movement_regions[0].movement_cost, 2.0), "river did not compile into a weighted movement region", failures)
 	if first.root != null:
 		first.root.free()
 	if second.root != null:
@@ -316,11 +317,11 @@ static func _test_quality_scorecard_is_advisory_and_repeatable(failures: Array[S
 
 ## ADR-007: a hill reshapes the heightfield before anything else compiles, so
 ## the stamp must already be visible in the baked navmesh's source geometry,
-## and the reachability grid must exclude the hill's footprint (via its
-## slope profile and navigation-blocker box acting together).
+## and the reachability grid must connect its summit through the generated
+## approach ramp rather than treating the decorative mesh as a blocker.
 static func _test_hills_are_compiled_and_present_in_navmesh(failures: Array[String]) -> void:
 	var compiler := CompilerScript.new()
-	var spec := {"map": {"id": "hill_map", "seed": 1, "bounds": {"width_m": 32, "height_m": 32}}, "terrain": {"profile": "flat"}, "hills": [{"id": "mound", "asset": "forest_hill_4x4x4", "position": [16, 16]}], "spawn_points": [{"id": "start", "position": [2, 2]}]}
+	var spec := {"map": {"id": "hill_map", "seed": 1, "bounds": {"width_m": 32, "height_m": 32}}, "terrain": {"profile": "flat"}, "hills": [{"id": "mound", "asset": "forest_hill_4x4x4", "position": [16, 16], "navigable": true}], "spawn_points": [{"id": "start", "position": [2, 2]}]}
 	var result := compiler.compile(spec)
 	_expect(result.is_valid(), "hill fixture did not compile: %s" % (result.errors[0].message if not result.errors.is_empty() else ""), failures)
 	if not result.is_valid():
@@ -333,7 +334,7 @@ static func _test_hills_are_compiled_and_present_in_navmesh(failures: Array[Stri
 			if is_equal_approx(vertex.x, 16.0) and is_equal_approx(vertex.z, 16.0) and is_equal_approx(vertex.y, 4.0):
 				stamped_present = true
 	_expect(stamped_present, "stamped hill elevation is not present in the baked navmesh source geometry", failures)
-	_expect(not result.navigation.is_reachable(Vector2(2, 2), Vector2(16, 16)), "hill did not exclude its footprint from the reachability grid", failures)
+	_expect(result.navigation.is_reachable(Vector2(2, 2), Vector2(16, 16)), "hilltop high ground was not reachable through its generated ramp", failures)
 	_expect(result.navigation.is_reachable(Vector2(2, 2), Vector2(30, 30)), "hill over-blocked space beyond its footprint", failures)
 	if result.root != null:
 		result.root.free()

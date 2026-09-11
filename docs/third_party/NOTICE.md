@@ -10,15 +10,23 @@ https://creativecommons.org/licenses/by/4.0/legalcode.
 
 The rules have been adapted into a deterministic, metric, single-hero tactical
 video game. Adaptations include presentation-friendly melee distances, rounded
-feet-to-meter range bands, automated selection of the defender's better Shove
-save, a prone creature righting itself automatically (for half its Speed) at the
+feet-to-meter range bands, a Push/Prone Shove using the defender's better save,
+a 3 m projected push with metric fall damage, a prone creature righting itself
+automatically (for half its Speed) at the
 start of its turn and when combat ends and being unable to take reactions while
 prone, self-only healing-potion administration, an encounter boundary standing
 in for the SRD short rest, a minimum of 1 damage on every hit, and omission of
 rules the runtime does not yet model (shields, armor training and Strength
 requirements, and most weapon properties). Attack bonuses, damage, and Armor
 Class are derived from ability scores, proficiency, and equipment following the
-SRD formulas rather than authored per creature. The exact provenance and
+SRD formulas rather than authored per creature. Sap, Vex, Nick, Graze, and
+Topple are data-defined from the SRD mastery vocabulary; Nick is adapted to the
+project's single Attack action as one once-per-turn offhand Light attack with
+no ability modifier to damage. Sneak compares a stored Dexterity (Stealth)
+result to nearby hostile passive Perception and tracks hidden state per
+observer. Surprise is adapted to initiative Disadvantage,
+and the project's ±2 high-ground modifier and explosive-barrel rules are
+original additions. The exact provenance and
 changes for each rules resource are recorded in
 `docs/rules/open-content-ledger.csv`. This project describes itself only as
 “5E compatible.”
@@ -58,7 +66,8 @@ adapted; see `reuse-audit.md` for the immutable source and decision.
   these, 158 (137 trees, bushes, grass, and rocks, plus the 21 freestanding
   `Hill_WxDxH` blocks) are catalogued and individually audited in
   `assets.csv`. The 21 hill blocks are authored as heightfield stamps rather
-  than props — see [ADR-007](../ADR/ADR-007-hill-terrain-stamping.md). The
+  than props, with project-generated earthen ramps for reachable high ground —
+  see [ADR-007](../ADR/ADR-007-hill-terrain-stamping.md). The
   remaining 40 `Hill_Cliff_*`/`Hill_Top_*` modular tile models are imported
   but not yet authorable; they need grid-snapping placement UI.
 - Modification 1: each model's glTF image URI is rewritten from
@@ -142,6 +151,10 @@ them by stable UI id; no icon is gameplay authority.
   tiled to span the arena's 20m wall) authored for this project, not a file
   from the pack itself.
 - See `assets.csv` for the full per-asset audit trail.
+- `explosive_barrel_01` reuses `barrel_large.gltf` as a separate semantic
+  catalog definition. Its red albedo/emission tint is applied at runtime by
+  project code; the source mesh and texture are not modified. The ordinary
+  `barrel_large_01` remains the potion-bearing loot barrel.
 
 ### KayKit Adventurers 2.0 (A10, B1, combat encounters)
 

@@ -131,7 +131,7 @@ static func _test_shipping_stat_blocks(failures: Array[String]) -> void:
 	var defs := DefinitionLibrary.get_default()
 	var expected := {
 		&"knight": [16, 4, 8, 2], &"raider": [12, 4, 4, 2], &"archer": [12, 4, 6, 2],
-		&"bandit_scout": [12, 4, 4, 2], &"bandit_raider": [12, 3, 4, 1], &"bandit_chieftain": [13, 4, 6, 2],
+		&"bandit_scout": [12, 4, 4, 2], &"bandit_raider": [12, 3, 6, 1], &"bandit_chieftain": [13, 4, 6, 2],
 	}
 	for actor_id in expected:
 		var actor := _actor_from(actor_id)

@@ -17,7 +17,7 @@ func run() -> Dictionary:
 	var presented: Array[String] = []
 	player.feedback_presented.connect(func(event: Event, feedback: FloatingCombatText):
 		presented.append(event.type)
-		var expected_anchor: CharacterView = target if event.type == &"attack_rolled" else actor
+		var expected_anchor: CharacterView = target if event.type in [&"attack_rolled", &"forced_movement_blocked"] else actor
 		_expect(feedback.get_parent() == expected_anchor, "%s feedback was not anchored to the affected CharacterView" % event.type, failures)
 	)
 
@@ -42,6 +42,16 @@ func run() -> Dictionary:
 	player.play_events(feedback_events)
 	_expect(presented == ["damage_taken", "damage_taken", "attack_rolled", "healing_received", "item_consumed", "actor_downed", "condition_added", "condition_removed", "command_rejected"], "new feedback events did not all reach the presentation layer", failures)
 	_expect(_feedback_texts(actor).slice(2) == ["+3", "USED HEALING POTION", "DOWNED", "+POISONED", "-POISONED", "REJECTED: not current actor"], "feedback text did not describe healing, consumption, downing, conditions, and rejection", failures)
+
+	var combat_depth_events: Array[Event] = [
+		Event.create(&"mastery_triggered", {"actor_id": actor.actor_id, "target_id": target.actor_id, "mastery": &"sap"}),
+		Event.create(&"forced_movement_blocked", {"actor_id": actor.actor_id, "target_id": target.actor_id}),
+		Event.create(&"sneaking_changed", {"actor_id": actor.actor_id, "sneaking": true}),
+		Event.create(&"detection_changed", {"actor_id": actor.actor_id, "observer_id": target.actor_id, "hidden": true}),
+		Event.create(&"hidden_revealed", {"actor_id": actor.actor_id, "target_id": target.actor_id}),
+	]
+	player.play_events(combat_depth_events)
+	_expect(_feedback_texts(actor).slice(8) == ["SAP", "SNEAKING", "HIDDEN", "REVEALED"] and _feedback_texts(target).slice(1) == ["BLOCKED"], "Marco E mastery, push, and stealth events lacked correctly anchored floating feedback", failures)
 
 	var before_missing_view := _feedback_texts(actor).size()
 	var missing_view_events: Array[Event] = [Event.create(&"damage_taken", {"actor_id": 999, "amount": 1})]

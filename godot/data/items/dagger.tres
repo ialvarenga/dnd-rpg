@@ -11,4 +11,5 @@ weapon_category = &"simple"
 weapon_properties = Array[StringName]([&"finesse", &"light", &"thrown"])
 damage_die = 4
 damage_type = &"piercing"
+mastery = &"nick"
 held_model_path = "res://assets/kaykit_adventurers_weapons/dagger.gltf"

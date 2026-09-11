@@ -17,7 +17,9 @@ extends RefCounted
 ## Bump 5: ActorState drops armor_class/attack_bonus/damage_die/damage_modifier
 ## (now derived by AttackMath) and serializes weapon_proficiencies. Bump 6 adds
 ## the related actor scope carried by attack-triggered condition instances.
-const SCHEMA_VERSION: int = 6
+## Bump 7 adds skill/stealth/detection/morale state, offhand equipment,
+## surprised-turn bookkeeping, and explosive-interactable blast state.
+const SCHEMA_VERSION: int = 7
 const GAME_VERSION: String = "0.1.0"
 
 var schema_version: int = SCHEMA_VERSION

@@ -94,4 +94,3 @@ static func _stable_value(value: Variant) -> Variant:
 	if value is Dictionary:
 		return _stable_event_data(value)
 	return value
-

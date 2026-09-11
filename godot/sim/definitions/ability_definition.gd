@@ -30,6 +30,15 @@ extends Resource
 ## for future spells and other targeted actions without knowing their effects.
 @export var target_range_meters: float = -1.0
 
+## Optional radius around a ground point or interactable target. A positive
+## value makes the ability an area action; Resolver enumerates affected actors
+## in stable actor-id order.
+@export var target_radius_meters: float = 0.0
+
+## Command metadata "mode" must name one of these entries. This is used by
+## actions such as Shove without teaching the resolver a Shove content id.
+@export var modes: Array[StringName] = []
+
 ## True when this ability may also resolve outside combat. Every other ability
 ## stays behind the combat turn-ownership gate, so this defaults false and
 ## existing content keeps its exact rejection order.
@@ -54,5 +63,9 @@ extends Resource
 ## ability's action is spent. Empty means no dedicated animation (attacks are
 ## narrated by attack_rolled instead). The Resolver never reads it.
 @export var animation_verb: StringName = &""
+
+## Pure tactical meaning consumed by AI and HUD. Content ids are deliberately
+## not a decision surface.
+@export var ai_tags: Array[StringName] = []
 
 @export var effects: Array[AbilityEffect] = []

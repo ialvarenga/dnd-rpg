@@ -14,4 +14,5 @@ id = &"dodge"
 display_name = "Dodge"
 description = "Focus on defense, imposing disadvantage on attacks against you until your next turn."
 costs_action = true
+ai_tags = Array[StringName]([&"defensive"])
 effects = Array[ExtResource("2")]([SubResource("Effect_dodge")])

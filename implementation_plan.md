@@ -1,8 +1,7 @@
 # Plano Técnico — RPG Tático 3D em Godot
 
 **Versão:** 3.1
-**Status:** Marcos A–D concluídos (D4.4 adiado); Marco E em andamento (E0 e os
-dois primeiros itens de E1 concluídos).
+**Status:** Marcos A–E concluídos (D4.4 adiado); Marcos F–G planejados.
 **Princípio condutor:** ter algo **jogável** antes de ter algo **inteligente**
 ou **bonito**.
 
@@ -65,7 +64,7 @@ Construir um RPG tático 3D em Godot com mecânicas inspiradas em Baldur's Gate
 | B | Map Compiler (catálogo, schema, MapSpec, terreno, vegetação, estruturas, rios/estradas, navegação, validação, mapa jogável) | ✅ Concluído | [marco-b-map-compiler.md](docs/milestones/marco-b-map-compiler.md) |
 | C | HUD, action bar e apresentação | ✅ Concluído | [marco-c-hud-presentation.md](docs/milestones/marco-c-hud-presentation.md) |
 | D | Feedback, consumíveis e mundo vivo | ✅ Concluído (D4.4 portas/alavancas adiado) | [marco-d-gameplay-depth.md](docs/milestones/marco-d-gameplay-depth.md) |
-| E | Profundidade de combate | 🔶 Em andamento (E0 concluído) | Seção 4 abaixo |
+| E | Profundidade de combate | ✅ Concluído | [marco-e-combat-depth.md](docs/milestones/marco-e-combat-depth.md) |
 | F | Party e progressão | ⏳ Planejado | Seção 4 abaixo |
 | G | Aventura e mundo | ⏳ Planejado | Seção 4 abaixo |
 | LLM World Authoring | Autoria por IA generativa | ⏸️ Adiado até E–G estabilizarem | [docs/deferred_llm_world_authoring.md](docs/deferred_llm_world_authoring.md) |
@@ -84,9 +83,9 @@ adiado está preservado em
 
 ### Marco E — Combat depth
 
-**Status:** em andamento — E0 (quick wins, estatísticas derivadas e
-`attack_math.gd`) está concluído; novas ações (E1), geometria, furtividade e a
-próxima iteração de IA ainda não começaram.
+**Status:** concluído — E0–E4 implementados e cobertos pela suíte headless.
+O passe visual interativo permanece uma verificação manual, não uma lacuna de
+regra ou conteúdo.
 
 #### E0 — Fairness and attack correctness
 
@@ -98,9 +97,8 @@ próxima iteração de IA ainda não começaram.
 - [x] Wire `SaveLoadService` to F5/F9 quicksave/quickload, a HUD pause menu,
   and a separate autosave captured after encounter start.
 - [x] Rebalance the shipping map to two healing potions total (one chest,
-  one barrel) and add the archer stat block. The archer deliberately remains
-  at a reachable camp position until player ranged attacks or jump/forced
-  movement exist; an inaccessible high-ground placement is deferred with E2.
+  one loot barrel) and add the archer stat block. E2 later moved the archer
+  onto the reachable, ramped Emberwatch rise.
 - [x] Derive attack and damage from ability scores, proficiency, weapon
   category, finesse, and magic bonus. Derive armor class from armor category
   and Dexterity. Actors author `weapon_proficiencies` instead of attack/AC
@@ -118,46 +116,50 @@ próxima iteração de IA ainda não começaram.
 
 #### E1 — D&D action vocabulary
 
-**Status:** em andamento — target filters, Help, and the reusable one-attack
-condition primitive are concluídos; weapon masteries and Shove Push remain.
+**Status:** concluído.
 
 - [x] Add `AbilityDefinition.target_filter` (`hostile`, `ally`, `self`, `any`) to
   Resolver, targeting rules, and planners.
 - [x] Add Help and reusable "next attack against" condition expiration. Use it
   for Help, Vex, and Sap.
-- Add data-defined weapon mastery effects: longsword Sap, shortbow Vex,
+- [x] Add data-defined weapon mastery effects: longsword Sap, shortbow Vex,
   dagger Nick, plus Graze and Topple for enemy weapons. Record open content
   and adaptations in the rules ledger and third-party notice.
-- Expand Shove to choose Push or Prone. Add forced movement, wall blocking,
+- [x] Expand Shove to choose Push or Prone. Add forced movement, wall blocking,
   fall damage, a `NavProvider.project_push()` query, and fakes/tests.
 
 #### E2 — Battlefield geometry
 
-- Add original/deviation high-ground attack modifiers (+2 at least 2.5m
+- [x] Add original/deviation high-ground attack modifiers (+2 at least 2.5m
   above, -2 below) through shared attack math.
-- Add terrain regions with weighted path cost and `NavProvider.path_cost()`
+- [x] Make authored elevated positions reachable with optional deterministic
+  hill ramps while retaining steep edges for push/drop queries.
+- [x] Add terrain regions with weighted path cost and `NavProvider.path_cost()`
   for river, thicket, and rubble; mirror the field through every MapSpec
   schema and map-builder validation surface.
-- Add point targeting, radius, DEX save for half, and explosive barrels as
+- [x] Add point targeting, radius, DEX save for half, and explosive barrels as
   the first area-effect capability.
 
 #### E3 — Stealth, perception, and surprise
 
-- Move hostile detection into a simulation rule. Add passive Perception and
+- [x] Move hostile detection into a simulation rule. Add passive Perception and
   a Sneak toggle resolved as Stealth versus nearby passive Perception.
-- Permit exploration attacks to begin the relevant encounter and resolve as
+- [x] Permit exploration attacks to begin the relevant encounter and resolve as
   the opening action.
-- Add surprise initiative disadvantage and hidden-attacker first-hit
+- [x] Add surprise initiative disadvantage and hidden-attacker first-hit
   advantage; offer "skip round 1" only as an explicit map variant.
 
 #### E4 — Tactical AI
 
-- Replace content-id checks with `AbilityDefinition.ai_tags` such as
+- [x] Replace content-id checks with `AbilityDefinition.ai_tags` such as
   `defensive`, `mobility`, `escape`, and `control`.
-- Add focus-fire/kill-probability target selection, leader protection, and
+- [x] Add focus-fire/kill-probability target selection, leader protection, and
   ranged cover seeking.
-- Add morale-driven flee/surrender, reusing disposition and encounter
+- [x] Add morale-driven flee/surrender, reusing disposition and encounter
   clearing.
+- [x] Score high ground, weighted paths, masteries, Shove modes, and explosive
+  barrels without speculative RNG; cap target/cover/area candidates and
+  navigation/LOS queries explicitly.
 
 ### Marco F — Party and progression
 
@@ -337,7 +339,7 @@ Marco C: HUD + presentation ✅
       ↓
 Marco D: live-world feedback ✅
       ↓
-Marco E: combat depth 🔶 em andamento
+Marco E: combat depth ✅ concluído
       ↓
 Marco F: party + progression
       ↓
@@ -365,7 +367,9 @@ Não implementar:
 - huge maps;
 - world streaming;
 - AI-generated meshes;
-- vertical combat;
+- stacked-floor, ladder, climbing, jump-link, or complex multi-level combat
+  (Marco E does include continuous navigable elevation, high ground,
+  push-offs, and falls);
 - partial cover além de half/three_quarters/total já implementado;
 - complex inventory;
 - crafting;

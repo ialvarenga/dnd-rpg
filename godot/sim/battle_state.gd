@@ -8,6 +8,7 @@ var round_number: int = 1
 var phase: StringName = &"exploration"
 var active_encounter_id: String = ""
 var active_combatant_ids: Array[int] = []
+var skip_round_one_actor_ids: Array[int] = []
 var cleared_encounter_ids: Array[String] = []
 var last_encounter_outcome: StringName = &"none"
 var game_outcome: StringName = &"ongoing"
@@ -48,6 +49,7 @@ func clone() -> BattleState:
 	copy.phase = phase
 	copy.active_encounter_id = active_encounter_id
 	copy.active_combatant_ids = active_combatant_ids.duplicate()
+	copy.skip_round_one_actor_ids = skip_round_one_actor_ids.duplicate()
 	copy.cleared_encounter_ids = cleared_encounter_ids.duplicate()
 	copy.last_encounter_outcome = last_encounter_outcome
 	copy.game_outcome = game_outcome
@@ -80,6 +82,12 @@ func stable_snapshot() -> Dictionary:
 			"reaction_available": actor.reaction_available,
 			"disengaged": actor.disengaged,
 			"disposition": String(actor.disposition),
+			"sneaking": actor.sneaking,
+			"stealth_total": actor.stealth_total,
+			"hidden_from": actor.hidden_from.duplicate(),
+			"ai_tags": actor.ai_tags.duplicate(),
+			"morale": actor.morale,
+			"surrendered": actor.surrendered,
 			"condition_states": actor.condition_states.map(func(condition: ConditionState): return condition.to_dict()),
 			"inventory": actor.inventory,
 			"coins": actor.coins,
@@ -94,7 +102,13 @@ func stable_snapshot() -> Dictionary:
 			"id": interactable.id,
 			"type": String(interactable.type),
 			"state": String(interactable.state),
+			"position": [interactable.position.x, interactable.position.y, interactable.position.z],
 			"contents": interactable.contents,
+			"tags": interactable.tags,
+			"destroyed": interactable.destroyed,
+			"blast_radius_meters": interactable.blast_radius_meters,
+			"blast_damage_die": interactable.blast_damage_die,
+			"blast_damage_dice_count": interactable.blast_damage_dice_count,
 		})
 	var objective_snapshots: Array[Dictionary] = []
 	var objective_ids: Array = objectives.keys()
@@ -111,6 +125,7 @@ func stable_snapshot() -> Dictionary:
 		"phase": String(phase),
 		"active_encounter_id": active_encounter_id,
 		"active_combatant_ids": active_combatant_ids,
+		"skip_round_one_actor_ids": skip_round_one_actor_ids,
 		"cleared_encounter_ids": cleared_encounter_ids,
 		"last_encounter_outcome": String(last_encounter_outcome),
 		"game_outcome": String(game_outcome),
@@ -147,6 +162,7 @@ func to_dict() -> Dictionary:
 		"phase": String(phase),
 		"active_encounter_id": active_encounter_id,
 		"active_combatant_ids": active_combatant_ids.duplicate(),
+		"skip_round_one_actor_ids": skip_round_one_actor_ids.duplicate(),
 		"cleared_encounter_ids": cleared_encounter_ids.duplicate(),
 		"last_encounter_outcome": String(last_encounter_outcome),
 		"game_outcome": String(game_outcome),
@@ -179,6 +195,8 @@ static func from_dict(data: Dictionary) -> BattleState:
 	state.active_encounter_id = str(data.get("active_encounter_id", ""))
 	for actor_id in data.get("active_combatant_ids", []):
 		state.active_combatant_ids.append(int(actor_id))
+	for actor_id in data.get("skip_round_one_actor_ids", []):
+		state.skip_round_one_actor_ids.append(int(actor_id))
 	for encounter_id in data.get("cleared_encounter_ids", []):
 		state.cleared_encounter_ids.append(str(encounter_id))
 	state.last_encounter_outcome = StringName(str(data.get("last_encounter_outcome", "none")))

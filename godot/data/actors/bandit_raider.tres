@@ -18,7 +18,10 @@ weapon_proficiencies = Array[StringName]([&"simple", &"martial"])
 movement_speed = 8.0
 ability_ids = Array[StringName]([&"basic_attack", &"dash", &"disengage"])
 equipment_slots = {
-&"weapon": &"dagger",
+&"weapon": &"scimitar",
+&"offhand": &"dagger",
 &"armor": &"leather_armor"
 }
 starting_inventory = Array[StringName]([])
+ai_tags = Array[StringName]([&"protector"])
+morale = 45

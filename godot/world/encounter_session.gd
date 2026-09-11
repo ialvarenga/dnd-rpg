@@ -65,10 +65,17 @@ func submit_interact(actor_id: int, interactable_id: String) -> ResolutionResult
 	return _submit(command, Vector3.INF)
 
 
-func submit_ability(actor_id: int, ability_id: StringName, target_id: int, target_pos: Vector3) -> ResolutionResult:
+func submit_ability(actor_id: int, ability_id: StringName, target_id: int, target_pos: Vector3, metadata: Dictionary = {}) -> ResolutionResult:
 	var command := Command.create(ability_id, actor_id)
 	command.target_id = target_id
 	command.target_pos = target_pos
+	command.metadata = metadata.duplicate(true)
+	return _submit(command, Vector3.INF)
+
+
+func submit_interactable_ability(actor_id: int, ability_id: StringName, interactable_id: String) -> ResolutionResult:
+	var command := Command.create(ability_id, actor_id)
+	command.target_interactable_id = interactable_id
 	return _submit(command, Vector3.INF)
 
 

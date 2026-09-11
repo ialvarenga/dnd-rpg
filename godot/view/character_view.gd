@@ -227,6 +227,12 @@ func configure_weapon_presentation(weapon: ItemDefinition) -> void:
 		animator.ranged_stance = wields_ranged_weapon
 
 
+func present_sneaking(enabled: bool) -> void:
+	if animator == null:
+		return
+	animator.request_state(&"crouch" if enabled else (&"combat_ready" if _in_combat else &"idle"))
+
+
 ## Sheathed until combat starts: called from present_combat_ready() rather
 ## than dress-time, and idempotent so a later encounter's combat_started
 ## doesn't attach a second copy. There is no equip command in this milestone

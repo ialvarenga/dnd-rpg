@@ -21,3 +21,5 @@ equipment_slots = {
 &"weapon": &"dagger"
 }
 starting_inventory = Array[StringName]([])
+skill_proficiencies = Array[StringName]([&"perception", &"stealth"])
+morale = 30

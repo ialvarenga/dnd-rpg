@@ -16,6 +16,7 @@ var wisdom: int = 10
 var charisma: int = 10
 var proficiency_bonus: int = 2
 var saving_throw_proficiencies: Array[StringName] = []
+var skill_proficiencies: Array[StringName] = []
 ## Weapon categories or weapon item ids; see ActorDefinition. Attack, damage,
 ## and armor class are never stored here: AttackMath derives them from the
 ## ability scores above, this list, and equipment_slots.
@@ -65,6 +66,16 @@ var disposition: StringName = &"hostile"
 ## talkative on another.
 var dialog_id: StringName = &""
 
+## Detection and morale are authoritative. hidden_from contains opposing actor
+## ids that currently have not detected this actor; it is sorted whenever an
+## event changes it so snapshots do not depend on insertion order.
+var sneaking: bool = false
+var stealth_total: int = 0
+var hidden_from: Array[int] = []
+var ai_tags: Array[StringName] = []
+var morale: int = 50
+var surrendered: bool = false
+
 
 ## Builds a fresh ActorState from stable content instead of a caller setting
 ## HP/AC/etc. constants by hand. The result is fully independent of
@@ -86,6 +97,7 @@ static func from_definition(definition: ActorDefinition, actor_id: int, side: St
 	actor.charisma = definition.charisma
 	actor.proficiency_bonus = definition.proficiency_bonus
 	actor.saving_throw_proficiencies = definition.saving_throw_proficiencies.duplicate()
+	actor.skill_proficiencies = definition.skill_proficiencies.duplicate()
 	actor.weapon_proficiencies = definition.weapon_proficiencies.duplicate()
 	actor.movement_speed = definition.movement_speed
 	actor.movement_remaining = definition.movement_speed
@@ -94,6 +106,8 @@ static func from_definition(definition: ActorDefinition, actor_id: int, side: St
 	actor.inventory = definition.starting_inventory.duplicate()
 	actor.coins = definition.starting_coins
 	actor.definition_id = definition.id
+	actor.ai_tags = definition.ai_tags.duplicate()
+	actor.morale = definition.morale
 	return actor
 
 
@@ -112,6 +126,7 @@ func clone() -> ActorState:
 	copy.charisma = charisma
 	copy.proficiency_bonus = proficiency_bonus
 	copy.saving_throw_proficiencies = saving_throw_proficiencies.duplicate()
+	copy.skill_proficiencies = skill_proficiencies.duplicate()
 	copy.weapon_proficiencies = weapon_proficiencies.duplicate()
 	copy.movement_speed = movement_speed
 	copy.movement_remaining = movement_remaining
@@ -129,6 +144,12 @@ func clone() -> ActorState:
 	copy.definition_id = definition_id
 	copy.disposition = disposition
 	copy.dialog_id = dialog_id
+	copy.sneaking = sneaking
+	copy.stealth_total = stealth_total
+	copy.hidden_from = hidden_from.duplicate()
+	copy.ai_tags = ai_tags.duplicate()
+	copy.morale = morale
+	copy.surrendered = surrendered
 	return copy
 
 
@@ -210,6 +231,15 @@ func saving_throw_modifier(ability: StringName) -> int:
 	return ability_modifier(ability) + (proficiency_bonus if saving_throw_proficiencies.has(ability) else 0)
 
 
+func skill_modifier(skill: StringName) -> int:
+	var ability := AbilityCheck.ability_for_skill(skill)
+	return ability_modifier(ability) + (proficiency_bonus if skill_proficiencies.has(skill) else 0)
+
+
+func passive_perception() -> int:
+	return 10 + skill_modifier(&"perception")
+
+
 func _has_condition_flag(flag_name: StringName) -> bool:
 	var library := DefinitionLibrary.get_default()
 	for condition_id in condition_ids():
@@ -234,6 +264,7 @@ func to_dict() -> Dictionary:
 		"charisma": charisma,
 		"proficiency_bonus": proficiency_bonus,
 		"saving_throw_proficiencies": SimulationSerialization.value_to_data(saving_throw_proficiencies),
+		"skill_proficiencies": SimulationSerialization.value_to_data(skill_proficiencies),
 		"weapon_proficiencies": SimulationSerialization.value_to_data(weapon_proficiencies),
 		"movement_speed": movement_speed,
 		"movement_remaining": movement_remaining,
@@ -250,6 +281,12 @@ func to_dict() -> Dictionary:
 		"definition_id": String(definition_id),
 		"disposition": String(disposition),
 		"dialog_id": String(dialog_id),
+		"sneaking": sneaking,
+		"stealth_total": stealth_total,
+		"hidden_from": hidden_from.duplicate(),
+		"ai_tags": SimulationSerialization.value_to_data(ai_tags),
+		"morale": morale,
+		"surrendered": surrendered,
 	}
 
 
@@ -297,6 +334,7 @@ static func from_dict(data: Dictionary) -> ActorState:
 	actor.charisma = int(data.get("charisma", 10))
 	actor.proficiency_bonus = int(data.get("proficiency_bonus", 2))
 	actor.saving_throw_proficiencies = _string_names_from_data(data.get("saving_throw_proficiencies", []))
+	actor.skill_proficiencies = _string_names_from_data(data.get("skill_proficiencies", []))
 	actor.weapon_proficiencies = _string_names_from_data(data.get("weapon_proficiencies", []))
 	actor.movement_speed = float(data.get("movement_speed", 9.0))
 	actor.movement_remaining = float(data.get("movement_remaining", 9.0))
@@ -328,4 +366,12 @@ static func from_dict(data: Dictionary) -> ActorState:
 	actor.definition_id = StringName(str(data.get("definition_id", "")))
 	actor.disposition = StringName(str(data.get("disposition", "hostile")))
 	actor.dialog_id = StringName(str(data.get("dialog_id", "")))
+	actor.sneaking = bool(data.get("sneaking", false))
+	actor.stealth_total = int(data.get("stealth_total", 0))
+	for hidden_actor_id in data.get("hidden_from", []):
+		actor.hidden_from.append(int(hidden_actor_id))
+	actor.hidden_from.sort()
+	actor.ai_tags = _string_names_from_data(data.get("ai_tags", []))
+	actor.morale = clampi(int(data.get("morale", 50)), 0, 100)
+	actor.surrendered = bool(data.get("surrendered", false))
 	return actor

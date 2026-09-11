@@ -10,6 +10,8 @@ const NAVIGATION_STEP_M := 2.0
 ## Matches the KayKit Hill_WxDxH models' measured sloped skirt (~0.25 m
 ## beyond their nominal box on every side). See ADR-007.
 const HILL_SKIRT_M := 0.25
+const HILL_RAMP_MAX_SLOPE_DEG := 30.0
+const HILL_RAMP_MIN_LENGTH_M := 2.0
 const PROFILE_PATHS := {
 	&"flat": "res://data/terrain/flat.tres",
 	&"rolling_hills": "res://data/terrain/rolling_hills.tres",
@@ -121,17 +123,18 @@ func add_riverbed_path(points: PackedVector2Array, half_width: float) -> float:
 ## Reshapes the heightfield into a flat-topped rounded box, so every terrain
 ## consumer (mesh, collision, navmesh, height/slope queries) sees the hill
 ## without any of them needing to know hills exist. `size` is the hill's
-## nominal (width, height, depth); the flat top blends down to
-## `base_elevation` over HILL_SKIRT_M, matching the model's own sloped skirt.
+## nominal (width, height, depth); the decorative edges blend down over the
+## model skirt, and the rotated +Z side receives a <=30-degree earthen ramp.
 ## Combines with `max()` so repeated or overlapping stamps are commutative
 ## and never carve terrain down. See ADR-007.
-func stamp_hill(center: Vector2, rotation_rad: float, size: Vector3, base_elevation: float) -> void:
+func stamp_hill(center: Vector2, rotation_rad: float, size: Vector3, base_elevation: float, navigable: bool = false) -> void:
 	var half := Vector2(size.x, size.z) * 0.5
 	var top := base_elevation + size.y
+	var ramp_length := maxf(HILL_RAMP_MIN_LENGTH_M, size.y / tan(deg_to_rad(HILL_RAMP_MAX_SLOPE_DEG)))
 	var rotation := -rotation_rad
 	var cos_r := cos(rotation)
 	var sin_r := sin(rotation)
-	var reach := half.length() + HILL_SKIRT_M
+	var reach := half.length() + (ramp_length if navigable else 0.0) + HILL_SKIRT_M
 	for z_index in range(_grid_height):
 		for x_index in range(_grid_width):
 			var world := Vector2(float(x_index) * GRID_CELL_SIZE_M, float(z_index) * GRID_CELL_SIZE_M)
@@ -139,6 +142,15 @@ func stamp_hill(center: Vector2, rotation_rad: float, size: Vector3, base_elevat
 			if offset.length() > reach:
 				continue
 			var local := Vector2(offset.x * cos_r - offset.y * sin_r, offset.x * sin_r + offset.y * cos_r)
+			# An explicitly navigable hill gains one deterministic earthen approach
+			# on its rotated +Z side. This keeps the original mesh as the readable
+			# summit while making its high ground reachable without a general
+			# climbing or multi-floor navigation system.
+			if navigable and local.y >= half.y and local.y <= half.y + ramp_length and absf(local.x) <= half.x + HILL_SKIRT_M:
+				var along := (local.y - half.y) / ramp_length
+				var side_blend := 1.0 - smoothstep(half.x, half.x + HILL_SKIRT_M, absf(local.x))
+				var ramp_height := lerpf(top, base_elevation, along)
+				_set_grid(x_index, z_index, maxf(_grid_at(x_index, z_index), lerpf(base_elevation, ramp_height, side_blend)))
 			var q := Vector2(absf(local.x) - half.x, absf(local.y) - half.y)
 			var outside := Vector2(maxf(q.x, 0.0), maxf(q.y, 0.0)).length()
 			var inside := minf(maxf(q.x, q.y), 0.0)

@@ -21,6 +21,7 @@ var _path_line: MeshInstance3D
 var _line_mesh := ImmediateMesh.new()
 var _preview_path := PackedVector3Array()
 var _destination_marker: DestinationClickMarker
+var _area_preview: MeshInstance3D
 var hud: HudRoot
 var hostile_views: Dictionary[int, CharacterView] = {}
 var encounter_definitions: Dictionary[String, Dictionary] = {}
@@ -28,9 +29,11 @@ var authored_actor_ids: Dictionary[String, int] = {}
 var detection_range := 8.0
 var _enemy_action_cooldown := 0.0
 var _targeting_ability_id: StringName = &""
+var _targeting_mode: StringName = &""
 var _highlighted_target_id := -1
 var _highlighted_interactable_id := ""
 var _interactable_highlights: Dictionary[String, MeshInstance3D] = {}
+var _interactable_highlight_base_scale := Vector3.ONE
 var _pending_interactable_id := ""
 var _pending_targeted_action: Dictionary = {}
 var _dialog_catalog: DialogCatalogScript
@@ -46,6 +49,7 @@ const AUTOSAVE_SLOT := "autosave"
 
 const EnemyAIScript = preload("res://ai/enemy_ai.gd")
 const AbilityTargetingRules = preload("res://sim/ability_targeting.gd")
+const DetectionRulesScript = preload("res://sim/rules/detection_rules.gd")
 const ObjectiveStateScript = preload("res://sim/objective_state.gd")
 
 const PLAYER_CHARACTER_SCENE = preload("res://scenes/actors/player_character.tscn")
@@ -68,7 +72,7 @@ const INTERACTABLE_BLOCKED_COLOR := Color("ef625d")
 
 ## MapSpec interactable kinds this map runtime owns. Every other kind is
 ## authored as scenery: compiled and collision-checked, never registered.
-const REGISTERED_INTERACTABLE_KINDS: Array[StringName] = [&"chest", &"barrel"]
+const REGISTERED_INTERACTABLE_KINDS: Array[StringName] = [&"chest", &"barrel", &"explosive_barrel"]
 
 ## Stat block used for an authored enemy that names none. Keeps maps written
 ## before MapSpec actor.stat_block existed spawning exactly as they did.
@@ -109,7 +113,7 @@ func _ready() -> void:
 	_setup_light()
 	_setup_path_preview()
 	_setup_destination_marker()
-	nav_provider = GodotNavProvider.new(compilation.navigation.navigation_region)
+	nav_provider = GodotNavProvider.new(compilation.navigation.navigation_region, 1, compilation.movement_regions)
 	los_provider = GodotLosProvider.new(get_world_3d(), 8)
 	session = EncounterSessionScript.new()
 	session.configure(battle_state, nav_provider, los_provider)
@@ -144,6 +148,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion:
 		if _targeting_ability_id != &"":
+			var targeting_definition := DefinitionLibrary.get_default().get_ability(_targeting_ability_id)
+			if targeting_definition != null and targeting_definition.targeting == &"ground_point":
+				var area_point: Variant = ScreenPickerScript.terrain_point(camera, get_world_3d().direct_space_state, event.position)
+				if area_point is Vector3:
+					_show_area_preview(area_point, targeting_definition.target_radius_meters)
+				return
+			if targeting_definition != null and targeting_definition.targeting == &"interactable":
+				_update_interactable_highlight(ScreenPickerScript.interactable_id(camera, get_world_3d().direct_space_state, event.position))
+				return
 			_clear_interactable_highlight()
 			_update_target_highlight(_hostile_at_screen_position(event.position, _targeting_ability_id))
 			return
@@ -166,8 +179,25 @@ func _unhandled_input(event: InputEvent) -> void:
 			_show_path_preview(preview_target)
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		var selected_definition := DefinitionLibrary.get_default().get_ability(_targeting_ability_id) if _targeting_ability_id != &"" else null
+		if selected_definition != null and selected_definition.targeting == &"ground_point":
+			var selected_point: Variant = ScreenPickerScript.terrain_point(camera, get_world_3d().direct_space_state, event.position)
+			if selected_point is Vector3:
+				var point_metadata := {"mode": _targeting_mode} if _targeting_mode != &"" else {}
+				var point_result: ResolutionResult = session.submit_ability(character.actor_id, _targeting_ability_id, -1, selected_point, point_metadata)
+				event_player.play_events(point_result.events)
+			_clear_targeting()
+			get_viewport().set_input_as_handled()
+			return
 		var interactable_id := ScreenPickerScript.interactable_id(camera, get_world_3d().direct_space_state, event.position)
 		if interactable_id != "":
+			var targeting_definition := DefinitionLibrary.get_default().get_ability(_targeting_ability_id) if _targeting_ability_id != &"" else null
+			if targeting_definition != null and targeting_definition.targeting == &"interactable":
+				var area_result: ResolutionResult = session.submit_interactable_ability(character.actor_id, _targeting_ability_id, interactable_id)
+				event_player.play_events(area_result.events)
+				_clear_targeting()
+				get_viewport().set_input_as_handled()
+				return
 			_pending_targeted_action.clear()
 			_clear_targeting()
 			_approach_interactable(interactable_id)
@@ -290,6 +320,11 @@ func _setup_interactables(spec: Dictionary) -> void:
 		interactable.state = &"closed"
 		interactable.position = Vector3(float(position_data[0]), compilation.terrain.height_at(float(position_data[0]), float(position_data[1])), float(position_data[1]))
 		interactable.interact_range = 2.0
+		if kind == &"explosive_barrel":
+			interactable.tags = [&"explosive", &"area"]
+			interactable.blast_radius_meters = float(raw_interactable.get("blast_radius_m", 3.5))
+			interactable.blast_damage_die = int(raw_interactable.get("blast_damage_die", 6))
+			interactable.blast_damage_dice_count = int(raw_interactable.get("blast_damage_dice_count", 2))
 		for item_id in raw_interactable.get("contents", []):
 			interactable.contents.append(StringName(str(item_id)))
 		battle_state.interactables[interactable.id] = interactable
@@ -416,6 +451,7 @@ func _setup_encounters(spec: Dictionary) -> void:
 			"id": encounter_id,
 			"combatant_ids": combatant_ids,
 			"trigger_radius_m": float(raw_encounter.get("trigger_radius_m", detection_range)),
+			"skip_surprised_round_one": bool(raw_encounter.get("skip_surprised_round_one", false)),
 		}
 
 
@@ -499,7 +535,7 @@ func _check_hostile_detection() -> void:
 			# one itself.
 			if hostile_state.disposition != &"hostile":
 				continue
-			if character.global_position.distance_to(hostile.global_position) <= float(encounter.trigger_radius_m) and los_provider.has_line_of_sight(hostile.global_position, character.global_position):
+			if DetectionRulesScript.can_detect(hostile_state, player, los_provider, float(encounter.trigger_radius_m)):
 				var start := Command.create(&"start_combat", actor_id)
 				start.metadata = {"encounter_id": encounter_id, "participant_actor_ids": encounter.combatant_ids.duplicate()}
 				_start_encounter(start, true)
@@ -608,11 +644,15 @@ func _complete_pending_interaction() -> void:
 func _complete_pending_targeted_action() -> void:
 	var pending := _pending_targeted_action.duplicate()
 	_pending_targeted_action.clear()
+	var metadata: Dictionary = pending.get("opening_metadata", {}).duplicate(true)
+	if pending.get("mode", &"") != &"":
+		metadata["mode"] = pending.get("mode", &"")
 	var result: ResolutionResult = session.submit_ability(
 		character.actor_id,
 		pending.get("ability_id", &""),
 		int(pending.get("target_id", -1)),
 		pending.get("target_pos", Vector3.INF),
+		metadata,
 	)
 	event_player.play_events(result.events)
 
@@ -645,11 +685,9 @@ func _resolve_interaction(interactable_id: String) -> void:
 func _sync_interactable_views() -> void:
 	for interactable_id in battle_state.interactables:
 		var interactable := battle_state.interactables[interactable_id] as InteractableState
-		if interactable.type != &"pickup":
-			continue
 		var view := compilation.root.get_node_or_null(NodePath(interactable.id))
 		if view != null:
-			_set_interactable_view_active(view, interactable.state != &"collected")
+			_set_interactable_view_active(view, interactable.state not in [&"collected", &"destroyed"])
 
 
 func _remember_interaction_layers(root: Node) -> void:
@@ -741,6 +779,7 @@ func _setup_hud() -> void:
 	add_child(hud)
 	hud.bind(session, character.actor_id)
 	hud.ability_requested.connect(_on_hud_ability_requested)
+	hud.ability_mode_requested.connect(_on_hud_ability_mode_requested)
 	hud.inventory_item_requested.connect(_on_inventory_item_requested)
 	hud.end_turn_requested.connect(_on_hud_end_turn_requested)
 	hud.cancel_requested.connect(_on_hud_cancel_requested)
@@ -773,14 +812,31 @@ func _on_hud_ability_requested(ability_id: StringName) -> void:
 	_clear_interactable_highlight()
 	var definitions := DefinitionLibrary.get_default()
 	var ability := definitions.get_ability(ability_id)
-	if ability != null and ability.targeting == &"actor" and AbilityTargetingRules.target_range(definitions, ability_id) >= 0.0:
+	if ability != null and not ability.modes.is_empty():
+		hud.choose_ability_mode(ability)
+		return
+	_begin_ability_targeting(ability_id)
+
+
+func _on_hud_ability_mode_requested(ability_id: StringName, mode: StringName) -> void:
+	_targeting_mode = mode
+	_begin_ability_targeting(ability_id)
+
+
+func _begin_ability_targeting(ability_id: StringName) -> void:
+	var definitions := DefinitionLibrary.get_default()
+	var ability := definitions.get_ability(ability_id)
+	if ability != null and ability.targeting in [&"actor", &"interactable", &"ground_point"] and AbilityTargetingRules.target_range(definitions, ability_id) >= 0.0:
+		var selected_mode := _targeting_mode
 		_clear_targeting()
 		_targeting_ability_id = ability_id
+		_targeting_mode = selected_mode
 		hud.set_selected_ability(ability_id)
 		_clear_path_preview()
 		return
 	_clear_targeting()
-	var result: ResolutionResult = session.submit_ability(character.actor_id, ability_id, -1, Vector3.INF)
+	var metadata := {"mode": _targeting_mode} if _targeting_mode != &"" else {}
+	var result: ResolutionResult = session.submit_ability(character.actor_id, ability_id, -1, Vector3.INF, metadata)
 	event_player.play_events(result.events)
 
 
@@ -835,6 +891,11 @@ func _on_retry_requested() -> void:
 
 
 func _on_outcome_events_resolved(events: Array[Event]) -> void:
+	for event in events:
+		if event.type == &"explosion_triggered":
+			_present_explosion(event.data.get("position", Vector3.ZERO), float(event.data.get("radius", 3.5)))
+		elif event.type == &"interactable_destroyed":
+			_sync_interactable_views()
 	if not events.any(func(event: Event): return event.type in [&"game_over", &"game_completed"]):
 		return
 	_cancel_pending_interaction()
@@ -844,6 +905,28 @@ func _on_outcome_events_resolved(events: Array[Event]) -> void:
 	_clear_path_preview()
 	if _destination_marker != null:
 		_destination_marker.hide_marker()
+
+
+func _present_explosion(position: Vector3, radius: float) -> void:
+	var flash := MeshInstance3D.new()
+	flash.name = "ExplosionFlash"
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.2
+	sphere.height = 0.4
+	flash.mesh = sphere
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = Color(1.0, 0.28, 0.04, 0.85)
+	material.emission_enabled = true
+	material.emission = Color(1.0, 0.12, 0.01)
+	flash.material_override = material
+	flash.position = position + Vector3.UP * 0.8
+	add_child(flash)
+	var tween := flash.create_tween()
+	tween.tween_property(flash, "scale", Vector3.ONE * maxf(1.0, radius * 2.0), 0.18)
+	tween.parallel().tween_property(material, "albedo_color:a", 0.0, 0.32)
+	tween.tween_callback(flash.queue_free)
 
 
 func _on_restart_requested() -> void:
@@ -1051,7 +1134,9 @@ func _submit_targeted_ability(target_id: int) -> void:
 		return
 	var plan = session.plan_targeted_ability(character.actor_id, ability_id, target_id)
 	if not plan.can_execute or not plan.requires_movement:
-		var immediate: ResolutionResult = session.submit_ability(character.actor_id, ability_id, target_id, Vector3.INF)
+		var metadata := {"mode": _targeting_mode} if _targeting_mode != &"" else {}
+		metadata.merge(_opening_attack_metadata(ability, target_id))
+		var immediate: ResolutionResult = session.submit_ability(character.actor_id, ability_id, target_id, Vector3.INF, metadata)
 		event_player.play_events(immediate.events)
 		_clear_targeting()
 		return
@@ -1059,6 +1144,8 @@ func _submit_targeted_ability(target_id: int) -> void:
 		"ability_id": ability_id,
 		"target_id": target_id,
 		"target_pos": Vector3.INF,
+		"mode": _targeting_mode,
+		"opening_metadata": _opening_attack_metadata(ability, target_id),
 	}
 	var movement := _move(plan.movement_target)
 	if movement.events.any(func(event: Event): return event.type == &"command_rejected"):
@@ -1071,13 +1158,51 @@ func _submit_targeted_ability(target_id: int) -> void:
 	_clear_targeting()
 
 
+func _opening_attack_metadata(ability: AbilityDefinition, target_id: int) -> Dictionary:
+	if battle_state.phase != &"exploration" or ability == null or not ability.effects.any(func(effect: AbilityEffect): return effect.type == &"perform_attack"):
+		return {}
+	var encounter_id := _encounter_id_for_actor(target_id)
+	if encounter_id.is_empty():
+		return {}
+	return {
+		"encounter_id": encounter_id,
+		"participant_actor_ids": (encounter_definitions[encounter_id].combatant_ids as Array).duplicate(),
+		"skip_surprised_round_one": bool(encounter_definitions[encounter_id].get("skip_surprised_round_one", false)),
+	}
+
+
 func _clear_targeting() -> void:
 	if hostile_views.has(_highlighted_target_id):
 		hostile_views[_highlighted_target_id].set_target_highlight(false)
 	_highlighted_target_id = -1
 	_targeting_ability_id = &""
+	_targeting_mode = &""
+	if _area_preview != null:
+		_area_preview.visible = false
 	if hud != null:
 		hud.set_selected_ability(&"")
+
+
+func _show_area_preview(position: Vector3, radius: float) -> void:
+	if _area_preview == null:
+		_area_preview = MeshInstance3D.new()
+		_area_preview.name = "AreaTargetPreview"
+		var ring := TorusMesh.new()
+		ring.inner_radius = 0.96
+		ring.outer_radius = 1.0
+		_area_preview.mesh = ring
+		var material := StandardMaterial3D.new()
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.albedo_color = Color(1.0, 0.34, 0.08, 0.72)
+		material.emission_enabled = true
+		material.emission = Color(1.0, 0.18, 0.03)
+		_area_preview.material_override = material
+		_area_preview.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_area_preview)
+	_area_preview.position = position + Vector3.UP * 0.08
+	_area_preview.scale = Vector3.ONE * maxf(0.1, radius)
+	_area_preview.visible = true
 
 
 func _update_interactable_highlight(interactable_id: String) -> void:
@@ -1086,7 +1211,12 @@ func _update_interactable_highlight(interactable_id: String) -> void:
 		return
 	var actor := battle_state.actors.get(character.actor_id) as ActorState
 	var interactable := battle_state.interactables.get(interactable_id) as InteractableState
-	var status := &"ready" if actor != null and interactable != null and actor.position.distance_to(interactable.position) <= interactable.interact_range else &"approaching"
+	var target_range := interactable.interact_range if interactable != null else 0.0
+	if _targeting_ability_id != &"":
+		var ability := DefinitionLibrary.get_default().get_ability(_targeting_ability_id)
+		if ability != null:
+			target_range = ability.target_range_meters
+	var status := &"ready" if actor != null and interactable != null and actor.position.distance_to(interactable.position) <= target_range else &"approaching"
 	_set_interactable_highlight(interactable_id, status)
 
 
@@ -1105,6 +1235,15 @@ func _set_interactable_highlight(interactable_id: String, status: StringName) ->
 	var material := highlight.material_override as StandardMaterial3D
 	material.albedo_color = Color(color.r, color.g, color.b, 0.58)
 	material.emission = color
+	_interactable_highlight_base_scale = Vector3.ONE
+	var ability := DefinitionLibrary.get_default().get_ability(_targeting_ability_id)
+	var interactable := battle_state.interactables.get(interactable_id) as InteractableState
+	if ability != null and ability.ai_tags.has(&"area") and interactable != null and interactable.blast_radius_meters > 0.0:
+		var cylinder := highlight.mesh as CylinderMesh
+		var authored_radius := maxf(cylinder.top_radius, cylinder.bottom_radius) if cylinder != null else 1.0
+		var radius_scale := interactable.blast_radius_meters / maxf(0.01, authored_radius)
+		_interactable_highlight_base_scale = Vector3(radius_scale, 1.0, radius_scale)
+	highlight.scale = _interactable_highlight_base_scale
 	highlight.visible = true
 	_interactable_highlight_time = 0.0
 
@@ -1114,6 +1253,7 @@ func _clear_interactable_highlight() -> void:
 	if highlight != null and is_instance_valid(highlight):
 		highlight.visible = false
 		highlight.scale = Vector3.ONE
+	_interactable_highlight_base_scale = Vector3.ONE
 	_highlighted_interactable_id = ""
 
 
@@ -1127,7 +1267,7 @@ func _animate_interactable_highlight(delta: float) -> void:
 		return
 	_interactable_highlight_time += delta
 	var pulse := 1.0 + sin(_interactable_highlight_time * 5.0) * 0.055
-	highlight.scale = Vector3(pulse, 1.0, pulse)
+	highlight.scale = Vector3(_interactable_highlight_base_scale.x * pulse, _interactable_highlight_base_scale.y, _interactable_highlight_base_scale.z * pulse)
 
 
 func _show_compile_errors() -> void:
@@ -1164,6 +1304,8 @@ func _show_path_preview(target: Vector3) -> void:
 	var preview = session.preview_move(1, target, character.global_position)
 	_preview_path = preview.path
 	PathPreviewRendererScript.draw(_line_mesh, _preview_path, character.global_position)
+	if hud != null:
+		hud.resources.set_movement_preview(preview.cost, preview.remaining, preview.ignores_budget)
 
 
 func _show_exploration_destination(target: Vector3) -> void:
@@ -1174,3 +1316,5 @@ func _show_exploration_destination(target: Vector3) -> void:
 func _clear_path_preview() -> void:
 	_preview_path = PackedVector3Array()
 	_line_mesh.clear_surfaces()
+	if hud != null and session != null:
+		hud.sync()

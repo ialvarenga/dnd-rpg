@@ -28,6 +28,7 @@ textures = {
 &"quaff_healing_potion": ExtResource("10_potion"),
 &"second_wind": ExtResource("15_second_wind"),
 &"help": ExtResource("16_help"),
+&"sneak": ExtResource("8_disengage"),
 &"end_turn": ExtResource("4_end_turn"),
 &"longsword": ExtResource("11_longsword"),
 &"shortbow": ExtResource("5_ranged"),
@@ -36,5 +37,6 @@ textures = {
 &"leather_armor": ExtResource("13_leather"),
 &"chainmail": ExtResource("14_chainmail"),
 &"scimitar": ExtResource("11_longsword"),
+&"toppling_club": ExtResource("11_longsword"),
 &"studded_leather": ExtResource("13_leather")
 }

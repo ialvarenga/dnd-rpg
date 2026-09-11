@@ -23,6 +23,7 @@ extends Resource
 @export var charisma: int = 10
 @export var proficiency_bonus: int = 2
 @export var saving_throw_proficiencies: Array[StringName] = []
+@export var skill_proficiencies: Array[StringName] = []
 ## Weapon categories (&"simple", &"martial") or individual weapon item ids the
 ## actor adds its proficiency bonus to. Unarmed strikes are always proficient.
 @export var weapon_proficiencies: Array[StringName] = []
@@ -46,3 +47,8 @@ extends Resource
 ## This is separate from inventory because coins are fungible and have no
 ## equipment or use behavior.
 @export var starting_coins: int = 0
+
+## Tactical tags and morale are authored per stat block. The AI reads these
+## values without content-id conditionals.
+@export var ai_tags: Array[StringName] = []
+@export_range(0, 100) var morale: int = 50

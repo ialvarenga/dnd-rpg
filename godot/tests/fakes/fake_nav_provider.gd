@@ -5,6 +5,8 @@ var blocked_destinations: Array[Vector3] = []
 var paths: Dictionary = {}
 var snapped_destinations: Dictionary = {}
 var find_path_calls: int = 0
+var cost_multiplier: float = 1.0
+var push_results: Dictionary = {}
 
 
 func find_path(from: Vector3, to: Vector3) -> PackedVector3Array:
@@ -23,7 +25,18 @@ func path_cost(path: PackedVector3Array) -> float:
 	var cost := 0.0
 	for index in range(1, path.size()):
 		cost += path[index - 1].distance_to(path[index])
-	return cost
+	return cost * cost_multiplier
+
+
+func project_push(from: Vector3, direction: Vector3, distance: float) -> Dictionary:
+	var key := "%s>%s>%.3f" % [from, direction.normalized(), distance]
+	if push_results.has(key):
+		return (push_results[key] as Dictionary).duplicate(true)
+	return super.project_push(from, direction, distance)
+
+
+func set_push_result(from: Vector3, direction: Vector3, distance: float, result: Dictionary) -> void:
+	push_results["%s>%s>%.3f" % [from, direction.normalized(), distance]] = result.duplicate(true)
 
 
 func is_reachable(_from: Vector3, to: Vector3) -> bool:

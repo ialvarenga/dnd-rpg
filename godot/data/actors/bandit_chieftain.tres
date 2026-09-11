@@ -18,7 +18,9 @@ weapon_proficiencies = Array[StringName]([&"simple", &"martial"])
 movement_speed = 8.0
 ability_ids = Array[StringName]([&"basic_attack", &"dash", &"disengage"])
 equipment_slots = {
-&"weapon": &"scimitar",
+&"weapon": &"toppling_club",
 &"armor": &"studded_leather"
 }
 starting_inventory = Array[StringName]([&"healing_potion"])
+ai_tags = Array[StringName]([&"leader"])
+morale = 75

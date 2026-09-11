@@ -41,10 +41,10 @@ static func resolved_outcome(state: BattleState) -> StringName:
 		var actor: ActorState = state.actors[actor_id]
 		if actor.side == &"heroes":
 			has_hero_participant = true
-			hero_active = hero_active or actor.is_conscious()
+			hero_active = hero_active or (actor.is_conscious() and not actor.surrendered)
 		elif actor.side == &"enemies":
 			has_enemy_participant = true
-			enemy_active = enemy_active or actor.is_conscious()
+			enemy_active = enemy_active or (actor.is_conscious() and not actor.surrendered)
 	if not has_hero_participant or not has_enemy_participant:
 		return OUTCOME_NONE
 	if not hero_active:

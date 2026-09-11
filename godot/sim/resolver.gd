@@ -32,7 +32,9 @@ extends RefCounted
 ## Bump 12: exploration_only abilities, including Talk, are rejected in combat.
 ## Bump 13: attack-triggered condition modifiers are resolved and consumed
 ## through explicit events after the relevant attack.
-const RULES_VERSION: int = 13
+## Bump 14: weapon masteries, ability modes, forced movement/falls, elevation,
+## weighted paths, area saves, stealth/surprise, and surrender are authoritative.
+const RULES_VERSION: int = 14
 
 const ATTACK_RANGE_METERS := 1.5
 const THREAT_RANGE_METERS := 1.5
@@ -49,6 +51,8 @@ const AbilityTargetingRules = preload("res://sim/ability_targeting.gd")
 const EquipmentRules = preload("res://sim/equipment.gd")
 const AbilityCheckRules = preload("res://sim/rules/ability_check.gd")
 const AttackMathRules = preload("res://sim/rules/attack_math.gd")
+const MasteryRulesScript = preload("res://sim/rules/mastery_rules.gd")
+const DetectionRulesScript = preload("res://sim/rules/detection_rules.gd")
 
 const EFFECT_ADD_BASE_MOVEMENT := &"add_base_movement"
 const EFFECT_APPLY_CONDITION := &"apply_condition"
@@ -59,6 +63,9 @@ const EFFECT_SAVING_THROW := &"saving_throw"
 const EFFECT_HEAL := &"heal"
 const EFFECT_CONSUME_ITEM := &"consume_item"
 const EFFECT_START_DIALOG := &"start_dialog"
+const EFFECT_FORCED_MOVEMENT := &"forced_movement"
+const EFFECT_AREA_DAMAGE := &"area_damage"
+const EFFECT_TOGGLE_SNEAK := &"toggle_sneak"
 
 ## Every social stance set_disposition accepts. Kept beside the interactable
 ## transition table: a small fixed vocabulary the resolver validates against
@@ -109,6 +116,8 @@ static func _resolve_command(state: BattleState, cmd: Command, nav: NavProvider,
 		return _resolve_transfer_coins(state, cmd, result)
 	if cmd.type == &"clear_encounter":
 		return _resolve_clear_encounter(state, cmd, result)
+	if cmd.type == &"surrender":
+		return _resolve_surrender(state, cmd, result)
 	# Abilities resolve their own phase gate, because one may declare
 	# usable_in_exploration. Everything else stays behind the combat turn gate,
 	# in the same order as before.
@@ -117,7 +126,7 @@ static func _resolve_command(state: BattleState, cmd: Command, nav: NavProvider,
 		var ability_rejection := CommandPhaseRulesScript.rejection_for_ability(state, cmd.actor_id, definitions.get_ability(ability_id))
 		if ability_rejection != &"":
 			return _rejected(result, cmd, ability_rejection)
-		return _resolve_ability_command(state, cmd, los, definitions, result, ability_id)
+		return _resolve_ability_command(state, cmd, nav, los, definitions, result, ability_id)
 	var phase_rejection := CommandPhaseRulesScript.rejection_for_combat_turn(state, cmd.actor_id)
 	if phase_rejection != &"":
 		return _rejected(result, cmd, phase_rejection)
@@ -150,19 +159,31 @@ static func _resolve_start_combat(state: BattleState, cmd: Command, result: Reso
 		or not _has_opposing_sides(state, requested_participants)
 	):
 		return _rejected(result, cmd, RejectionReasonRules.INVALID_ENCOUNTER)
-	var initiative := InitiativeRules.resolve_for_actor_ids(state, requested_participants)
+	var disadvantaged: Array[int] = []
+	for actor_id in cmd.metadata.get("initiative_disadvantage_actor_ids", []):
+		disadvantaged.append(int(actor_id))
+	var initiative := InitiativeRules.resolve_for_actor_ids(state, requested_participants, disadvantaged)
 	var order: Array[int] = initiative["order"]
 	if order.is_empty():
 		return _rejected(result, cmd, RejectionReasonRules.NO_ELIGIBLE_ACTORS)
-	var first_actor: ActorState = state.actors[order[0]]
+	var first_index := 0
+	if bool(cmd.metadata.get("skip_surprised_round_one", false)):
+		while first_index < order.size() and disadvantaged.has(order[first_index]):
+			first_index += 1
+		if first_index >= order.size():
+			first_index = 0
+	var first_actor: ActorState = state.actors[order[first_index]]
 	result.events.append(Event.create(&"combat_started", {
 		"initiator_actor_id": cmd.actor_id,
 		"phase": EncounterRules.COMBAT_STARTING,
 		"encounter_id": encounter_id,
 		"combatant_ids": requested_participants.duplicate(),
 	}))
-	result.events.append(Event.create(&"initiative_established", {"initiative_order": order, "initiative_rolls": initiative["entries"], "current_turn_index": 0, "round_number": 1}))
-	result.events.append(_turn_started_event(first_actor, 0, 1))
+	result.events.append(Event.create(&"initiative_established", {"initiative_order": order, "initiative_rolls": initiative["entries"], "current_turn_index": first_index, "round_number": 1, "skip_round_one_actor_ids": disadvantaged if bool(cmd.metadata.get("skip_surprised_round_one", false)) else []}))
+	if bool(cmd.metadata.get("skip_surprised_round_one", false)):
+		for skipped_index in range(first_index):
+			result.events.append(Event.create(&"surprise_turn_skipped", {"actor_id": order[skipped_index], "round_number": 1}))
+	result.events.append(_turn_started_event(first_actor, first_index, 1))
 	result.next_rng_state = initiative["next_rng_state"]
 	return result
 
@@ -208,11 +229,23 @@ static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, lo
 	if nav_path.is_empty() or not nav.is_reachable(actor.position, cmd.target_pos):
 		return _rejected(result, cmd, RejectionReasonRules.UNREACHABLE)
 	var path := PolylineUtil.with_start(nav_path, actor.position)
-	var requested_path_cost := PolylineUtil.length(path)
+	var requested_path_cost := nav.path_cost(path)
 	if requested_path_cost <= MOVEMENT_EPSILON:
 		return _rejected(result, cmd, RejectionReasonRules.NO_MOVEMENT)
 	if state.phase == EncounterRules.EXPLORATION:
 		_append_movement_event(result, actor.id, actor.position, path, requested_path_cost, requested_path_cost, false)
+		if actor.sneaking:
+			var detection_state := state.clone()
+			apply(detection_state, result.events.back())
+			var moved_actor := detection_state.actors[actor.id] as ActorState
+			var observer_ids: Array = detection_state.actors.keys()
+			observer_ids.sort()
+			for observer_id in observer_ids:
+				var observer := detection_state.actors[observer_id] as ActorState
+				if not moved_actor.hidden_from.has(observer.id):
+					continue
+				if observer.side != moved_actor.side and observer.is_conscious() and observer.disposition == &"hostile" and observer.position.distance_to(moved_actor.position) <= DetectionRulesScript.DETECTION_RANGE_METERS and los.has_line_of_sight(observer.position, moved_actor.position) and DetectionRulesScript.detected_by(observer, moved_actor.stealth_total):
+					result.events.append(Event.create(&"detection_changed", {"actor_id": moved_actor.id, "observer_id": observer.id, "hidden": false, "stealth_total": moved_actor.stealth_total, "passive_perception": observer.passive_perception(), "reason": &"moved_into_view"}))
 		return result
 
 	var working := state.clone()
@@ -230,26 +263,28 @@ static func _resolve_move(state: BattleState, cmd: Command, nav: NavProvider, lo
 	var movement_cost := requested_path_cost
 	var was_clamped := false
 	if requested_path_cost > available + MOVEMENT_EPSILON:
-		resolved_path = PolylineUtil.clamp(path, available)
-		movement_cost = PolylineUtil.length(resolved_path)
+		resolved_path = nav.clamp_path(path, available)
+		movement_cost = nav.path_cost(resolved_path)
 		if resolved_path.size() < 2 or movement_cost <= MOVEMENT_EPSILON:
 			return _rejected(result, cmd, RejectionReasonRules.NO_MOVEMENT_REMAINING)
 		was_clamped = true
 
-	var traversed := 0.0
-	while traversed + MOVEMENT_EPSILON < movement_cost and (working.actors[cmd.actor_id] as ActorState).is_alive():
-		var remaining_path := _path_from_distance(resolved_path, traversed)
-		var remaining_cost := PolylineUtil.length(remaining_path)
+	var traversed_distance := 0.0
+	var resolved_distance := PolylineUtil.length(resolved_path)
+	while traversed_distance + MOVEMENT_EPSILON < resolved_distance and (working.actors[cmd.actor_id] as ActorState).is_alive():
+		var remaining_path := _path_from_distance(resolved_path, traversed_distance)
+		var remaining_distance := PolylineUtil.length(remaining_path)
 		var reaction := _next_opportunity_reaction(working, cmd.actor_id, remaining_path, los)
-		var segment_cost := remaining_cost if reaction.is_empty() else float(reaction["distance"])
-		if segment_cost > MOVEMENT_EPSILON:
-			var segment_path := PolylineUtil.clamp(remaining_path, segment_cost)
+		var segment_distance := remaining_distance if reaction.is_empty() else float(reaction["distance"])
+		if segment_distance > MOVEMENT_EPSILON:
+			var segment_path := PolylineUtil.clamp(remaining_path, segment_distance)
+			var segment_cost := nav.path_cost(segment_path)
 			_append_movement_event(result, cmd.actor_id, (working.actors[cmd.actor_id] as ActorState).position, segment_path, segment_cost, requested_path_cost, was_clamped)
 			# Apply only to the private working clone so following reactions see the
 			# exact authoritative boundary position.
 			apply(working, result.events.back())
 			_append_movement_spent(result, working, cmd.actor_id, segment_cost)
-			traversed += segment_cost
+			traversed_distance += segment_distance
 		if reaction.is_empty():
 			break
 		var reactor_id := int(reaction["actor_id"])
@@ -296,7 +331,7 @@ static func _resolve_interact(state: BattleState, cmd: Command, result: Resoluti
 	return result
 
 
-static func _resolve_ability_command(state: BattleState, cmd: Command, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult, ability_id: StringName) -> ResolutionResult:
+static func _resolve_ability_command(state: BattleState, cmd: Command, nav: NavProvider, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult, ability_id: StringName) -> ResolutionResult:
 	var actor: ActorState = state.actors[cmd.actor_id]
 	var conscious_rejection := CommandPhaseRulesScript.rejection_for_conscious(actor)
 	if conscious_rejection != &"": return _rejected(result, cmd, conscious_rejection)
@@ -304,7 +339,11 @@ static func _resolve_ability_command(state: BattleState, cmd: Command, los: LosP
 	if ability == null: return _rejected(result, cmd, RejectionReasonRules.UNKNOWN_ABILITY_DEFINITION)
 	var cost_rejection := AbilityCostRulesScript.rejection_for_cost(actor, ability, definitions)
 	if cost_rejection != &"": return _rejected(result, cmd, cost_rejection)
+	var selected_mode := StringName(str(cmd.metadata.get("mode", "")))
+	if not ability.modes.is_empty() and not ability.modes.has(selected_mode):
+		return _rejected(result, cmd, RejectionReasonRules.INVALID_ABILITY_MODE)
 	var target: ActorState = null
+	var target_interactable: InteractableState = null
 	if ability.targeting == &"actor":
 		if not state.actors.has(cmd.target_id): return _rejected(result, cmd, RejectionReasonRules.UNKNOWN_TARGET)
 		target = state.actors[cmd.target_id]
@@ -316,21 +355,67 @@ static func _resolve_ability_command(state: BattleState, cmd: Command, los: LosP
 			return _rejected(result, cmd, RejectionReasonRules.TARGET_OUT_OF_RANGE)
 		if los.cover_between(actor.position, target.position) == LosProvider.COVER_TOTAL:
 			return _rejected(result, cmd, RejectionReasonRules.NO_LINE_OF_SIGHT)
+	elif ability.targeting == &"interactable":
+		if not state.interactables.has(cmd.target_interactable_id):
+			return _rejected(result, cmd, RejectionReasonRules.UNKNOWN_INTERACTABLE)
+		target_interactable = state.interactables[cmd.target_interactable_id]
+		if target_interactable.destroyed or not target_interactable.tags.has(&"explosive"):
+			return _rejected(result, cmd, RejectionReasonRules.INVALID_INTERACTABLE_STATE)
+		if actor.position.distance_to(target_interactable.position) > ability.target_range_meters + MOVEMENT_EPSILON:
+			return _rejected(result, cmd, RejectionReasonRules.TARGET_OUT_OF_RANGE)
+		if los.cover_between(actor.position, target_interactable.position) == LosProvider.COVER_TOTAL:
+			return _rejected(result, cmd, RejectionReasonRules.NO_LINE_OF_SIGHT)
+	elif ability.targeting == &"ground_point":
+		if not is_finite(cmd.target_pos.x) or not is_finite(cmd.target_pos.y) or not is_finite(cmd.target_pos.z):
+			return _rejected(result, cmd, RejectionReasonRules.INVALID_TARGET_POINT)
+		if actor.position.distance_to(cmd.target_pos) > ability.target_range_meters + MOVEMENT_EPSILON:
+			return _rejected(result, cmd, RejectionReasonRules.TARGET_OUT_OF_RANGE)
+		if los.cover_between(actor.position, cmd.target_pos) == LosProvider.COVER_TOTAL:
+			return _rejected(result, cmd, RejectionReasonRules.NO_LINE_OF_SIGHT)
 	var has_attack := ability.effects.any(func(effect: AbilityEffect): return effect.type == EFFECT_PERFORM_ATTACK)
 	# Effects only ever append events, so "this actor has nothing to say" has to
 	# be a rejection here. Keyed off the effect type, never off an ability id.
 	if ability.effects.any(func(effect: AbilityEffect): return effect.type == EFFECT_START_DIALOG) and (target == null or target.dialog_id == &""):
 		return _rejected(result, cmd, RejectionReasonRules.TARGET_HAS_NO_DIALOG)
-	_spend_ability_cost(result, actor, ability, not has_attack, not has_attack, target.id if target != null else -1)
 	var working := state.clone()
+	if state.phase == EncounterRules.EXPLORATION and has_attack:
+		var start := Command.create(&"start_combat", actor.id)
+		start.metadata = {
+			"encounter_id": str(cmd.metadata.get("encounter_id", "")),
+			"participant_actor_ids": cmd.metadata.get("participant_actor_ids", []),
+			"initiative_disadvantage_actor_ids": [],
+		}
+		if target != null and actor.hidden_from.has(target.id):
+			for participant_id in start.metadata["participant_actor_ids"]:
+				var participant := state.actors.get(int(participant_id)) as ActorState
+				if participant != null and participant.side == target.side:
+					start.metadata["initiative_disadvantage_actor_ids"].append(participant.id)
+		_resolve_start_combat(state, start, result)
+		if not result.events.is_empty() and result.events[0].type == &"command_rejected":
+			return result
+		for opening_event in result.events:
+			apply(working, opening_event)
+		working.rng_state = result.next_rng_state
+		result.events.append(Event.create(&"exploration_attack_opened", {"actor_id": actor.id, "target_id": target.id if target != null else -1, "surprise": target != null and actor.hidden_from.has(target.id)}))
+	_spend_ability_cost(result, actor, ability, not has_attack, not has_attack, target.id if target != null else -1)
 	var source: ActorState = working.actors[actor.id]
 	var working_target: ActorState = working.actors.get(cmd.target_id) as ActorState
 	var context := {
 		"attack_hit": false,
 		"save_succeeded": false,
 		"command_metadata": cmd.metadata,
+		"target_position": target.position if target != null else (target_interactable.position if target_interactable != null else cmd.target_pos),
+		"target_radius": target_interactable.blast_radius_meters if target_interactable != null and target_interactable.blast_radius_meters > 0.0 else ability.target_radius_meters,
+		"target_interactable_id": target_interactable.id if target_interactable != null else "",
+		"damage_die_override": target_interactable.blast_damage_die if target_interactable != null else 0,
+		"damage_dice_count_override": target_interactable.blast_damage_dice_count if target_interactable != null else 0,
 	}
+	var has_forced_movement := ability.effects.any(func(effect: AbilityEffect): return effect.type == EFFECT_FORCED_MOVEMENT and (effect.mode == &"" or effect.mode == selected_mode))
+	if has_forced_movement:
+		_append_and_apply(result, working, Event.create(&"forced_movement_attempted", {"actor_id": source.id, "target_id": working_target.id, "mode": selected_mode}))
 	for effect in ability.effects:
+		if effect.mode != &"" and effect.mode != selected_mode:
+			continue
 		match effect.type:
 			EFFECT_PERFORM_ATTACK:
 				var authored_range := AbilityTargetingRules.target_range(definitions, ability.id)
@@ -345,8 +430,10 @@ static func _resolve_ability_command(state: BattleState, cmd: Command, los: LosP
 				)
 			EFFECT_SAVING_THROW:
 				context["save_succeeded"] = _resolve_saving_throw(working, source, working_target, effect, result)
+				if has_forced_movement and bool(context["save_succeeded"]):
+					_append_and_apply(result, working, Event.create(&"forced_movement_resisted", {"actor_id": source.id, "target_id": working_target.id, "mode": selected_mode}))
 			_:
-				_apply_generic_effect(result, working, source, working_target, effect, context, definitions)
+				_apply_generic_effect(result, working, source, working_target, effect, context, definitions, nav, los)
 	result.next_rng_state = working.rng_state
 	return result
 
@@ -454,6 +541,15 @@ static func _resolve_clear_encounter(state: BattleState, cmd: Command, result: R
 	return result
 
 
+static func _resolve_surrender(state: BattleState, cmd: Command, result: ResolutionResult) -> ResolutionResult:
+	var rejection := CommandPhaseRulesScript.rejection_for_combat_turn(state, cmd.actor_id)
+	if rejection != &"":
+		return _rejected(result, cmd, rejection)
+	var actor := state.actors[cmd.actor_id] as ActorState
+	result.events.append(Event.create(&"actor_surrendered", {"actor_id": actor.id, "previous_disposition": actor.disposition, "disposition": &"neutral"}))
+	return result
+
+
 static func _spend_ability_cost(result: ResolutionResult, actor: ActorState, ability: AbilityDefinition, include_action: bool = true, include_reaction: bool = true, target_id: int = -1) -> void:
 	# Unlike the action/bonus-action flags this is emitted for attacks too: the
 	# attack_rolled event carries only the action/reaction spend flags, so a
@@ -483,7 +579,7 @@ static func _spend_ability_cost(result: ResolutionResult, actor: ActorState, abi
 		}))
 
 
-static func _apply_generic_effect(result: ResolutionResult, working: BattleState, actor: ActorState, target: ActorState, effect: AbilityEffect, context: Dictionary, definitions: DefinitionLibrary) -> void:
+static func _apply_generic_effect(result: ResolutionResult, working: BattleState, actor: ActorState, target: ActorState, effect: AbilityEffect, context: Dictionary, definitions: DefinitionLibrary, nav: NavProvider = null, los: LosProvider = null) -> void:
 	if not _effect_should_apply(effect.apply_when, context):
 		return
 	var recipient := target if target != null else actor
@@ -530,8 +626,79 @@ static func _apply_generic_effect(result: ResolutionResult, working: BattleState
 			_append_and_apply(result, working, Event.create(&"healing_received", {"actor_id": actor.id, "amount": hp_after - hp_before, "hp_before": hp_before, "hp_after": hp_after, "rolls": roll["values"]}))
 		EFFECT_CONSUME_ITEM:
 			_append_and_apply(result, working, Event.create(&"item_consumed", {"actor_id": actor.id, "item_id": effect.consumes_item_id}))
+		EFFECT_FORCED_MOVEMENT:
+			if target == null or nav == null:
+				return
+			var direction := actor.position.direction_to(target.position)
+			var projection := nav.project_push(target.position, direction, effect.forced_distance_meters)
+			if bool(projection.get("blocked", true)):
+				_append_and_apply(result, working, Event.create(&"forced_movement_blocked", {"actor_id": actor.id, "target_id": target.id, "from": target.position, "mode": effect.mode}))
+				return
+			var landing: Vector3 = projection.get("landing_position", target.position)
+			_append_and_apply(result, working, Event.create(&"forced_movement", {"actor_id": target.id, "source_actor_id": actor.id, "from": target.position, "to": landing, "distance": target.position.distance_to(landing)}))
+			if bool(projection.get("fell", false)):
+				var fall_distance := float(projection.get("fall_distance", 0.0))
+				var dice_count := maxi(1, floori(fall_distance / 3.0))
+				var fall_roll := Dice.roll_dice(working.rng_state, dice_count, 6)
+				working.rng_state = int(fall_roll["next_rng_state"])
+				_append_and_apply(result, working, Event.create(&"fall_started", {"actor_id": target.id, "from": target.position, "to": landing, "fall_distance": fall_distance}))
+				_append_damage_and_consequence(result, working, target, actor.id, int(fall_roll["total"]), &"fall", {"rolls": fall_roll["values"]})
+		EFFECT_TOGGLE_SNEAK:
+			if actor.sneaking:
+				_append_and_apply(result, working, Event.create(&"sneaking_changed", {"actor_id": actor.id, "sneaking": false, "stealth_total": 0}))
+				for observer_id in actor.hidden_from.duplicate():
+					_append_and_apply(result, working, Event.create(&"detection_changed", {"actor_id": actor.id, "observer_id": observer_id, "hidden": false, "reason": &"sneak_ended"}))
+				return
+			var roll := AbilityCheckRules.resolve(working.rng_state, actor, &"dexterity", 1, actor.skill_proficiencies.has(&"stealth"))
+			working.rng_state = int(roll["next_rng_state"])
+			var stealth_total := int(roll["total"])
+			_append_and_apply(result, working, Event.create(&"stealth_rolled", {"actor_id": actor.id, "roll": roll["roll"], "rolls": roll["rolls"], "modifier": roll["modifier"], "total": stealth_total, "proficient": actor.skill_proficiencies.has(&"stealth")}))
+			_append_and_apply(result, working, Event.create(&"sneaking_changed", {"actor_id": actor.id, "sneaking": true, "stealth_total": stealth_total}))
+			if los != null:
+				var observer_ids: Array = working.actors.keys()
+				observer_ids.sort()
+				for observer_id in observer_ids:
+					var observer := working.actors[observer_id] as ActorState
+					if observer.id == actor.id or observer.side == actor.side or not observer.is_conscious() or observer.disposition != &"hostile":
+						continue
+					var can_contest := observer.position.distance_to(actor.position) <= DetectionRulesScript.DETECTION_RANGE_METERS and los.has_line_of_sight(observer.position, actor.position)
+					var hidden := not can_contest or not DetectionRulesScript.detected_by(observer, stealth_total)
+					_append_and_apply(result, working, Event.create(&"detection_changed", {"actor_id": actor.id, "observer_id": observer.id, "hidden": hidden, "stealth_total": stealth_total, "passive_perception": observer.passive_perception()}))
+		EFFECT_AREA_DAMAGE:
+			_resolve_area_damage(result, working, actor, effect, context)
 		_:
 			push_error("Unknown ability effect type: %s" % effect.type)
+
+
+static func _resolve_area_damage(result: ResolutionResult, working: BattleState, source: ActorState, effect: AbilityEffect, context: Dictionary) -> void:
+	var center: Vector3 = context.get("target_position", source.position)
+	var radius := float(context.get("target_radius", 0.0))
+	var interactable_id := str(context.get("target_interactable_id", ""))
+	var damage_die := int(context.get("damage_die_override", 0))
+	var damage_dice_count := int(context.get("damage_dice_count_override", 0))
+	if damage_die <= 0:
+		damage_die = effect.damage_die
+	if damage_dice_count <= 0:
+		damage_dice_count = effect.damage_dice_count
+	var damage_roll := Dice.roll_dice(working.rng_state, damage_dice_count, damage_die)
+	working.rng_state = int(damage_roll["next_rng_state"])
+	var rolled_damage := maxi(0, int(damage_roll["total"]) + effect.damage_modifier)
+	_append_and_apply(result, working, Event.create(&"explosion_triggered", {"actor_id": source.id, "interactable_id": interactable_id, "position": center, "radius": radius, "damage_die": damage_die, "damage_dice_count": damage_dice_count, "damage_rolls": damage_roll["values"], "damage": rolled_damage}))
+	if not interactable_id.is_empty():
+		_append_and_apply(result, working, Event.create(&"interactable_destroyed", {"actor_id": source.id, "interactable_id": interactable_id, "reason": &"explosion"}))
+	var actor_ids: Array = working.actors.keys()
+	actor_ids.sort()
+	for actor_id in actor_ids:
+		var target := working.actors[actor_id] as ActorState
+		if not target.is_alive() or target.position.distance_to(center) > radius + MOVEMENT_EPSILON:
+			continue
+		var difficulty_class := effect.save_dc_base + source.proficiency_bonus + source.ability_modifier(effect.save_dc_ability)
+		var modifier := target.saving_throw_modifier(&"dexterity")
+		var save := D20Test.roll(working.rng_state, modifier, difficulty_class)
+		working.rng_state = int(save["next_rng_state"])
+		_append_and_apply(result, working, Event.create(&"d20_test_rolled", {"test_type": &"saving_throw", "actor_id": target.id, "source_actor_id": source.id, "ability": &"dexterity", "difficulty_class": difficulty_class, "roll": save["roll"], "rolls": save["rolls"], "modifier": modifier, "ability_modifier": target.ability_modifier(&"dexterity"), "proficient": target.saving_throw_proficiencies.has(&"dexterity"), "proficiency_bonus": target.proficiency_bonus if target.saving_throw_proficiencies.has(&"dexterity") else 0, "total": save["total"], "success": save["success"], "advantage": false, "disadvantage": false}))
+		var damage := floori(float(rolled_damage) * 0.5) if bool(save["success"]) and effect.half_damage_on_save else rolled_damage
+		_append_damage_and_consequence(result, working, target, source.id, damage, effect.damage_type, {"area": true, "saved": save["success"]})
 
 
 static func _effect_should_apply(requirement: StringName, context: Dictionary) -> bool:
@@ -572,11 +739,11 @@ static func _resolve_saving_throw(working: BattleState, source: ActorState, targ
 	return bool(rolled["success"])
 
 
-static func _resolve_attack_between(working: BattleState, attacker: ActorState, target: ActorState, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult, spends_action: bool, spends_reaction: bool, attack_kind: StringName, attack_range: float = ATTACK_RANGE_METERS, is_ranged: bool = false, normal_range: float = ATTACK_RANGE_METERS) -> bool:
+static func _resolve_attack_between(working: BattleState, attacker: ActorState, target: ActorState, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult, spends_action: bool, spends_reaction: bool, attack_kind: StringName, attack_range: float = ATTACK_RANGE_METERS, is_ranged: bool = false, normal_range: float = ATTACK_RANGE_METERS, weapon_override: ItemDefinition = null, offhand_attack: bool = false) -> bool:
 	if not los.has_line_of_sight(attacker.position, target.position) or attacker.position.distance_to(target.position) > attack_range + MOVEMENT_EPSILON:
 		return false
 	var cover := los.cover_between(attacker.position, target.position)
-	var attack := AttackMathRules.evaluate(working, attacker, target, definitions, cover, is_ranged, normal_range)
+	var attack := AttackMathRules.evaluate(working, attacker, target, definitions, cover, is_ranged, normal_range, weapon_override, offhand_attack)
 	var roll_result := _roll_attack_d20(working.rng_state, attack["advantage"], attack["disadvantage"])
 	var roll: int = roll_result["roll"]
 	var attack_bonus: int = attack["attack_bonus"]
@@ -591,6 +758,7 @@ static func _resolve_attack_between(working: BattleState, attacker: ActorState, 
 		"critical": critical, "hit": hit, "advantage": attack["advantage"], "disadvantage": attack["disadvantage"],
 		"advantage_sources": attack["advantage_sources"], "disadvantage_sources": attack["disadvantage_sources"], "is_ranged": is_ranged,
 		"cover": cover, "cover_bonus": attack["cover_bonus"],
+		"elevation_modifier": attack["elevation_modifier"], "elevation_source": attack["elevation_source"],
 		"condition_consumptions": attack["condition_consumptions"].duplicate(true),
 		"action_spent": spends_action, "reaction_spent": spends_reaction,
 	}))
@@ -603,12 +771,7 @@ static func _resolve_attack_between(working: BattleState, attacker: ActorState, 
 			working.rng_state = int(damage_roll["next_rng_state"])
 			die_values = damage_roll["values"]
 		var damage := AttackMathRules.damage_total(die_values, attack["damage_modifier"])
-		var hp_before := target.hp
-		_append_and_apply(result, working, Event.create(&"damage_taken", {"actor_id": target.id, "source_actor_id": attacker.id, "amount": damage, "damage_type": attack["damage_type"]}))
-		if hp_before - damage <= -target.max_hp:
-			_append_and_apply(result, working, Event.create(&"actor_died", {"actor_id": target.id}))
-		elif hp_before - damage <= 0:
-			_append_and_apply(result, working, Event.create(&"actor_downed", {"actor_id": target.id}))
+		_append_damage_and_consequence(result, working, target, attacker.id, damage, attack["damage_type"])
 	for consumption in attack["condition_consumptions"]:
 		if not _should_consume_attack_condition(StringName(str(consumption["consumption"])), hit):
 			continue
@@ -622,8 +785,48 @@ static func _resolve_attack_between(working: BattleState, attacker: ActorState, 
 			"attack_target_id": target.id,
 			"attack_hit": hit,
 		}))
+	if attacker.hidden_from.has(target.id):
+		_append_and_apply(result, working, Event.create(&"hidden_revealed", {"actor_id": attacker.id, "target_id": target.id, "reason": &"attack"}))
+	_resolve_weapon_mastery(working, attacker, target, attack, hit, los, definitions, result, attack_kind)
 	result.next_rng_state = working.rng_state
 	return hit
+
+
+static func _resolve_weapon_mastery(working: BattleState, attacker: ActorState, target: ActorState, attack: Dictionary, hit: bool, los: LosProvider, definitions: DefinitionLibrary, result: ResolutionResult, attack_kind: StringName) -> void:
+	var weapon := definitions.get_item(StringName(str(attack.get("weapon_id", ""))))
+	if weapon == null or weapon.mastery == &"":
+		return
+	match weapon.mastery:
+		MasteryRulesScript.SAP:
+			if hit:
+				_append_and_apply(result, working, Event.create(&"mastery_triggered", {"actor_id": attacker.id, "target_id": target.id, "mastery": weapon.mastery, "weapon_id": weapon.id}))
+				_append_and_apply(result, working, Event.create(&"condition_added", {"actor_id": target.id, "condition": &"sapped", "source_actor_id": attacker.id, "remaining_triggers": -1, "expiration_timing": &"none", "related_actor_id": -1}))
+		MasteryRulesScript.VEX:
+			if hit:
+				_append_and_apply(result, working, Event.create(&"mastery_triggered", {"actor_id": attacker.id, "target_id": target.id, "mastery": weapon.mastery, "weapon_id": weapon.id}))
+				_append_and_apply(result, working, Event.create(&"condition_added", {"actor_id": target.id, "condition": &"vexed", "source_actor_id": attacker.id, "remaining_triggers": -1, "expiration_timing": &"none", "related_actor_id": attacker.id}))
+		MasteryRulesScript.GRAZE:
+			if not hit:
+				var graze_damage := maxi(0, int(attack.get("ability_modifier", 0)))
+				_append_and_apply(result, working, Event.create(&"mastery_triggered", {"actor_id": attacker.id, "target_id": target.id, "mastery": weapon.mastery, "weapon_id": weapon.id, "amount": graze_damage}))
+				if graze_damage > 0:
+					_append_damage_and_consequence(result, working, target, attacker.id, graze_damage, weapon.damage_type, {"mastery": weapon.mastery})
+		MasteryRulesScript.TOPPLE:
+			if hit and target.is_alive():
+				_append_and_apply(result, working, Event.create(&"mastery_triggered", {"actor_id": attacker.id, "target_id": target.id, "mastery": weapon.mastery, "weapon_id": weapon.id}))
+				var save_effect := AbilityEffect.new()
+				save_effect.save_abilities = [&"constitution"]
+				save_effect.save_dc_base = 8
+				save_effect.save_dc_ability = StringName(str(attack.get("attack_ability", "strength")))
+				if not _resolve_saving_throw(working, attacker, target, save_effect, result):
+					_append_and_apply(result, working, Event.create(&"condition_added", {"actor_id": target.id, "condition": &"prone", "source_actor_id": attacker.id, "remaining_triggers": -1, "expiration_timing": &"none", "related_actor_id": -1}))
+		MasteryRulesScript.NICK:
+			pass
+	if attack_kind != &"nick" and MasteryRulesScript.can_nick_attack(attacker, definitions) and target.is_alive():
+		var offhand := EquipmentRules.offhand(attacker, definitions)
+		_append_and_apply(result, working, Event.create(&"ability_use_spent", {"actor_id": attacker.id, "ability_id": &"nick_attack", "uses_spent": 1, "uses_remaining": 0}))
+		_append_and_apply(result, working, Event.create(&"mastery_triggered", {"actor_id": attacker.id, "target_id": target.id, "mastery": MasteryRulesScript.NICK, "weapon_id": offhand.id}))
+		_resolve_attack_between(working, attacker, target, los, definitions, result, false, false, &"nick", ATTACK_RANGE_METERS, false, ATTACK_RANGE_METERS, offhand, true)
 
 
 static func _should_consume_attack_condition(consumption: StringName, hit: bool) -> bool:
@@ -631,6 +834,19 @@ static func _should_consume_attack_condition(consumption: StringName, hit: bool)
 		&"attack_hit": return hit
 		&"attack_miss": return not hit
 		_: return true
+
+
+## Damage consequences are shared by weapon hits, masteries, falls, and area
+## effects so a new damage source cannot silently leave a zero-HP actor active.
+static func _append_damage_and_consequence(result: ResolutionResult, working: BattleState, target: ActorState, source_actor_id: int, amount: int, damage_type: StringName, extra: Dictionary = {}) -> void:
+	var hp_before := target.hp
+	var damage_data := {"actor_id": target.id, "source_actor_id": source_actor_id, "amount": amount, "damage_type": damage_type}
+	damage_data.merge(extra, true)
+	_append_and_apply(result, working, Event.create(&"damage_taken", damage_data))
+	if hp_before - amount <= -target.max_hp:
+		_append_and_apply(result, working, Event.create(&"actor_died", {"actor_id": target.id}))
+	elif hp_before - amount <= 0:
+		_append_and_apply(result, working, Event.create(&"actor_downed", {"actor_id": target.id}))
 
 
 ## Rolls the attack d20, twice when the already-evaluated roll mode calls for
@@ -653,6 +869,12 @@ static func _resolve_end_turn(state: BattleState, cmd: Command, result: Resoluti
 	var next_index := TurnOrderRules.next_eligible_index(state, state.current_turn_index)
 	if next_index < 0: return _rejected(result, cmd, RejectionReasonRules.NO_ELIGIBLE_ACTORS)
 	var next_round := state.round_number + (1 if next_index <= state.current_turn_index else 0)
+	var skipped := 0
+	while next_round == 1 and state.skip_round_one_actor_ids.has(state.initiative_order[next_index]) and skipped < state.initiative_order.size():
+		result.events.append(Event.create(&"surprise_turn_skipped", {"actor_id": state.initiative_order[next_index], "round_number": 1}))
+		next_index = TurnOrderRules.next_eligible_index(state, next_index)
+		next_round = state.round_number + (1 if next_index <= state.current_turn_index else 0)
+		skipped += 1
 	var next_actor: ActorState = state.actors[state.initiative_order[next_index]]
 	result.events.append(Event.create(&"turn_ended", {"actor_id": cmd.actor_id}))
 	_append_condition_boundary_events(result, next_actor, &"turn_start")
@@ -783,7 +1005,8 @@ static func _append_movement_event(result: ResolutionResult, actor_id: int, from
 
 static func _append_movement_spent(result: ResolutionResult, working: BattleState, actor_id: int, amount: float) -> void:
 	var actor: ActorState = working.actors[actor_id]
-	_append_and_apply(result, working, Event.create(&"movement_spent", {"actor_id": actor_id, "amount": amount, "path_cost": amount, "movement_remaining_before": actor.movement_remaining, "movement_remaining_after": maxf(0.0, actor.movement_remaining - amount)}))
+	var stable_amount := snappedf(amount, 0.000001)
+	_append_and_apply(result, working, Event.create(&"movement_spent", {"actor_id": actor_id, "amount": stable_amount, "path_cost": stable_amount, "movement_remaining_before": snappedf(actor.movement_remaining, 0.000001), "movement_remaining_after": snappedf(maxf(0.0, actor.movement_remaining - stable_amount), 0.000001)}))
 
 
 static func _append_and_apply(result: ResolutionResult, working: BattleState, event: Event) -> void:
@@ -866,6 +1089,21 @@ static func _append_reached_objectives(result: ResolutionResult, working: Battle
 static func apply(state: BattleState, event: Event) -> void:
 	match event.type:
 		&"movement_segment": (state.actors[event.data["actor_id"]] as ActorState).position = event.data["to"]
+		&"forced_movement": (state.actors[event.data["actor_id"]] as ActorState).position = event.data["to"]
+		&"hidden_revealed": (state.actors[event.data["actor_id"]] as ActorState).hidden_from.erase(int(event.data["target_id"]))
+		&"sneaking_changed":
+			var sneaking_actor := state.actors[event.data["actor_id"]] as ActorState
+			sneaking_actor.sneaking = bool(event.data["sneaking"])
+			sneaking_actor.stealth_total = int(event.data.get("stealth_total", 0))
+		&"detection_changed":
+			var detected_actor := state.actors[event.data["actor_id"]] as ActorState
+			var observer_id := int(event.data["observer_id"])
+			if bool(event.data.get("hidden", false)):
+				if not detected_actor.hidden_from.has(observer_id):
+					detected_actor.hidden_from.append(observer_id)
+					detected_actor.hidden_from.sort()
+			else:
+				detected_actor.hidden_from.erase(observer_id)
 		&"movement_spent":
 			var moving_actor: ActorState = state.actors[event.data["actor_id"]]
 			moving_actor.movement_remaining = maxf(0.0, moving_actor.movement_remaining - event.data["amount"])
@@ -874,6 +1112,11 @@ static func apply(state: BattleState, event: Event) -> void:
 		&"bonus_action_spent": (state.actors[event.data["actor_id"]] as ActorState).bonus_action_available = false
 		&"disengage_applied": (state.actors[event.data["actor_id"]] as ActorState).disengaged = true
 		&"disposition_changed": (state.actors[event.data["actor_id"]] as ActorState).disposition = StringName(str(event.data["disposition"]))
+		&"actor_surrendered":
+			var surrendering_actor := state.actors[event.data["actor_id"]] as ActorState
+			surrendering_actor.disposition = &"neutral"
+			surrendering_actor.surrendered = true
+			surrendering_actor.action_available = false
 		&"reaction_triggered": (state.actors[event.data["actor_id"]] as ActorState).reaction_available = false
 		&"attack_rolled":
 			var attacking_actor: ActorState = state.actors[event.data["actor_id"]]
@@ -921,6 +1164,10 @@ static func apply(state: BattleState, event: Event) -> void:
 		&"interaction_completed":
 			var interactable: InteractableState = state.interactables[event.data["interactable_id"]]
 			interactable.state = event.data["new_state"]
+		&"interactable_destroyed":
+			var destroyed_interactable := state.interactables[event.data["interactable_id"]] as InteractableState
+			destroyed_interactable.destroyed = true
+			destroyed_interactable.state = &"destroyed"
 		&"items_looted":
 			var looter: ActorState = state.actors[event.data["actor_id"]]
 			for item_id in event.data["item_ids"]:
@@ -951,6 +1198,7 @@ static func apply(state: BattleState, event: Event) -> void:
 			state.initiative_order = _actor_ids(event.data["initiative_order"])
 			state.current_turn_index = event.data["current_turn_index"]
 			state.round_number = event.data["round_number"]
+			state.skip_round_one_actor_ids = _actor_ids(event.data.get("skip_round_one_actor_ids", []))
 		&"game_over": state.game_outcome = StringName(str(event.data.get("outcome", "defeat")))
 		&"objective_completed":
 			var objective := state.objectives.get(str(event.data["objective_id"])) as ObjectiveState
@@ -966,6 +1214,7 @@ static func apply(state: BattleState, event: Event) -> void:
 			state.round_number = event.data["round_number"]
 			state.active_encounter_id = ""
 			state.active_combatant_ids.clear()
+			state.skip_round_one_actor_ids.clear()
 		&"turn_started":
 			if event.data.has("phase"): state.phase = event.data["phase"]
 			state.current_turn_index = event.data["turn_index"]
@@ -976,6 +1225,7 @@ static func apply(state: BattleState, event: Event) -> void:
 			turn_actor.bonus_action_available = event.data["bonus_action_available"]
 			turn_actor.reaction_available = event.data["reaction_available"]
 			turn_actor.disengaged = event.data["disengaged"]
+			turn_actor.ability_uses_spent.erase(&"nick_attack")
 			_recharge_per_turn_uses(turn_actor)
 
 

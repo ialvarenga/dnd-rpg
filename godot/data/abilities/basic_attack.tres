@@ -16,4 +16,6 @@ description = "Make a melee weapon attack against an enemy in close range."
 costs_action = true
 targeting = &"actor"
 target_range_meters = 1.5
+usable_in_exploration = true
+ai_tags = Array[StringName]([&"damage"])
 effects = Array[ExtResource("1_vi3gg")]([SubResource("Resource_yew1t")])

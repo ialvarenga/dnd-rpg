@@ -9,6 +9,7 @@ const CharacterSheetViewModelScript = preload("res://view/ui/character_sheet_vie
 ## Presentation adapter. It listens to the shared session but never submits a
 ## command itself; the owning world controller decides targets and calls it.
 signal ability_requested(ability_id: StringName)
+signal ability_mode_requested(ability_id: StringName, mode: StringName)
 signal end_turn_requested
 signal cancel_requested
 signal inventory_item_requested(item_id: StringName)
@@ -23,6 +24,7 @@ signal world_pause_changed(paused: bool)
 var definitions: DefinitionLibrary
 var session: EncounterSession
 var actor_id := -1
+var _mode_popup: PopupPanel
 
 @onready var portrait: ActorPortrait = $Margin/Layout/ActorPortrait
 @onready var resources: ResourcePips = $Margin/Layout/MovementControls/ResourcePips
@@ -54,6 +56,7 @@ func _ready() -> void:
 	outcome_overlay.restart_requested.connect(func(): restart_requested.emit())
 	character_sheet.item_use_requested.connect(func(item_id): inventory_item_requested.emit(item_id))
 	character_sheet.closed.connect(func(): world_pause_changed.emit(is_world_paused()))
+	_build_mode_popup()
 	dialog_panel.visibility_changed.connect(_close_sheet_for_other_modal)
 	outcome_overlay.visibility_changed.connect(_close_sheet_for_other_modal)
 
@@ -138,6 +141,38 @@ func _on_events_resolved(events: Array[Event]) -> void:
 
 func set_selected_ability(ability_id: StringName) -> void:
 	hotbar.set_selected_ability(ability_id)
+
+
+func choose_ability_mode(ability: AbilityDefinition) -> void:
+	if ability == null or ability.modes.is_empty():
+		return
+	var rows := _mode_popup.get_node("Rows") as VBoxContainer
+	for child in rows.get_children():
+		child.queue_free()
+	var title := Label.new()
+	title.text = "Choose %s mode" % ability.display_name
+	rows.add_child(title)
+	for authored_mode in ability.modes:
+		var mode := authored_mode
+		var button := Button.new()
+		button.text = String(mode).capitalize()
+		button.tooltip_text = "Choose %s before selecting a target." % String(mode).capitalize()
+		button.pressed.connect(func():
+			_mode_popup.hide()
+			ability_mode_requested.emit(ability.id, mode)
+		)
+		rows.add_child(button)
+	_mode_popup.popup_centered(Vector2i(280, 150))
+
+
+func _build_mode_popup() -> void:
+	_mode_popup = PopupPanel.new()
+	_mode_popup.name = "AbilityModePopup"
+	var rows := VBoxContainer.new()
+	rows.name = "Rows"
+	rows.add_theme_constant_override("separation", 8)
+	_mode_popup.add_child(rows)
+	add_child(_mode_popup)
 
 
 func present_outcome(outcome: StringName) -> void:

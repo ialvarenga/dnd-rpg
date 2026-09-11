@@ -102,8 +102,8 @@ class B3ReferenceMapTests(unittest.TestCase):
         assert_assets_are_catalogued(document)
 
         raw_path_document = copy.deepcopy(document)
-        raw_path_document["structures"][0]["asset"] = "res://assets/example.tscn"
-        with self.assertRaisesRegex(AssertionError, r"/structures/0/asset: raw resource path"):
+        raw_path_document["vegetation"][0]["asset"] = "res://assets/example.tscn"
+        with self.assertRaisesRegex(AssertionError, r"/vegetation/0/asset: raw resource path"):
             assert_assets_are_catalogued(raw_path_document)
 
         unknown_asset_document = copy.deepcopy(document)

@@ -15,7 +15,7 @@ As alterações propostas ao plano original fizeram sentido em sua maioria.
 | `NavProvider` injetado | **ACEITA** | Mantém simulação independente da engine |
 | `LosProvider` injetado | **ACEITA** | Mesma justificativa da navegação |
 | IA como fase própria | **ACEITA** | Um inimigo que apenas caminha e ataca é um stub, não uma IA |
-| Verticalidade cortada da v1 | **ACEITA** | Reduz drasticamente escopo |
+| Verticalidade complexa cortada da v1 | **ACEITA** | Mantém uma superfície contínua; Marco E ainda permite colinas navegáveis, vantagem de altura, empurrões e quedas |
 | LoS simples incluída desde v1 | **ACEITA** | Targeting dependerá dela |
 | Coordenadas absolutas em metros | **ACEITA** | Assets físicos não escalam com mapas |
 | Limite de mapas em 256×256m | **ACEITA** | Evita streaming/chunking cedo demais |

@@ -13,9 +13,10 @@ extends RefCounted
 ## never scan). Only "weapon" and "armor" exist in this milestone; the order
 ## itself is not currently observable (each slot is read independently) but
 ## is kept explicit for future multi-slot aggregation.
-const SLOT_ORDER: Array[StringName] = [&"weapon", &"armor"]
+const SLOT_ORDER: Array[StringName] = [&"weapon", &"offhand", &"armor"]
 
 const SLOT_WEAPON := &"weapon"
+const SLOT_OFFHAND := &"offhand"
 const SLOT_ARMOR := &"armor"
 
 
@@ -25,6 +26,10 @@ static func weapon(actor: ActorState, defs: DefinitionLibrary) -> ItemDefinition
 
 static func armor(actor: ActorState, defs: DefinitionLibrary) -> ItemDefinition:
 	return _equipped_item(actor, SLOT_ARMOR, defs)
+
+
+static func offhand(actor: ActorState, defs: DefinitionLibrary) -> ItemDefinition:
+	return _equipped_item(actor, SLOT_OFFHAND, defs)
 
 
 static func is_ranged_weapon(actor: ActorState, defs: DefinitionLibrary) -> bool:

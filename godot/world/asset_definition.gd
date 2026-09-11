@@ -26,6 +26,7 @@ extends Resource
 ## The KayKit forest atlas exposes eight palette columns. Palette 1 is the
 ## mesh's authored material; later palettes are applied by AssetCatalog.
 @export_range(1, 8, 1) var palette_index := 1
+@export var tint: Color = Color.WHITE
 
 
 func is_usable() -> bool:

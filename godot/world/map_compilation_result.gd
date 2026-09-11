@@ -11,6 +11,7 @@ var warnings: Array[MapValidationWarning] = []
 var scorecard: Dictionary = {}
 var navigation: MapNavigationCompiler
 var music: Dictionary = {}
+var movement_regions: Array[Dictionary] = []
 
 
 func is_valid() -> bool:

@@ -18,4 +18,6 @@ description = "Make a ranged weapon attack against an enemy."
 costs_action = true
 targeting = &"actor"
 target_range_meters = 96.0
+usable_in_exploration = true
+ai_tags = Array[StringName]([&"damage", &"ranged"])
 effects = Array[ExtResource("2")]([SubResource("Effect_attack")])

@@ -8,6 +8,7 @@ extends RefCounted
 const ResolverRules = preload("res://sim/resolver.gd")
 const EquipmentRules = preload("res://sim/equipment.gd")
 const AttackMathRules = preload("res://sim/rules/attack_math.gd")
+const MasteryRulesScript = preload("res://sim/rules/mastery_rules.gd")
 ## SRD melee reach is 5 feet, represented as 1.5 m in the simulation. The
 ## resolver, targeting previews, and AI all use this same authored distance.
 const ATTACK_RANGE_METERS := 1.5
@@ -17,6 +18,8 @@ const MINIMUM_RANGED_STANDOFF_METERS := 6.0
 const FORMATION_SEPARATION_METERS := 1.2
 const FORMATION_ANGLES := [0.0, 45.0, -45.0, 90.0, -90.0, 135.0, -135.0, 180.0]
 const MAX_TARGET_CANDIDATES := 2
+const MAX_AREA_CANDIDATES := 2
+const MAX_COVER_CANDIDATES := 2
 const SCORE_EPSILON := 0.001
 
 
@@ -74,12 +77,14 @@ func _candidate_commands(snapshot: BattleState, actor: ActorState, targets: Arra
 	var definitions := DefinitionLibrary.get_default()
 	var ability_ids := ActionAvailability.effective_ability_ids(actor, definitions)
 	if ability_ids.is_empty():
-		ability_ids.append(&"basic_attack")
+		var default_attack := _default_attack_ability_id(definitions)
+		if default_attack != &"":
+			ability_ids.append(default_attack)
 	for ability_id in ability_ids:
 		var ability := DefinitionLibrary.get_default().get_ability(ability_id)
 		if ability != null and _has_heal_effect(ability):
 			commands.append(Command.create(ability_id, actor.id))
-		elif ability != null and ability.targeting == &"none" and ability_id in [&"dodge", &"dash", &"disengage"]:
+		elif ability != null and ability.targeting == &"none" and ability.ai_tags.any(func(tag: StringName): return tag in [&"defensive", &"mobility", &"escape"]):
 			commands.append(Command.create(ability_id, actor.id))
 	for ability_id in ability_ids:
 		var ability := definitions.get_ability(ability_id)
@@ -102,6 +107,39 @@ func _candidate_commands(snapshot: BattleState, actor: ActorState, targets: Arra
 				var support := Command.create(ability_id, actor.id)
 				support.target_id = target.id
 				commands.append(support)
+	for ability_id in ability_ids:
+		var ability := definitions.get_ability(ability_id)
+		if ability == null or ability.targeting != &"actor" or not ability.ai_tags.has(&"control"):
+			continue
+		for target in _prioritized_targets(snapshot, actor, ability):
+			if actor.position.distance_to(target.position) > AbilityTargeting.target_range(definitions, ability.id) + SCORE_EPSILON:
+				continue
+			var modes: Array[StringName] = ability.modes if not ability.modes.is_empty() else [&""]
+			for mode in modes:
+				var control := Command.create(ability_id, actor.id)
+				control.target_id = target.id
+				if mode != &"":
+					control.metadata["mode"] = mode
+				commands.append(control)
+	# Area-capable interactables are ordinary authored targets. Stable ID order
+	# plus a small cap keeps the branching factor bounded on prop-heavy maps.
+	for ability_id in ability_ids:
+		var ability := definitions.get_ability(ability_id)
+		if ability == null or ability.targeting != &"interactable" or not ability.ai_tags.has(&"area"):
+			continue
+		var interactable_ids: Array = snapshot.interactables.keys()
+		interactable_ids.sort()
+		var appended := 0
+		for interactable_id in interactable_ids:
+			var interactable := snapshot.interactables[interactable_id] as InteractableState
+			if interactable.destroyed or not interactable.tags.has(&"explosive"):
+				continue
+			var area := Command.create(ability.id, actor.id)
+			area.target_interactable_id = interactable.id
+			commands.append(area)
+			appended += 1
+			if appended >= MAX_AREA_CANDIDATES:
+				break
 	for target in targets:
 		var destination: Variant = _useful_approach_destination(snapshot, actor, target, definitions)
 		if destination != null:
@@ -109,8 +147,38 @@ func _candidate_commands(snapshot: BattleState, actor: ActorState, targets: Arra
 			move.target_pos = destination
 			move.target_id = target.id
 			commands.append(move)
+	if EquipmentRules.is_ranged_weapon(actor, definitions) and not targets.is_empty() and actor.movement_remaining > SCORE_EPSILON:
+		for destination in _ranged_cover_destinations(actor, targets[0]):
+			var cover_move := Command.create(&"move", actor.id)
+			cover_move.target_id = targets[0].id
+			cover_move.target_pos = destination
+			cover_move.metadata["tactic"] = &"cover_seek"
+			commands.append(cover_move)
+	if actor.morale < 40 and actor.hp * 3 > actor.max_hp and actor.hp * 3 <= actor.max_hp * 2 and not targets.is_empty() and actor.movement_remaining > SCORE_EPSILON:
+		var away := targets[0].position.direction_to(actor.position)
+		away.y = 0.0
+		if away.length_squared() <= SCORE_EPSILON:
+			away = Vector3.RIGHT
+		var flee := Command.create(&"move", actor.id)
+		flee.target_id = targets[0].id
+		flee.target_pos = actor.position + away.normalized() * actor.movement_remaining
+		flee.metadata["tactic"] = &"flee"
+		commands.append(flee)
 	commands.append(Command.create(&"end_turn", actor.id))
+	if actor.morale < 40 and actor.hp * 3 <= actor.max_hp:
+		commands.insert(0, Command.create(&"surrender", actor.id))
 	return commands
+
+
+## Ad-hoc actors without authored actions retain an unarmed fallback by
+## selecting the first generic melee damage action in manifest order. The
+## behavior is data-defined; no concrete ability id is part of the decision.
+func _default_attack_ability_id(definitions: DefinitionLibrary) -> StringName:
+	for ability_id in definitions.ordered_ability_ids():
+		var ability := definitions.get_ability(ability_id)
+		if ability != null and ability.targeting == &"actor" and ability.ai_tags.has(&"damage") and _has_attack_effect(ability) and not _ability_is_ranged(ability):
+			return ability.id
+	return &""
 
 
 func _has_next_attack_condition_effect(ability: AbilityDefinition, definitions: DefinitionLibrary) -> bool:
@@ -152,6 +220,8 @@ func _prioritized_targets(snapshot: BattleState, actor: ActorState, ability: Abi
 		if not snapshot.active_combatant_ids.is_empty() and not snapshot.active_combatant_ids.has(int(actor_id_variant)):
 			continue
 		var target: ActorState = snapshot.actors[actor_id_variant]
+		if target.hidden_from.has(actor.id):
+			continue
 		# A null ability is the generic enemy approach query, whose existing
 		# behavior is nearest living opposing actor. Actor-targeted abilities
 		# always take the data-defined filter path below.
@@ -159,6 +229,17 @@ func _prioritized_targets(snapshot: BattleState, actor: ActorState, ability: Abi
 		if is_valid:
 			targets.append(target)
 	targets.sort_custom(func(a: ActorState, b: ActorState) -> bool:
+		var a_protects_leader := _threatens_allied_leader(snapshot, actor, a)
+		var b_protects_leader := _threatens_allied_leader(snapshot, actor, b)
+		if actor.ai_tags.has(&"protector") and a_protects_leader != b_protects_leader:
+			return a_protects_leader
+		if ability != null and ability.ai_tags.has(&"damage"):
+			var a_ratio := float(a.hp) / maxf(1.0, a.max_hp)
+			var b_ratio := float(b.hp) / maxf(1.0, b.max_hp)
+			if not is_equal_approx(a_ratio, b_ratio):
+				return a_ratio < b_ratio
+			if a.hp != b.hp:
+				return a.hp < b.hp
 		var a_distance := actor.position.distance_to(a.position)
 		var b_distance := actor.position.distance_to(b.position)
 		return a.id < b.id if is_equal_approx(a_distance, b_distance) else a_distance < b_distance
@@ -167,6 +248,30 @@ func _prioritized_targets(snapshot: BattleState, actor: ActorState, ability: Abi
 	for index in range(mini(MAX_TARGET_CANDIDATES, targets.size())):
 		limited.append(targets[index])
 	return limited
+
+
+func _threatens_allied_leader(snapshot: BattleState, actor: ActorState, target: ActorState) -> bool:
+	for other in snapshot.actors.values():
+		var ally := other as ActorState
+		if ally.side == actor.side and ally.is_conscious() and ally.ai_tags.has(&"leader") and target.position.distance_to(ally.position) <= 3.0:
+			return true
+	return false
+
+
+func _ranged_cover_destinations(actor: ActorState, target: ActorState) -> Array[Vector3]:
+	var toward := actor.position.direction_to(target.position)
+	toward.y = 0.0
+	if toward.length_squared() <= SCORE_EPSILON:
+		toward = Vector3.FORWARD
+	var step := minf(3.0, actor.movement_remaining)
+	var destinations: Array[Vector3] = []
+	for angle in [-90.0, 90.0]:
+		if destinations.size() >= MAX_COVER_CANDIDATES:
+			break
+		var candidate := actor.position + toward.normalized().rotated(Vector3.UP, deg_to_rad(angle)) * step
+		candidate.y = actor.position.y
+		destinations.append(candidate)
+	return destinations
 
 
 func _useful_approach_destination(snapshot: BattleState, actor: ActorState, target: ActorState, definitions: DefinitionLibrary) -> Variant:
@@ -251,14 +356,19 @@ func _score(before: BattleState, actor: ActorState, command: Command, result: Re
 	var score := 0.0
 	var definitions := DefinitionLibrary.get_default()
 	var ability := definitions.get_ability(command.type)
-	if ability != null and _has_attack_effect(ability):
+	if ability != null and ability.ai_tags.has(&"area"):
+		score = _expected_area_score(before, actor, command, ability)
+	elif ability != null and ability.ai_tags.has(&"damage") and _has_attack_effect(ability):
 		var target: ActorState = before.actors[command.target_id]
 		var attack := _attack_outcome(before, actor, target, ability, los, definitions)
 		score += 1000.0 + float(attack.expected_damage) * 10.0
 		score += float(attack.kill_probability) * 10000.0
+		score += _mastery_score(actor, target, attack, before, definitions)
+		if actor.ai_tags.has(&"protector") and _threatens_allied_leader(before, actor, target):
+			score += 12000.0
 		if EquipmentRules.is_ranged_weapon(actor, definitions) and AttackMathRules.is_threatened(before, actor):
 			score -= 1000.0
-	elif ability != null and _has_heal_effect(ability):
+	elif ability != null and ability.ai_tags.has(&"healing") and _has_heal_effect(ability):
 		var restored := _expected_healing(ability, actor)
 		if restored <= 0.0:
 			score = -10.0
@@ -266,26 +376,42 @@ func _score(before: BattleState, actor: ActorState, command: Command, result: Re
 			var missing_hp: int = max(0, actor.max_hp - actor.hp)
 			# The same heal becomes increasingly valuable nearer to being downed.
 			score += restored * (20.0 + 180.0 * float(missing_hp) / maxf(1.0, actor.max_hp))
+	elif ability != null and ability.ai_tags.has(&"control"):
+		score = 650.0
+		if command.metadata.get("mode", &"") == &"push":
+			score += maxf(0.0, actor.position.y - (before.actors[command.target_id] as ActorState).position.y) * 40.0
+	elif command.type == &"move":
+		var before_distance := _nearest_enemy_distance(before, actor)
+		var after_distance := _nearest_enemy_distance_from(before, actor, command.target_pos)
+		var tactic := StringName(str(command.metadata.get("tactic", "")))
+		if tactic == &"flee":
+			score = 1200.0 + (after_distance - before_distance) * 150.0
+		elif EquipmentRules.is_ranged_weapon(actor, definitions) and before_distance < MINIMUM_RANGED_STANDOFF_METERS:
+			score += (after_distance - before_distance) * 100.0
+		else:
+			score += (before_distance - after_distance) * 100.0
+		if actor.action_available:
+			score += 25.0
+		score -= _resolved_movement_cost(result, actor.id) * 2.0
+		if command.target_id >= 0 and before.actors.has(command.target_id) and EquipmentRules.is_ranged_weapon(actor, definitions):
+			var ranged_target := before.actors[command.target_id] as ActorState
+			var current_cover := AttackMathRules.cover_bonus(los.cover_between(actor.position, ranged_target.position))
+			var destination_cover := AttackMathRules.cover_bonus(los.cover_between(command.target_pos, ranged_target.position))
+			score += float(destination_cover - current_cover) * 90.0
+			score += float(AttackMathRules.high_ground_modifier(command.target_pos, ranged_target.position) - AttackMathRules.high_ground_modifier(actor.position, ranged_target.position)) * 50.0
+			if tactic == &"cover_seek" and destination_cover <= current_cover:
+				score -= 40.0
+	elif ability != null and ability.ai_tags.has(&"defensive"):
+		var nearby_threat := _nearest_enemy_distance(before, actor)
+		score = 180.0 if actor.hp * 2 <= actor.max_hp and nearby_threat <= 6.0 else -10.0
+	elif ability != null and ability.ai_tags.has(&"escape"):
+		score = 300.0 if AttackMathRules.is_threatened(before, actor) else -10.0
+	elif ability != null and ability.ai_tags.has(&"mobility"):
+		score = 100.0 if _nearest_enemy_distance(before, actor) > actor.movement_remaining else -10.0
 	else:
 		match command.type:
-			&"move":
-				var before_distance := _nearest_enemy_distance(before, actor)
-				var after_distance := _nearest_enemy_distance_from(before, actor, command.target_pos)
-				if EquipmentRules.is_ranged_weapon(actor, definitions) and before_distance < MINIMUM_RANGED_STANDOFF_METERS:
-					score += (after_distance - before_distance) * 100.0
-				else:
-					score += (before_distance - after_distance) * 100.0
-				if actor.action_available:
-					score += 25.0
-			&"dodge":
-				# Dodge is a defensive fallback, not a default idle action. It is
-				# useful when a badly wounded enemy is under imminent pressure and
-				# has no better attack or approach candidate.
-				var nearby_threat := _nearest_enemy_distance(before, actor)
-				score = 180.0 if actor.hp * 2 <= actor.max_hp and nearby_threat <= 6.0 else -10.0
-			&"disengage": score = 300.0 if AttackMathRules.is_threatened(before, actor) else -10.0
-			&"dash": score = 100.0 if _nearest_enemy_distance(before, actor) > actor.movement_remaining else -10.0
 			&"end_turn": score = 0.0
+			&"surrender": score = 20000.0 if actor.morale < 40 and actor.hp * 3 <= actor.max_hp else -100.0
 	# Opportunity attacks are deterministic to detect but stochastic to resolve.
 	# Penalize their expected harm, never the damage emitted by the speculative
 	# resolver call above. Each reaction is evaluated where it fires: at the
@@ -306,6 +432,78 @@ func _score(before: BattleState, actor: ActorState, command: Command, result: Re
 	return score
 
 
+func _resolved_movement_cost(result: ResolutionResult, actor_id: int) -> float:
+	var total := 0.0
+	for event in result.events:
+		if event.type == &"movement_spent" and int(event.data.get("actor_id", -1)) == actor_id:
+			total += float(event.data.get("amount", 0.0))
+	return total
+
+
+func _expected_area_score(state: BattleState, source: ActorState, command: Command, ability: AbilityDefinition) -> float:
+	var interactable := state.interactables.get(command.target_interactable_id) as InteractableState
+	if interactable == null:
+		return -1000.0
+	var radius := interactable.blast_radius_meters if interactable.blast_radius_meters > 0.0 else ability.target_radius_meters
+	var score := 0.0
+	var enemy_targets := 0
+	for effect in ability.effects:
+		if effect.type != &"area_damage":
+			continue
+		var damage_die := interactable.blast_damage_die if interactable.blast_damage_die > 0 else effect.damage_die
+		var damage_dice_count := interactable.blast_damage_dice_count if interactable.blast_damage_dice_count > 0 else effect.damage_dice_count
+		var average_damage := (float(damage_die) + 1.0) * 0.5 * float(damage_dice_count) + effect.damage_modifier
+		var difficulty_class := effect.save_dc_base + source.proficiency_bonus + source.ability_modifier(effect.save_dc_ability)
+		for other in state.actors.values():
+			var target := other as ActorState
+			if not target.is_alive() or target.position.distance_to(interactable.position) > radius + SCORE_EPSILON:
+				continue
+			# Hidden enemies are not available to the AI even when their position
+			# happens to exist in the authoritative snapshot.
+			if target.side != source.side and target.hidden_from.has(source.id):
+				continue
+			var save_probability := _d20_success_probability(target.saving_throw_modifier(&"dexterity"), difficulty_class)
+			var expected_damage := average_damage * (1.0 - save_probability * (0.5 if effect.half_damage_on_save else 1.0))
+			if target.id == source.id:
+				score -= expected_damage * 90.0
+			elif target.side == source.side:
+				score -= expected_damage * 60.0
+			else:
+				enemy_targets += 1
+				score += expected_damage * 22.0
+				if average_damage >= target.hp:
+					score += 250.0
+	return 1000.0 + score if enemy_targets > 0 and score > 0.0 else -1000.0
+
+
+func _d20_success_probability(modifier: int, difficulty_class: int) -> float:
+	var successful_faces := 0
+	for face in range(1, 21):
+		if face + modifier >= difficulty_class:
+			successful_faces += 1
+	return float(successful_faces) / 20.0
+
+
+func _mastery_score(actor: ActorState, target: ActorState, attack: Dictionary, state: BattleState, definitions: DefinitionLibrary) -> float:
+	var weapon := definitions.get_item(StringName(str(attack.get("weapon_id", ""))))
+	if weapon == null:
+		return 0.0
+	var hit_probability := float(attack.get("hit_probability", 0.0))
+	var score := 0.0
+	match weapon.mastery:
+		MasteryRulesScript.SAP: score += hit_probability * 90.0
+		MasteryRulesScript.VEX: score += hit_probability * 110.0
+		MasteryRulesScript.GRAZE: score += (1.0 - hit_probability) * maxf(0.0, float(attack.get("ability_modifier", 0))) * 10.0
+		MasteryRulesScript.TOPPLE: score += hit_probability * 120.0
+	# Nick belongs to the offhand Light weapon, so value it independently of
+	# the main-hand mastery that opened the Attack action.
+	if MasteryRulesScript.can_nick_attack(actor, definitions):
+		var offhand := EquipmentRules.offhand(actor, definitions)
+		var offhand_attack := AttackMathRules.evaluate(state, actor, target, definitions, LosProvider.COVER_NONE, false, ATTACK_RANGE_METERS, offhand, true)
+		score += float(AttackMathRules.expected_outcome(offhand_attack, target.hp).expected_damage) * 10.0
+	return score
+
+
 ## Expected outcome of `ability` against `target` from the snapshot, through
 ## the same AttackMath evaluation, range bands, and cover Resolver uses. Only
 ## pre-roll facts are read; no speculative die result reaches the score.
@@ -315,7 +513,9 @@ func _attack_outcome(before: BattleState, attacker: ActorState, target: ActorSta
 	var normal_range := EquipmentRules.normal_range(attacker, definitions, target_range) if is_ranged else target_range
 	var cover := los.cover_between(attacker.position, target.position)
 	var evaluation := AttackMathRules.evaluate(before, attacker, target, definitions, cover, is_ranged, normal_range)
-	return AttackMathRules.expected_outcome(evaluation, target.hp)
+	var outcome := AttackMathRules.expected_outcome(evaluation, target.hp)
+	outcome.merge(evaluation)
+	return outcome
 
 
 ## Opportunity attacks are melee attacks made at the reactor's reach.

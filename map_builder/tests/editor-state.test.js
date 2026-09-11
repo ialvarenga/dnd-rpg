@@ -153,6 +153,23 @@ test('dialog coin costs require a positive integer and cannot be combined with a
   assert.ok(validateMapSpec(map).errors.some(issue => issue.message.includes('cannot also require a check')));
 });
 
+test('combat-depth terrain, explosive, and surprise fields validate together', () => {
+  const map = createInitialMap();
+  map.regions = [{id: 'brush', polygon: [[0, 0], [8, 0], [8, 8]], terrain_type: 'thicket', movement_cost: 1.75}];
+  map.hills = [{id: 'rise', asset: 'forest_hill_4x4x4', position: [20, 20], navigable: true}];
+  map.rivers = [{id: 'ford', control_points: [[1, 1], [10, 1]], width_m: 3, movement_cost: 2}];
+  map.interactables = [{
+    id: 'powder', kind: 'explosive_barrel', asset: 'explosive_barrel_01', position: [12, 12],
+    blast_radius_m: 3.5, blast_damage_die: 6, blast_damage_dice_count: 2,
+  }];
+  map.actors = [{id: 'guard', archetype: 'character_rogue_01', position: [16, 16]}];
+  map.encounters = [{id: 'ambush', position: [16, 16], actor_ids: ['guard'], skip_surprised_round_one: true}];
+  assert.deepEqual(validateMapSpec(map).errors, []);
+
+  map.interactables[0].blast_damage_die = 7;
+  assert.ok(validateMapSpec(map).errors.some(issue => issue.path.endsWith('/blast_damage_die')));
+});
+
 test('Save is visible before browser capability detection', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   const saveButton = html.match(/<button id="save"[^>]*>/)?.[0];

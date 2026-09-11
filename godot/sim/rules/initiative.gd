@@ -14,7 +14,7 @@ static func resolve(state: BattleState) -> Dictionary:
 	return resolve_for_actor_ids(state, TurnOrderRules.eligible_actor_ids(state))
 
 
-static func resolve_for_actor_ids(state: BattleState, requested_actor_ids: Array[int]) -> Dictionary:
+static func resolve_for_actor_ids(state: BattleState, requested_actor_ids: Array[int], disadvantage_actor_ids: Array[int] = []) -> Dictionary:
 	var actor_ids: Array[int] = []
 	for actor_id in requested_actor_ids:
 		if state.actors.has(actor_id) and TurnOrderRules.is_actor_eligible(state.actors[actor_id]):
@@ -24,9 +24,14 @@ static func resolve_for_actor_ids(state: BattleState, requested_actor_ids: Array
 	var entries: Array[Dictionary] = []
 	for actor_id in actor_ids:
 		var actor: ActorState = state.actors[actor_id]
-		var roll_result := Dice.roll_die(next_rng_state, 20)
-		var roll: int = roll_result["value"]
-		next_rng_state = roll_result["next_rng_state"]
+		var first := Dice.roll_die(next_rng_state, 20)
+		var rolls: Array[int] = [int(first["value"])]
+		next_rng_state = int(first["next_rng_state"])
+		if disadvantage_actor_ids.has(actor_id):
+			var second := Dice.roll_die(next_rng_state, 20)
+			rolls.append(int(second["value"]))
+			next_rng_state = int(second["next_rng_state"])
+		var roll: int = rolls.min()
 		var dex_modifier := dexterity_modifier(actor.dexterity)
 		entries.append({
 			"actor_id": actor.id,
@@ -34,6 +39,8 @@ static func resolve_for_actor_ids(state: BattleState, requested_actor_ids: Array
 			"dexterity": actor.dexterity,
 			"dexterity_modifier": dex_modifier,
 			"total": roll + dex_modifier,
+			"rolls": rolls,
+			"disadvantage": disadvantage_actor_ids.has(actor_id),
 		})
 	entries = sort_entries(entries)
 	var order: Array[int] = []

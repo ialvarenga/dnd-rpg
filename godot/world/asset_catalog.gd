@@ -11,6 +11,7 @@ const DEFINITION_PATHS: Array[String] = [
 	"res://data/assets/wall_doorway_dungeon_01.tres",
 	"res://data/assets/barrier_dungeon_01.tres", "res://data/assets/chest_wood_01.tres",
 	"res://data/assets/barrel_large_01.tres", "res://data/assets/crates_stacked_01.tres",
+	"res://data/assets/explosive_barrel_01.tres",
 	"res://data/assets/torch_lit_01.tres", "res://data/assets/tree_oak_01.tres",
 	"res://data/assets/tree_oak_02.tres", "res://data/assets/rock_large_01.tres",
 	"res://data/assets/bush_01.tres", "res://data/assets/grass_01.tres",
@@ -227,7 +228,20 @@ static func instantiate(id: StringName) -> Node3D:
 	var instance := packed_scene.instantiate() as Node3D
 	if instance != null and definition.palette_index != 1:
 		_apply_palette(instance, definition.palette_index)
+	if instance != null and definition.tint != Color.WHITE:
+		_apply_tint(instance, definition.tint)
 	return instance
+
+
+static func _apply_tint(node: Node, tint: Color) -> void:
+	if node is MeshInstance3D:
+		var material := StandardMaterial3D.new()
+		material.albedo_color = tint
+		material.emission_enabled = true
+		material.emission = tint * 0.25
+		(node as MeshInstance3D).material_override = material
+	for child in node.get_children():
+		_apply_tint(child, tint)
 
 
 static func _apply_palette(node: Node, palette_index: int) -> void:

@@ -39,6 +39,11 @@ const PROPERTY_FINESSE := &"finesse"
 ## Advantage/disadvantage sources that do not come from a condition.
 const SOURCE_LONG_RANGE := &"long_range"
 const SOURCE_THREATENED := &"threatened"
+const SOURCE_HIGH_GROUND := &"high_ground"
+const SOURCE_LOW_GROUND := &"low_ground"
+const SOURCE_HIDDEN := &"hidden_attacker"
+const HIGH_GROUND_THRESHOLD_METERS := 2.5
+const HIGH_GROUND_BONUS := 2
 
 
 ## The attacker's side of an attack: which ability drives it and the bonus
@@ -46,8 +51,8 @@ const SOURCE_THREATENED := &"threatened"
 ## attack_ability, ability_modifier, proficient, proficiency_bonus (the part
 ## actually applied), magic_bonus, attack_bonus, damage_dice_count,
 ## damage_die, damage_modifier, damage_type.
-static func weapon_profile(actor: ActorState, defs: DefinitionLibrary) -> Dictionary:
-	var weapon := EquipmentRules.weapon(actor, defs)
+static func weapon_profile(actor: ActorState, defs: DefinitionLibrary, weapon_override: ItemDefinition = null, offhand_attack: bool = false) -> Dictionary:
+	var weapon := weapon_override if weapon_override != null else EquipmentRules.weapon(actor, defs)
 	if weapon == null:
 		var strength_modifier := actor.ability_modifier(&"strength")
 		return {
@@ -66,7 +71,7 @@ static func weapon_profile(actor: ActorState, defs: DefinitionLibrary) -> Dictio
 		"proficient": proficient, "proficiency_bonus": proficiency_bonus, "magic_bonus": weapon.magic_bonus,
 		"attack_bonus": ability_modifier + proficiency_bonus + weapon.magic_bonus,
 		"damage_dice_count": 1, "damage_die": weapon.damage_die,
-		"damage_modifier": ability_modifier + weapon.magic_bonus, "damage_type": weapon.damage_type,
+		"damage_modifier": weapon.magic_bonus if offhand_attack else ability_modifier + weapon.magic_bonus, "damage_type": weapon.damage_type,
 	}
 
 
@@ -169,6 +174,8 @@ static func roll_mode(attacker: ActorState, target: ActorState, defs: Definition
 		disadvantage_sources.append(_source(SOURCE_LONG_RANGE, attacker.id))
 	if is_ranged and threatened:
 		disadvantage_sources.append(_source(SOURCE_THREATENED, attacker.id))
+	if attacker.hidden_from.has(target.id):
+		advantage_sources.append(_source(SOURCE_HIDDEN, attacker.id))
 	var advantage := not advantage_sources.is_empty()
 	var disadvantage := not disadvantage_sources.is_empty()
 	return {
@@ -201,23 +208,37 @@ static func _append_condition_consumption(consumptions: Array[Dictionary], owner
 ## attacker's weapon_profile, the target's armor, cover, and roll mode, plus
 ## the resulting hit and critical probabilities. armor_class already includes
 ## the cover bonus; target_armor_class does not.
-static func evaluate(state: BattleState, attacker: ActorState, target: ActorState, defs: DefinitionLibrary, cover: StringName, is_ranged: bool, normal_range: float) -> Dictionary:
-	var evaluation := weapon_profile(attacker, defs)
+static func evaluate(state: BattleState, attacker: ActorState, target: ActorState, defs: DefinitionLibrary, cover: StringName, is_ranged: bool, normal_range: float, weapon_override: ItemDefinition = null, offhand_attack: bool = false) -> Dictionary:
+	var evaluation := weapon_profile(attacker, defs, weapon_override, offhand_attack)
 	var target_armor := armor_class(target, defs)
 	var bonus := cover_bonus(cover)
 	var mode := roll_mode(attacker, target, defs, is_ranged, normal_range, is_ranged and is_threatened(state, attacker))
 	var total_armor_class: int = int(target_armor["total"]) + bonus
+	var elevation_modifier := high_ground_modifier(attacker.position, target.position)
+	var attack_bonus := int(evaluation["attack_bonus"]) + elevation_modifier
 	evaluation.merge(mode)
 	evaluation.merge({
 		"is_ranged": is_ranged,
 		"target_armor_class": target_armor["total"],
 		"cover": cover,
 		"cover_bonus": bonus,
-		"armor_class": total_armor_class,
-		"hit_probability": hit_probability(int(evaluation["attack_bonus"]), total_armor_class, mode["advantage"], mode["disadvantage"]),
+		"armor_class": total_armor_class, "base_attack_bonus": evaluation["attack_bonus"],
+		"elevation_modifier": elevation_modifier,
+		"elevation_source": SOURCE_HIGH_GROUND if elevation_modifier > 0 else (SOURCE_LOW_GROUND if elevation_modifier < 0 else &""),
+		"attack_bonus": attack_bonus,
+		"hit_probability": hit_probability(attack_bonus, total_armor_class, mode["advantage"], mode["disadvantage"]),
 		"critical_probability": critical_probability(mode["advantage"], mode["disadvantage"]),
 	})
 	return evaluation
+
+
+static func high_ground_modifier(attacker_position: Vector3, target_position: Vector3) -> int:
+	var difference := attacker_position.y - target_position.y
+	if difference >= HIGH_GROUND_THRESHOLD_METERS:
+		return HIGH_GROUND_BONUS
+	if difference <= -HIGH_GROUND_THRESHOLD_METERS:
+		return -HIGH_GROUND_BONUS
+	return 0
 
 
 ## A natural 1 always misses and a natural 20 always hits.

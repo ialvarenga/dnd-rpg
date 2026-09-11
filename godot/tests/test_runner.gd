@@ -17,6 +17,7 @@ const TestPathPreviewRendererScript = preload("res://tests/unit/test_path_previe
 const TestDialogRuntimeScript = preload("res://tests/integration/test_dialog_runtime.gd")
 const TestRangedAttackPresentationScript = preload("res://tests/integration/test_ranged_attack_presentation.gd")
 const TestHelpAndAttackConditionsScript = preload("res://tests/unit/test_help_and_attack_conditions.gd")
+const TestCombatDepthScript = preload("res://tests/unit/test_combat_depth.gd")
 
 func _init() -> void:
 	call_deferred("_run")
@@ -24,7 +25,7 @@ func _init() -> void:
 
 func _run() -> void:
 	var failure_count := 0
-	var suites := [TestSimulation, TestDefinitions, TestActionAvailability, TestHudViewModel, TestCharacterSheetViewModel, TestEquipment, TestAttackMath, TestGameplayRules, TestInteractables, TestAssetCatalog, TestTerrainProviderScript, TestMapCompilerScript, TestCharacterAnimatorScript, TestEnemyAI, TestConsumablesScript, TestAbilityUsesScript, TestTargetedActionPlannerScript, TestAbilityTargetingScript, TestInteractableActionPlannerScript, TestPathPreviewRendererScript, TestAbilityCheck, TestDialogSession, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion, TestEncounterSession, TestHelpAndAttackConditionsScript]
+	var suites := [TestSimulation, TestDefinitions, TestActionAvailability, TestHudViewModel, TestCharacterSheetViewModel, TestEquipment, TestAttackMath, TestGameplayRules, TestInteractables, TestAssetCatalog, TestTerrainProviderScript, TestMapCompilerScript, TestCharacterAnimatorScript, TestEnemyAI, TestConsumablesScript, TestAbilityUsesScript, TestTargetedActionPlannerScript, TestAbilityTargetingScript, TestInteractableActionPlannerScript, TestPathPreviewRendererScript, TestAbilityCheck, TestDialogSession, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion, TestEncounterSession, TestHelpAndAttackConditionsScript, TestCombatDepthScript]
 	for suite in suites:
 		var report: Dictionary = suite.run()
 		var failures: Array = report["failures"]

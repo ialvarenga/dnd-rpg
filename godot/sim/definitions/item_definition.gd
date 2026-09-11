@@ -28,6 +28,10 @@ extends Resource
 @export var long_range_meters: float = 0.0
 @export var is_ranged_weapon: bool = false
 
+## sap | vex | nick | graze | topple. The mastery rule switches only on this
+## reusable effect vocabulary, never on the item id.
+@export var mastery: StringName = &""
+
 ## Armor-only, ignored otherwise. armor_category is &"light" (base + Dex),
 ## &"medium" (base + Dex, at most +2), or &"heavy" (base only).
 @export var armor_category: StringName = &""

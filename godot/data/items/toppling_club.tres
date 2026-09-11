@@ -4,12 +4,13 @@
 
 [resource]
 script = ExtResource("1")
-id = &"scimitar"
-display_name = "Scimitar"
+id = &"toppling_club"
+display_name = "Toppling Club"
+description = "A heavy bandit cudgel trained to unbalance its target."
 slot = &"weapon"
-weapon_category = &"martial"
-weapon_properties = Array[StringName]([&"finesse", &"light"])
+weapon_category = &"simple"
+weapon_properties = Array[StringName]([])
 damage_die = 6
-damage_type = &"slashing"
-mastery = &"graze"
+damage_type = &"bludgeoning"
+mastery = &"topple"
 held_model_path = "res://assets/kaykit_adventurers_weapons/sword_1handed.gltf"

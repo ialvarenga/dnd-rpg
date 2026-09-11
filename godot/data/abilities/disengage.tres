@@ -13,4 +13,5 @@ id = &"disengage"
 display_name = "Disengage"
 description = "Move without provoking opportunity attacks for the rest of this turn."
 costs_action = true
+ai_tags = Array[StringName]([&"escape"])
 effects = Array[ExtResource("1_6jqrh")]([SubResource("Resource_pjy1h")])

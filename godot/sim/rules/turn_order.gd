@@ -5,7 +5,7 @@ extends RefCounted
 ## never decides whose turn is next.
 
 static func is_actor_eligible(actor: ActorState) -> bool:
-	return actor.is_conscious()
+	return actor.is_conscious() and not actor.surrendered
 
 
 static func eligible_actor_ids(state: BattleState) -> Array[int]:

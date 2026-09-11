@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="AbilityDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/ability_definition.gd" id="1"]
+[ext_resource type="Script" path="res://sim/definitions/ability_effect.gd" id="2"]
+
+[sub_resource type="Resource" id="Effect_sneak"]
+script = ExtResource("2")
+type = &"toggle_sneak"
+
+[resource]
+script = ExtResource("1")
+id = &"sneak"
+display_name = "Sneak"
+description = "Toggle a crouched approach and contest nearby hostile Passive Perception."
+targeting = &"none"
+usable_in_exploration = true
+exploration_only = true
+animation_verb = &"crouch"
+ai_tags = Array[StringName]([&"stealth"])
+effects = Array[ExtResource("2")]([SubResource("Effect_sneak")])

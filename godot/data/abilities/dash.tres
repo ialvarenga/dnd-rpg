@@ -13,4 +13,5 @@ id = &"dash"
 display_name = "Dash"
 description = "Gain extra movement equal to your movement speed for this turn."
 costs_action = true
+ai_tags = Array[StringName]([&"mobility"])
 effects = Array[ExtResource("1_jolw2")]([SubResource("Resource_5ecbe")])

@@ -145,6 +145,7 @@ static func _test_shove_uses_better_save_and_applies_prone(failures: Array[Strin
 	target.saving_throw_proficiencies.clear()
 	var command := Command.create(&"shove", hero.id)
 	command.target_id = target.id
+	command.metadata["mode"] = &"prone"
 	var first := Resolver.resolve(state, command, FakeNavProvider.new(), FakeLosProvider.new())
 	var second := Resolver.resolve(state, command, FakeNavProvider.new(), FakeLosProvider.new())
 	var test_event := _event(first, &"d20_test_rolled")
@@ -302,7 +303,12 @@ static func _test_archer_ai_creates_standoff(failures: Array[String]) -> void:
 	if second != null and second.type == &"move":
 		TestHelpers.apply_result(state, Resolver.resolve(state, second, FakeNavProvider.new(), FakeLosProvider.new()))
 		var third := ai.choose_command(state, 2, FakeNavProvider.new(), FakeLosProvider.new())
-		_expect(third != null and third.type == &"end_turn", "archer with its action spent did not finish the turn after retreating", failures)
+		_expect(third != null and third.type in [&"move", &"end_turn"], "archer produced no legal follow-up after retreating", failures)
+		if third != null and third.type == &"move":
+			_expect(third.metadata.get("tactic") == &"cover_seek", "archer spent remaining movement on a non-cover reposition", failures)
+			TestHelpers.apply_result(state, Resolver.resolve(state, third, FakeNavProvider.new(), FakeLosProvider.new()))
+			var fourth := ai.choose_command(state, 2, FakeNavProvider.new(), FakeLosProvider.new())
+			_expect(fourth != null and fourth.type == &"end_turn", "archer did not finish after its bounded cover reposition", failures)
 
 
 static func _test_new_state_round_trip(failures: Array[String]) -> void:

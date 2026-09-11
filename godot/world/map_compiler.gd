@@ -35,6 +35,7 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 	result.terrain = terrain
 	var hill_reserved: Array[Dictionary] = _compile_hills(spec.get("hills", []), terrain, bounds, result)
 	var reserved: Array[Dictionary] = _compile_paths(spec, terrain, bounds, result)
+	_compile_movement_regions(spec, result)
 	reserved.append_array(hill_reserved)
 	_compile_bridges(spec.get("bridges", []), terrain, bounds, result)
 	var occupied: Array[Dictionary] = reserved.duplicate(true)
@@ -116,6 +117,27 @@ func compile(spec: Dictionary) -> MapCompilationResult:
 	return result
 
 
+## MapSpec terrain weights stay presentation/world data until injected through
+## NavProvider.path_cost. The authoritative resolver never reads MapSpec.
+func _compile_movement_regions(spec: Dictionary, result: MapCompilationResult) -> void:
+	for path in result.paths:
+		if path.get("kind", &"") == &"river":
+			result.movement_regions.append({
+				"id": path.get("id", &"river"), "terrain_type": &"river",
+				"shape": &"path", "points": path.get("points", PackedVector2Array()),
+				"width": path.get("width", 0.0), "movement_cost": float(path.get("movement_cost", 2.0)),
+			})
+	for region in spec.get("regions", []):
+		var terrain_type := StringName(str(region.get("terrain_type", "")))
+		if terrain_type not in [&"thicket", &"rubble"]:
+			continue
+		result.movement_regions.append({
+			"id": StringName(str(region.get("id", "terrain"))), "terrain_type": terrain_type,
+			"shape": &"polygon", "polygon": _points(region.get("polygon", [])),
+			"movement_cost": float(region.get("movement_cost", 2.0)),
+		})
+
+
 ## Hills reshape the heightfield rather than sit on it (ADR-007), so they are
 ## compiled before anything else that reads terrain -- paths, walls, other
 ## placements, and vegetation all see the stamped result for free. Unlike
@@ -142,10 +164,11 @@ func _compile_hills(raw_hills: Array, terrain: TerrainProvider, bounds: Vector2,
 			continue
 		var rotation_y := deg_to_rad(float(raw.get("rotation_deg", 0.0)))
 		var base_elevation := terrain.height_at(point.x, point.y)
+		var navigable := bool(raw.get("navigable", false))
 		if terrain.has_method("stamp_hill"):
-			terrain.call("stamp_hill", point, rotation_y, definition.collision_size, base_elevation)
+			terrain.call("stamp_hill", point, rotation_y, definition.collision_size, base_elevation, navigable)
 		reserved.append({"point": point, "radius": definition.footprint_radius, "id": id})
-		result.placements.append({"id": id, "asset": asset, "position": Vector3(point.x, base_elevation, point.y), "rotation_y": rotation_y, "radius": definition.footprint_radius})
+		result.placements.append({"id": id, "asset": asset, "position": Vector3(point.x, base_elevation, point.y), "rotation_y": rotation_y, "radius": definition.footprint_radius, "navigable": navigable})
 	return reserved
 
 
@@ -246,7 +269,7 @@ func _compile_paths(spec: Dictionary, terrain: TerrainProvider, bounds: Vector2,
 				continue
 			if kind == &"road" and terrain.has_method("add_flattening_path"):
 				terrain.call("add_flattening_path", points, width)
-			var path := {"id": id, "kind": kind, "points": points, "width": width}
+			var path := {"id": id, "kind": kind, "points": points, "width": width, "movement_cost": float(raw.get("movement_cost", 2.0 if kind == &"river" else 1.0))}
 			if kind == &"river" and bool(spec.get("debug_rivers", false)):
 				path["debug_rivers"] = true
 			if kind == &"river" and terrain.has_method("add_riverbed_path"):
@@ -462,21 +485,19 @@ func _navigation_blockers(placements: Array[Dictionary], paths: Array[Dictionary
 	var blockers: Array[Dictionary] = []
 	for placement in placements:
 		var definition := AssetCatalog.get_definition(placement.asset)
-		if definition != null and definition.blocks_navigation:
+		# Terrain-feature hills already reshape the authoritative terrain into a
+		# walkable summit plus ramp. Treating their mesh footprint as a blocker
+		# would disconnect the very high ground the terrain stamp exposes.
+		if definition != null and definition.blocks_navigation and (definition.asset_type != &"terrain_feature" or not bool(placement.get("navigable", false))):
 			var blocker := {"point": Vector2(placement.position.x, placement.position.z), "radius": definition.blocking_radius(), "id": placement.id}
 			if definition.has_box_collision():
 				blocker["kind"] = &"box"
 				blocker["size"] = placement.get("collision_size", definition.collision_size)
 				blocker["rotation_y"] = placement.rotation_y
 			blockers.append(blocker)
-	for river in paths:
-		if river.kind != &"river":
-			continue
-		var crossings: Array[Dictionary] = []
-		for bridge in bridges:
-			if bridge.get("river_id", &"") == river.id and _bridge_crosses_river(bridge, river, paths):
-				crossings.append({"point": Vector2(bridge.position.x, bridge.position.z), "radius": bridge.radius})
-		blockers.append({"kind": &"river", "points": river.points, "width": river.width, "crossings": crossings, "id": river.id})
+	# Rivers are shallow, navigable weighted terrain in Marco E. Bridges remain
+	# visually and tactically useful because they avoid the river's path-cost
+	# multiplier, but the water no longer forms an invisible hard wall.
 	return blockers
 
 

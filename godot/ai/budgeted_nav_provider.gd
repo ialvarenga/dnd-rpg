@@ -23,6 +23,16 @@ func path_cost(path: PackedVector3Array) -> float:
 	return source.path_cost(path)
 
 
+func clamp_path(path: PackedVector3Array, budget: float) -> PackedVector3Array:
+	return source.clamp_path(path, budget)
+
+
+func project_push(from: Vector3, direction: Vector3, distance: float) -> Dictionary:
+	if not budget.consume_navigation_query():
+		return {"landing_position": from, "blocked": true, "fell": false, "fall_distance": 0.0}
+	return source.project_push(from, direction, distance)
+
+
 func is_reachable(from: Vector3, to: Vector3) -> bool:
 	if not budget.consume_navigation_query():
 		return false

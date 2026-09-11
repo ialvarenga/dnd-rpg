@@ -34,6 +34,21 @@ func show_event(event: Event) -> void:
 			# A failed save is already told by its effect (e.g. "+PRONE").
 			text = "RESISTED" if event.data.get("success", false) else ""
 			modulate = Color("c9d3e6")
+		&"mastery_triggered":
+			text = String(event.data.get("mastery", "mastery")).to_upper()
+			modulate = Color("f0d568")
+		&"forced_movement_blocked":
+			text = "BLOCKED"
+			modulate = Color("c9d3e6")
+		&"hidden_revealed":
+			text = "REVEALED"
+			modulate = Color("efb35d")
+		&"sneaking_changed":
+			text = "SNEAKING" if event.data.get("sneaking", false) else "SNEAK ENDED"
+			modulate = Color("78b9ed")
+		&"detection_changed":
+			text = "HIDDEN" if event.data.get("hidden", false) else "DETECTED"
+			modulate = Color("78b9ed") if event.data.get("hidden", false) else Color("ef625d")
 		_:
 			text = ""
 	if not text.is_empty():

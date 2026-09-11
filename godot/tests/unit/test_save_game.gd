@@ -24,6 +24,7 @@ static func _mid_combat_state() -> BattleState:
 	state.current_turn_index = 1
 	state.rng_state = 987654321
 	state.world_flags = {"door_north_open": true, "turns_elapsed": 3}
+	state.skip_round_one_actor_ids = [2]
 
 	var hero: ActorState = state.actors[1]
 	hero.hp = 11
@@ -34,6 +35,12 @@ static func _mid_combat_state() -> BattleState:
 	hero.reaction_available = false
 	hero.disengaged = true
 	hero.ability_uses_spent[&"second_wind"] = 1
+	hero.skill_proficiencies = [&"stealth", &"perception"]
+	hero.sneaking = true
+	hero.stealth_total = 17
+	hero.hidden_from = [2]
+	hero.ai_tags = [&"leader"]
+	hero.morale = 77
 	hero.add_condition(&"poisoned", 2, 2, &"turn_start")
 
 	var enemy: ActorState = state.actors[2]
@@ -47,6 +54,16 @@ static func _mid_combat_state() -> BattleState:
 	door.position = Vector3(1.5, 0.0, 0.0)
 	door.interact_range = 2.0
 	state.interactables[door.id] = door
+	var barrel := InteractableState.new()
+	barrel.id = "powder"
+	barrel.type = &"explosive_barrel"
+	barrel.state = &"closed"
+	barrel.position = Vector3(8, 0, 4)
+	barrel.tags = [&"explosive", &"area"]
+	barrel.blast_radius_meters = 3.5
+	barrel.blast_damage_die = 6
+	barrel.blast_damage_dice_count = 2
+	state.interactables[barrel.id] = barrel
 	return state
 
 
@@ -66,6 +83,7 @@ static func _test_round_trip_preserves_mid_combat_state(failures: Array[String])
 	_expect(restored_state.current_turn_index == 1, "current_turn_index did not round-trip", failures)
 	_expect(restored_state.rng_state == 987654321, "rng_state did not round-trip", failures)
 	_expect(restored_state.world_flags.get("door_north_open") == true, "world_flags did not round-trip", failures)
+	_expect(restored_state.skip_round_one_actor_ids == [2], "explicit surprise skip variant did not round-trip", failures)
 
 	var restored_hero: ActorState = restored_state.actors[1]
 	_expect(restored_hero.hp == 11, "actor HP did not round-trip", failures)
@@ -76,6 +94,8 @@ static func _test_round_trip_preserves_mid_combat_state(failures: Array[String])
 	_expect(not restored_hero.reaction_available, "reaction_available did not round-trip", failures)
 	_expect(restored_hero.disengaged, "disengaged did not round-trip", failures)
 	_expect(restored_hero.has_condition(&"poisoned"), "conditions did not round-trip", failures)
+	_expect(restored_hero.sneaking and restored_hero.stealth_total == 17 and restored_hero.hidden_from == [2], "authoritative stealth/detection state did not round-trip", failures)
+	_expect(restored_hero.skill_proficiencies == [&"stealth", &"perception"] and restored_hero.ai_tags == [&"leader"] and restored_hero.morale == 77, "combat-depth actor data did not round-trip", failures)
 	var restored_poison := restored_hero.condition_state(&"poisoned")
 	_expect(restored_poison != null and restored_poison.source_actor_id == 2 and restored_poison.remaining_triggers == 2 and restored_poison.expiration_timing == &"turn_start", "condition instance metadata did not round-trip", failures)
 
@@ -88,6 +108,8 @@ static func _test_round_trip_preserves_mid_combat_state(failures: Array[String])
 		var restored_door: InteractableState = restored_state.interactables["door_north"]
 		_expect(restored_door.type == &"door", "interactable type did not round-trip through SaveGame", failures)
 		_expect(restored_door.state == &"open", "interactable state did not round-trip through SaveGame", failures)
+	var restored_barrel := restored_state.interactables.get("powder") as InteractableState
+	_expect(restored_barrel != null and restored_barrel.tags.has(&"explosive") and restored_barrel.blast_radius_meters == 3.5 and restored_barrel.blast_damage_dice_count == 2, "explosive interactable state did not round-trip", failures)
 
 	_expect(
 		JSON.stringify(original.to_dict()) == JSON.stringify(restored.to_dict()),

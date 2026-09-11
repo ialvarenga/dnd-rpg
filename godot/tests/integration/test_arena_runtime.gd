@@ -17,6 +17,7 @@ func run() -> Dictionary:
 		arena.queue_free()
 		return {"name": "integration/test_arena_runtime", "failures": failures}
 	_test_music_director(controller, failures)
+	_test_engine_push_projection(controller, failures)
 	await _test_hud_runtime(controller, arena.get_node("HudRoot"), player, failures)
 	_test_hud_input_routing(controller, arena.get_node("HudRoot"), failures)
 	await _test_preview_and_clamped_combat_movement(controller, player, event_player, failures)
@@ -30,6 +31,14 @@ func run() -> Dictionary:
 	_test_camera_pan_direction(arena.get_node("PlayerCharacter/CameraRig"), failures)
 	arena.queue_free()
 	return {"name": "integration/test_arena_runtime", "failures": failures}
+
+
+func _test_engine_push_projection(controller: TestArenaController, failures: Array[String]) -> void:
+	var blocked := controller.nav_provider.project_push(Vector3(-4, 1, 0), Vector3.RIGHT, 8.0)
+	_expect(bool(blocked.get("blocked", false)) and blocked.get("landing_position") == Vector3(-4, 1, 0), "Godot nav adapter projected a push through the central wall cutout", failures)
+	var clear := controller.nav_provider.project_push(Vector3(-10, 1, 10), Vector3.RIGHT, 3.0)
+	var clear_landing: Vector3 = clear.get("landing_position", Vector3.ZERO)
+	_expect(not bool(clear.get("blocked", true)) and clear_landing.distance_to(Vector3(-7, 1, 10)) < 0.4, "Godot nav adapter rejected a clear deterministic push", failures)
 
 
 func _test_music_director(controller: TestArenaController, failures: Array[String]) -> void:

@@ -33,7 +33,9 @@ extends RefCounted
 ## Bump 15: actor-targeted abilities author target_filter.
 ## Bump 16: abilities can be marked exploration_only; Talk cannot open in combat.
 ## Bump 17: adds Help plus reusable one-attack Help/Vex/Sap condition content.
-const CONTENT_VERSION: int = 17
+## Bump 18: adds mastery/offhand content, Sneak, tactical AI tags, actor
+## skills/morale, and the chieftain's Toppling Club.
+const CONTENT_VERSION: int = 18
 
 const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/basic_attack.tres",
@@ -46,6 +48,7 @@ const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/talk.tres",
 	"res://data/abilities/second_wind.tres",
 	"res://data/abilities/help.tres",
+	"res://data/abilities/sneak.tres",
 ]
 
 const CONDITION_MANIFEST: Array[String] = [
@@ -68,6 +71,7 @@ const ITEM_MANIFEST: Array[String] = [
 	"res://data/items/chainmail.tres",
 	"res://data/items/scimitar.tres",
 	"res://data/items/studded_leather.tres",
+	"res://data/items/toppling_club.tres",
 ]
 
 const ACTOR_MANIFEST: Array[String] = [

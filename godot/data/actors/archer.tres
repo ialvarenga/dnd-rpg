@@ -22,3 +22,6 @@ equipment_slots = {
 &"weapon": &"shortbow"
 }
 starting_inventory = Array[StringName]([&"healing_potion"])
+skill_proficiencies = Array[StringName]([&"perception"])
+ai_tags = Array[StringName]([&"ranged"])
+morale = 35

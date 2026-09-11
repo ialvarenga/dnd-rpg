@@ -19,4 +19,5 @@ costs_bonus_action = true
 targeting = &"none"
 max_uses = 2
 uses_recharge = &"encounter"
+ai_tags = Array[StringName]([&"healing", &"defensive"])
 effects = Array[ExtResource("2")]([SubResource("Effect_second_wind")])

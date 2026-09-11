@@ -15,14 +15,24 @@ script = ExtResource("2")
 type = &"apply_condition"
 condition_id = &"prone"
 apply_when = &"failed_save"
+mode = &"prone"
+
+[sub_resource type="Resource" id="Effect_push"]
+script = ExtResource("2")
+type = &"forced_movement"
+apply_when = &"failed_save"
+mode = &"push"
+forced_distance_meters = 3.0
 
 [resource]
 script = ExtResource("1")
 id = &"shove"
 display_name = "Shove"
-description = "Force a nearby enemy to resist being knocked prone."
+description = "Choose Push or Prone, then force a nearby enemy to resist."
 costs_action = true
 targeting = &"actor"
 target_range_meters = 1.5
 animation_verb = &"shove"
-effects = Array[ExtResource("2")]([SubResource("Effect_save"), SubResource("Effect_prone")])
+modes = Array[StringName]([&"push", &"prone"])
+ai_tags = Array[StringName]([&"control", &"forced_movement"])
+effects = Array[ExtResource("2")]([SubResource("Effect_save"), SubResource("Effect_prone"), SubResource("Effect_push")])
