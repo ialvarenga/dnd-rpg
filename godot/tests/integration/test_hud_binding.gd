@@ -26,21 +26,24 @@ func run() -> Dictionary:
 func _test_initial_binding(hud: HudRoot, failures: Array[String]) -> void:
 	var hp_label: Label = hud.get_node("Margin/Layout/ActorPortrait/Margin/Rows/HPText")
 	_expect(hp_label.text == "HP 30/30", "HUD bind did not project actor health", failures)
-	# Six is also the hotbar's hard cap (AbilityHotbar._actions is clamped to 6),
+	# Seven is also the hotbar's hard cap (AbilityHotbar._actions is clamped to 7),
 	# so this doubles as the guard against a loadout that would silently truncate.
-	_expect(hud.hotbar.get_child_count() == 6, "HUD hotbar should contain the knight's six combat actions, without contextual Talk or inventory consumables", failures)
+	_expect(hud.hotbar.get_child_count() == 7, "HUD hotbar should contain the knight's seven combat actions, without contextual Talk or inventory consumables", failures)
 	_expect(_ability_button(hud, &"talk") == null, "contextual Talk action appeared in the persistent hotbar", failures)
 	var end_turn: Button = hud.get_node("Margin/Layout/EndTurn")
 	_expect(hud.hotbar.mouse_filter == Control.MOUSE_FILTER_IGNORE, "empty hotbar space should remain pass-through", failures)
 	_expect(end_turn.mouse_filter == Control.MOUSE_FILTER_STOP, "end-turn button must consume pointer input", failures)
 	_expect(end_turn.get_theme_constant(&"icon_max_width") == 28, "end-turn icon size was not constrained", failures)
 	_expect(end_turn.icon_alignment == HORIZONTAL_ALIGNMENT_CENTER, "end-turn icon was not centered in its button", failures)
+	_expect(hud.hotbar.columns == 7, "hotbar actions should be laid out in one horizontal row", failures)
 	for button in hud.hotbar.get_children():
 		_expect((button as Control).mouse_filter == Control.MOUSE_FILTER_STOP, "hotbar button must consume pointer input", failures)
-		_expect((button as Button).get_theme_constant(&"icon_max_width") == 28, "hotbar icon size was not constrained", failures)
+		_expect((button as Button).get_theme_constant(&"icon_max_width") == 24, "hotbar icon size was not constrained", failures)
 		_expect((button as Button).icon_alignment == HORIZONTAL_ALIGNMENT_CENTER, "hotbar icon was not centered in its button", failures)
 	var attack_button := _ability_button(hud, &"basic_attack")
 	_expect(attack_button.tooltip_text.contains("Make a melee weapon attack") and attack_button.tooltip_text.contains("Damage 1d8 + 2 slashing"), "hotbar button did not receive the authored description and live equipment mechanics", failures)
+	var help_button := _ability_button(hud, &"help")
+	_expect(help_button != null and help_button.tooltip_text.contains("Aid an ally's next attack") and help_button.tooltip_text.contains("Target: ally") and help_button.tooltip_text.contains("next attack has Advantage"), "Help button did not receive its authored tooltip mechanics", failures)
 	var potion_slot: Button = hud.get_node("Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots/ItemSlot1")
 	_expect(potion_slot.icon == hud.hotbar.icon_set.texture_for(&"healing_potion"), "inventory slot did not receive the mapped item icon", failures)
 	_expect(potion_slot.expand_icon and potion_slot.get_theme_constant(&"icon_max_width") == 28, "inventory icon was not constrained to the 56 px item slot", failures)

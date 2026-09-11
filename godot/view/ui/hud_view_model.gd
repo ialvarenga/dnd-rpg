@@ -201,6 +201,14 @@ static func _condition_mechanic(effect: AbilityEffect, defs: DefinitionLibrary) 
 	var suffix := ""
 	if effect.apply_when == &"failed_save":
 		suffix = " on failed save"
+	elif condition != null and condition.next_attack_advantage:
+		suffix = "; next attack has Advantage"
+	elif condition != null and condition.next_attack_disadvantage:
+		suffix = "; next attack has Disadvantage"
+	elif condition != null and condition.next_attack_against_advantage:
+		suffix = "; next attack against target has Advantage"
+	elif condition != null and condition.next_attack_against_disadvantage:
+		suffix = "; next attack against target has Disadvantage"
 	elif condition != null and condition.default_duration_triggers == 1 and condition.default_expiration_timing == &"turn_start":
 		suffix = " until next turn"
 	return label + suffix
@@ -279,6 +287,7 @@ static func narrate(event: Event, state: BattleState, defs: DefinitionLibrary) -
 		&"actor_died": return "%s dies." % actor_name
 		&"condition_added": return "%s gains %s." % [actor_name, String(d.get("condition", "a condition"))]
 		&"condition_removed": return "%s loses %s." % [actor_name, String(d.get("condition", "a condition"))]
+		&"condition_consumed": return "%s's %s benefit is consumed." % [actor_name, String(d.get("condition", "a condition"))]
 		&"interaction_completed": return "%s interacts with %s." % [actor_name, String(d.get("interactable_id", "the object"))]
 		&"skill_check_rolled":
 			var skill := String(d.get("skill", ""))

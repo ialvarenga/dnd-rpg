@@ -61,7 +61,7 @@ func _test_hud_runtime(controller: TestArenaController, hud: HudRoot, player: Ch
 	_expect(hud.hotbar.mouse_filter == Control.MOUSE_FILTER_IGNORE, "empty hotbar space should remain pass-through", failures)
 	for button in hud.hotbar.get_children():
 		_expect((button as Control).mouse_filter == Control.MOUSE_FILTER_STOP, "hotbar buttons must consume clicks before terrain input", failures)
-		_expect((button as Button).get_theme_constant(&"icon_max_width") == 28, "hotbar SVG icons must be constrained to HUD scale", failures)
+		_expect((button as Button).get_theme_constant(&"icon_max_width") == 24, "hotbar SVG icons must be constrained to HUD scale", failures)
 	_expect(end_turn.get_theme_constant(&"icon_max_width") == 28, "end-turn SVG icon must be constrained to HUD scale", failures)
 
 

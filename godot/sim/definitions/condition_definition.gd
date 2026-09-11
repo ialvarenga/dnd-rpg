@@ -21,6 +21,17 @@ extends Resource
 @export var ranged_disadvantage_when_not_close: bool = false
 @export var attacks_against_disadvantage: bool = false
 
+## One-attack modifiers. These are consumed by the first matching attack and
+## are intentionally separate from the persistent modifiers above. The
+## condition instance may optionally restrict the attack to related_actor_id.
+@export var next_attack_advantage: bool = false
+@export var next_attack_disadvantage: bool = false
+@export var next_attack_against_advantage: bool = false
+@export var next_attack_against_disadvantage: bool = false
+## attack_resolved | attack_hit | attack_miss. The default consumes Help/Vex/
+## Sap-style benefits after the relevant attack regardless of its result.
+@export var attack_consumption: StringName = &"attack_resolved"
+
 ## Actor-eligibility / movement modifiers.
 @export var prevents_actions: bool = false
 ## Blocks reactions (opportunity attacks, reaction abilities) while leaving the

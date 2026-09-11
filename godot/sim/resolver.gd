@@ -30,7 +30,9 @@ extends RefCounted
 ## Bump 11: actor-targeted abilities apply their authored target_filter while
 ## preserving the living-target requirement.
 ## Bump 12: exploration_only abilities, including Talk, are rejected in combat.
-const RULES_VERSION: int = 12
+## Bump 13: attack-triggered condition modifiers are resolved and consumed
+## through explicit events after the relevant attack.
+const RULES_VERSION: int = 13
 
 const ATTACK_RANGE_METERS := 1.5
 const THREAT_RANGE_METERS := 1.5
@@ -323,7 +325,11 @@ static func _resolve_ability_command(state: BattleState, cmd: Command, los: LosP
 	var working := state.clone()
 	var source: ActorState = working.actors[actor.id]
 	var working_target: ActorState = working.actors.get(cmd.target_id) as ActorState
-	var context := {"attack_hit": false, "save_succeeded": false}
+	var context := {
+		"attack_hit": false,
+		"save_succeeded": false,
+		"command_metadata": cmd.metadata,
+	}
 	for effect in ability.effects:
 		match effect.type:
 			EFFECT_PERFORM_ATTACK:
@@ -502,12 +508,16 @@ static func _apply_generic_effect(result: ResolutionResult, working: BattleState
 					expiration = condition_definition.default_expiration_timing
 				else:
 					duration = -1
+			var related_actor_id := -1
+			if effect.condition_related_actor_metadata != &"":
+				related_actor_id = int((context.get("command_metadata", {}) as Dictionary).get(effect.condition_related_actor_metadata, -1))
 			_append_and_apply(result, working, Event.create(&"condition_added", {
 				"actor_id": recipient.id,
 				"condition": effect.condition_id,
 				"source_actor_id": actor.id,
 				"remaining_triggers": duration,
 				"expiration_timing": expiration,
+				"related_actor_id": related_actor_id,
 			}))
 		EFFECT_REMOVE_CONDITION:
 			_append_and_apply(result, working, Event.create(&"condition_removed", {"actor_id": recipient.id, "condition": effect.condition_id}))
@@ -581,6 +591,7 @@ static func _resolve_attack_between(working: BattleState, attacker: ActorState, 
 		"critical": critical, "hit": hit, "advantage": attack["advantage"], "disadvantage": attack["disadvantage"],
 		"advantage_sources": attack["advantage_sources"], "disadvantage_sources": attack["disadvantage_sources"], "is_ranged": is_ranged,
 		"cover": cover, "cover_bonus": attack["cover_bonus"],
+		"condition_consumptions": attack["condition_consumptions"].duplicate(true),
 		"action_spent": spends_action, "reaction_spent": spends_reaction,
 	}))
 	working.rng_state = roll_result["next_rng_state"]
@@ -598,8 +609,28 @@ static func _resolve_attack_between(working: BattleState, attacker: ActorState, 
 			_append_and_apply(result, working, Event.create(&"actor_died", {"actor_id": target.id}))
 		elif hp_before - damage <= 0:
 			_append_and_apply(result, working, Event.create(&"actor_downed", {"actor_id": target.id}))
+	for consumption in attack["condition_consumptions"]:
+		if not _should_consume_attack_condition(StringName(str(consumption["consumption"])), hit):
+			continue
+		_append_and_apply(result, working, Event.create(&"condition_consumed", {
+			"actor_id": int(consumption["condition_actor_id"]),
+			"condition_actor_id": int(consumption["condition_actor_id"]),
+			"condition": consumption["condition"],
+			"source_actor_id": int(consumption.get("source_actor_id", -1)),
+			"related_actor_id": int(consumption.get("related_actor_id", -1)),
+			"attack_actor_id": attacker.id,
+			"attack_target_id": target.id,
+			"attack_hit": hit,
+		}))
 	result.next_rng_state = working.rng_state
 	return hit
+
+
+static func _should_consume_attack_condition(consumption: StringName, hit: bool) -> bool:
+	match consumption:
+		&"attack_hit": return hit
+		&"attack_miss": return not hit
+		_: return true
 
 
 ## Rolls the attack d20, twice when the already-evaluated roll mode calls for
@@ -870,7 +901,17 @@ static func apply(state: BattleState, event: Event) -> void:
 				int(event.data.get("source_actor_id", -1)),
 				int(event.data.get("remaining_triggers", -1)),
 				StringName(str(event.data.get("expiration_timing", "none"))),
-			)
+				int(event.data.get("related_actor_id", -1)),
+				)
+		&"condition_consumed":
+			var consumed_actor: ActorState = state.actors[event.data["condition_actor_id"]]
+			var consumed_condition := StringName(str(event.data["condition"]))
+			var consumed_state := consumed_actor.condition_state(consumed_condition)
+			if consumed_state != null and (
+				int(event.data.get("related_actor_id", -1)) < 0
+				or consumed_state.related_actor_id == int(event.data.get("related_actor_id", -1))
+			):
+				consumed_actor.remove_condition(consumed_condition)
 		&"condition_duration_advanced":
 			var duration_actor: ActorState = state.actors[event.data["actor_id"]]
 			var duration_state := duration_actor.condition_state(StringName(str(event.data["condition"])))

@@ -187,7 +187,7 @@ func _narrate_event(event: Event) -> void:
 			if view != null and save_source_view != null and event.data.get("test_type") == &"saving_throw" and bool(event.data.get("success", false)):
 				view.present_resisted()
 				_present_floating_feedback(view, event)
-		&"condition_added", &"condition_removed", &"command_rejected":
+		&"condition_added", &"condition_removed", &"condition_consumed", &"command_rejected":
 			if view != null:
 				if event.type == &"condition_added" and event.data.get("condition") == PRONE_CONDITION:
 					var source_view := get_character_view(int(event.data.get("source_actor_id", -1)))

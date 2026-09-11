@@ -17,7 +17,7 @@ proficiency_bonus = 2
 weapon_proficiencies = Array[StringName]([&"simple", &"martial"])
 saving_throw_proficiencies = Array[StringName]([&"strength", &"constitution"])
 movement_speed = 9.0
-ability_ids = Array[StringName]([&"basic_attack", &"shove", &"dodge", &"dash", &"disengage", &"second_wind"])
+ability_ids = Array[StringName]([&"basic_attack", &"shove", &"dodge", &"dash", &"disengage", &"second_wind", &"help"])
 equipment_slots = {
 &"weapon": &"longsword",
 &"armor": &"chainmail"

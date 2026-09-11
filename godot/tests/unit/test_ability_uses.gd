@@ -97,7 +97,7 @@ static func _test_second_wind_content(failures: Array[String]) -> void:
 	_expect(ability.max_uses == 2 and ability.uses_recharge == &"encounter", "second_wind did not declare two per-encounter uses", failures)
 	var knight := definitions.get_actor(&"knight")
 	_expect(knight != null and knight.ability_ids.has(&"second_wind"), "the knight loadout does not carry Second Wind", failures)
-	_expect(knight != null and knight.ability_ids.size() <= 6, "the knight loadout exceeded the six-slot hotbar", failures)
+	_expect(knight != null and knight.ability_ids.size() <= 7, "the knight loadout exceeded the seven-slot hotbar", failures)
 
 	var state := TestHelpers.make_battle()
 	var actor: ActorState = state.actors[1]

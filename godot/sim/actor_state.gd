@@ -157,13 +157,15 @@ func add_condition(
 	condition_id: StringName,
 	source_actor_id: int = -1,
 	remaining_triggers: int = -1,
-	expiration_timing: StringName = &"none"
+	expiration_timing: StringName = &"none",
+	related_actor_id: int = -1
 ) -> void:
 	var existing := condition_state(condition_id)
 	if existing == null:
-		condition_states.append(ConditionState.create(condition_id, source_actor_id, remaining_triggers, expiration_timing))
+		condition_states.append(ConditionState.create(condition_id, source_actor_id, remaining_triggers, expiration_timing, related_actor_id))
 	else:
 		existing.source_actor_id = source_actor_id
+		existing.related_actor_id = related_actor_id
 		existing.remaining_triggers = remaining_triggers
 		existing.expiration_timing = expiration_timing
 

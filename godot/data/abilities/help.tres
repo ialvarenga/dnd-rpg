@@ -1,0 +1,21 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/ability_definition.gd" id="1"]
+[ext_resource type="Script" path="res://sim/definitions/ability_effect.gd" id="2"]
+
+[sub_resource type="Resource" id="Effect_help"]
+script = ExtResource("2")
+type = &"apply_condition"
+condition_id = &"helped"
+condition_related_actor_metadata = &"against_target_id"
+
+[resource]
+script = ExtResource("1")
+id = &"help"
+display_name = "Help"
+description = "Aid an ally's next attack, granting Advantage against its chosen target."
+costs_action = true
+targeting = &"actor"
+target_filter = &"ally"
+target_range_meters = 1.5
+effects = Array[ExtResource("2")]([SubResource("Effect_help")])

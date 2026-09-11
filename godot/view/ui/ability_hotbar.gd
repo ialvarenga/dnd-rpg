@@ -16,7 +16,7 @@ func set_actions(actions: Array[Dictionary]) -> void:
 	for child in get_children():
 		remove_child(child)
 		child.queue_free()
-	for index in mini(_actions.size(), 6):
+	for index in mini(_actions.size(), 7):
 		var button: AbilityButton = BUTTON_SCENE.instantiate()
 		add_child(button)
 		button.configure(_actions[index], index, icon_set)

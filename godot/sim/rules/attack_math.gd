@@ -136,11 +136,22 @@ static func roll_mode(attacker: ActorState, target: ActorState, defs: Definition
 	var target_is_close := distance <= MELEE_REACH_METERS + RANGE_EPSILON
 	var advantage_sources: Array[Dictionary] = []
 	var disadvantage_sources: Array[Dictionary] = []
-	for condition_id in attacker.condition_ids():
+	var condition_consumptions: Array[Dictionary] = []
+	for condition_state in attacker.condition_states:
+		var condition_id: StringName = condition_state.definition_id
 		var condition := defs.get_condition(condition_id)
-		if condition != null and condition.attack_roll_disadvantage:
+		if condition == null:
+			continue
+		if condition.attack_roll_disadvantage:
 			disadvantage_sources.append(_source(condition_id, attacker.id))
-	for condition_id in target.condition_ids():
+		if condition.next_attack_advantage and _matches_related_actor(condition_state, target.id):
+			advantage_sources.append(_source(condition_id, attacker.id))
+			_append_condition_consumption(condition_consumptions, attacker.id, condition_state, condition)
+		if condition.next_attack_disadvantage and _matches_related_actor(condition_state, target.id):
+			disadvantage_sources.append(_source(condition_id, attacker.id))
+			_append_condition_consumption(condition_consumptions, attacker.id, condition_state, condition)
+	for condition_state in target.condition_states:
+		var condition_id: StringName = condition_state.definition_id
 		var condition := defs.get_condition(condition_id)
 		if condition == null:
 			continue
@@ -148,6 +159,12 @@ static func roll_mode(attacker: ActorState, target: ActorState, defs: Definition
 			advantage_sources.append(_source(condition_id, target.id))
 		if condition.attacks_against_disadvantage or (condition.ranged_disadvantage_when_not_close and is_ranged and not target_is_close):
 			disadvantage_sources.append(_source(condition_id, target.id))
+		if condition.next_attack_against_advantage and _matches_related_actor(condition_state, attacker.id):
+			advantage_sources.append(_source(condition_id, target.id))
+			_append_condition_consumption(condition_consumptions, target.id, condition_state, condition)
+		if condition.next_attack_against_disadvantage and _matches_related_actor(condition_state, attacker.id):
+			disadvantage_sources.append(_source(condition_id, target.id))
+			_append_condition_consumption(condition_consumptions, target.id, condition_state, condition)
 	if is_ranged and distance > normal_range + RANGE_EPSILON:
 		disadvantage_sources.append(_source(SOURCE_LONG_RANGE, attacker.id))
 	if is_ranged and threatened:
@@ -159,7 +176,25 @@ static func roll_mode(attacker: ActorState, target: ActorState, defs: Definition
 		"disadvantage": disadvantage and not advantage,
 		"advantage_sources": advantage_sources,
 		"disadvantage_sources": disadvantage_sources,
+		"condition_consumptions": condition_consumptions,
 	}
+
+
+static func _matches_related_actor(condition_state: ConditionState, actor_id: int) -> bool:
+	return condition_state.related_actor_id < 0 or condition_state.related_actor_id == actor_id
+
+
+static func _append_condition_consumption(consumptions: Array[Dictionary], owner_id: int, condition_state: ConditionState, condition: ConditionDefinition) -> void:
+	for existing in consumptions:
+		if existing["condition_actor_id"] == owner_id and existing["condition"] == condition.id:
+			return
+	consumptions.append({
+		"condition_actor_id": owner_id,
+		"condition": condition.id,
+		"source_actor_id": condition_state.source_actor_id,
+		"related_actor_id": condition_state.related_actor_id,
+		"consumption": condition.attack_consumption,
+	})
 
 
 ## Everything about one attack that is fixed before its d20 is rolled: the

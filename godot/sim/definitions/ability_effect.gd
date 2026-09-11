@@ -20,6 +20,9 @@ extends Resource
 @export var condition_expiration_timing: StringName = &"none"
 ## always | failed_save | successful_save | attack_hit | attack_miss
 @export var apply_when: StringName = &"always"
+## Optional metadata key whose actor id scopes a one-attack condition. An
+## empty key keeps the condition applicable to every matching attack.
+@export var condition_related_actor_metadata: StringName = &""
 
 ## perform_attack: legacy range fallback plus weapon metadata. New definitions
 ## should author AbilityDefinition.target_range_meters.

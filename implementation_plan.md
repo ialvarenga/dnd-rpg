@@ -1,8 +1,8 @@
 # Plano Técnico — RPG Tático 3D em Godot
 
 **Versão:** 3.1
-**Status:** Marcos A–D concluídos (D4.4 adiado); Marco E em andamento (E0 e o
-primeiro item de E1 concluídos).
+**Status:** Marcos A–D concluídos (D4.4 adiado); Marco E em andamento (E0 e os
+dois primeiros itens de E1 concluídos).
 **Princípio condutor:** ter algo **jogável** antes de ter algo **inteligente**
 ou **bonito**.
 
@@ -118,9 +118,12 @@ próxima iteração de IA ainda não começaram.
 
 #### E1 — D&D action vocabulary
 
+**Status:** em andamento — target filters, Help, and the reusable one-attack
+condition primitive are concluídos; weapon masteries and Shove Push remain.
+
 - [x] Add `AbilityDefinition.target_filter` (`hostile`, `ally`, `self`, `any`) to
   Resolver, targeting rules, and planners.
-- Add Help and reusable "next attack against" condition expiration. Use it
+- [x] Add Help and reusable "next attack against" condition expiration. Use it
   for Help, Vex, and Sap.
 - Add data-defined weapon mastery effects: longsword Sap, shortbow Vex,
   dagger Nick, plus Graze and Topple for enemy weapons. Record open content

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ConditionDefinition" format=3]
+
+[ext_resource type="Script" path="res://sim/definitions/condition_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"helped"
+display_name = "Helped"
+tags = Array[StringName]([&"condition.helped"])
+next_attack_advantage = true
+attack_consumption = &"attack_resolved"

@@ -47,9 +47,17 @@ Condition modifiers are explicit typed booleans on `ConditionDefinition`
 `is_conscious()` / `is_prone()` and the resolver's attack-roll advantage
 math now aggregate these flags across an actor's condition ids via
 `DefinitionLibrary.get_default()`, rather than switching on literal ids.
-`ActorState`/`BattleState` still store only condition/ability *ids*
-(`StringName`), never mutable definition objects, matching the existing
-save-by-reference convention.
+One-attack modifiers use the same data contract: `next_attack_advantage` /
+`next_attack_disadvantage` apply to an owner's next attack, while
+`next_attack_against_advantage` / `next_attack_against_disadvantage` apply to
+the next attack against the condition owner. `attack_consumption` selects
+`attack_resolved`, `attack_hit`, or `attack_miss`; Resolver emits a
+`condition_consumed` event only when that outcome matches. Instances may carry
+an optional `related_actor_id` to restrict the matching attack. This is the
+shared primitive used by Help, Vex, and Sap, without any weapon
+mastery-specific Resolver branches. `ActorState`/`BattleState` still store
+only condition/ability *ids* plus serializable instance metadata, never mutable
+definition objects, matching the existing save-by-reference convention.
 
 `DefinitionLibrary.CONTENT_VERSION` and `BattleState.content_version`
 (serialized in `to_dict`/`from_dict`) exist so a future save/load pass (A8)

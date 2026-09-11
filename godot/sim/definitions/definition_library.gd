@@ -32,7 +32,8 @@ extends RefCounted
 ## and base AC. Adds the scimitar and studded leather worn by the chieftain.
 ## Bump 15: actor-targeted abilities author target_filter.
 ## Bump 16: abilities can be marked exploration_only; Talk cannot open in combat.
-const CONTENT_VERSION: int = 16
+## Bump 17: adds Help plus reusable one-attack Help/Vex/Sap condition content.
+const CONTENT_VERSION: int = 17
 
 const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/basic_attack.tres",
@@ -44,6 +45,7 @@ const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/ranged_attack.tres",
 	"res://data/abilities/talk.tres",
 	"res://data/abilities/second_wind.tres",
+	"res://data/abilities/help.tres",
 ]
 
 const CONDITION_MANIFEST: Array[String] = [
@@ -52,6 +54,9 @@ const CONDITION_MANIFEST: Array[String] = [
 	"res://data/conditions/unconscious.tres",
 	"res://data/conditions/dead.tres",
 	"res://data/conditions/dodging.tres",
+	"res://data/conditions/helped.tres",
+	"res://data/conditions/vexed.tres",
+	"res://data/conditions/sapped.tres",
 ]
 
 const ITEM_MANIFEST: Array[String] = [

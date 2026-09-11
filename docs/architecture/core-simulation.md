@@ -389,6 +389,7 @@ reaction_triggered
 
 condition_added
 condition_removed
+condition_consumed
 
 actor_downed
 actor_died

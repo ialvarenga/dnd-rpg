@@ -93,6 +93,15 @@ func _candidate_commands(snapshot: BattleState, actor: ActorState, targets: Arra
 				var attack := Command.create(ability_id, actor.id)
 				attack.target_id = target.id
 				commands.append(attack)
+	for ability_id in ability_ids:
+		var ability := definitions.get_ability(ability_id)
+		if ability == null or ability.targeting != &"actor" or not _has_next_attack_condition_effect(ability, definitions):
+			continue
+		for target in _prioritized_targets(snapshot, actor, ability):
+			if actor.position.distance_to(target.position) <= AbilityTargeting.target_range(definitions, ability.id) + SCORE_EPSILON:
+				var support := Command.create(ability_id, actor.id)
+				support.target_id = target.id
+				commands.append(support)
 	for target in targets:
 		var destination: Variant = _useful_approach_destination(snapshot, actor, target, definitions)
 		if destination != null:
@@ -102,6 +111,18 @@ func _candidate_commands(snapshot: BattleState, actor: ActorState, targets: Arra
 			commands.append(move)
 	commands.append(Command.create(&"end_turn", actor.id))
 	return commands
+
+
+func _has_next_attack_condition_effect(ability: AbilityDefinition, definitions: DefinitionLibrary) -> bool:
+	for effect in ability.effects:
+		if effect.type != &"apply_condition":
+			continue
+		var condition := definitions.get_condition(effect.condition_id)
+		if condition == null:
+			continue
+		if condition.next_attack_advantage or condition.next_attack_disadvantage or condition.next_attack_against_advantage or condition.next_attack_against_disadvantage:
+			return true
+	return false
 
 
 func _has_heal_effect(ability: AbilityDefinition) -> bool:

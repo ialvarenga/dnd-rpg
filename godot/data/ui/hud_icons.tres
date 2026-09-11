@@ -14,6 +14,7 @@
 [ext_resource type="Texture2D" path="res://assets/game_icons/leather-armor.svg" id="13_leather"]
 [ext_resource type="Texture2D" path="res://assets/game_icons/chain-mail.svg" id="14_chainmail"]
 [ext_resource type="Texture2D" path="res://assets/game_icons/healing.svg" id="15_second_wind"]
+[ext_resource type="Texture2D" path="res://assets/game_icons/shaking-hands.svg" id="16_help"]
 
 [resource]
 script = ExtResource("1_icon_set")
@@ -26,6 +27,7 @@ textures = {
 &"disengage": ExtResource("8_disengage"),
 &"quaff_healing_potion": ExtResource("10_potion"),
 &"second_wind": ExtResource("15_second_wind"),
+&"help": ExtResource("16_help"),
 &"end_turn": ExtResource("4_end_turn"),
 &"longsword": ExtResource("11_longsword"),
 &"shortbow": ExtResource("5_ranged"),
