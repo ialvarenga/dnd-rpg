@@ -30,7 +30,9 @@ extends RefCounted
 ## Bump 14: actors author weapon proficiencies instead of attack/damage/AC
 ## numbers; items author SRD weapon categories, properties, armor categories,
 ## and base AC. Adds the scimitar and studded leather worn by the chieftain.
-const CONTENT_VERSION: int = 14
+## Bump 15: actor-targeted abilities author target_filter.
+## Bump 16: abilities can be marked exploration_only; Talk cannot open in combat.
+const CONTENT_VERSION: int = 16
 
 const ABILITY_MANIFEST: Array[String] = [
 	"res://data/abilities/basic_attack.tres",
@@ -126,6 +128,9 @@ static func load_from_manifests(ability_paths: Array[String], condition_paths: A
 func add_ability(definition: AbilityDefinition) -> void:
 	if String(definition.id) == "":
 		push_error("AbilityDefinition missing stable id")
+		return
+	if definition.target_filter not in AbilityTargeting.TARGET_FILTERS:
+		push_error("AbilityDefinition '%s' has unknown target_filter '%s'" % [definition.id, definition.target_filter])
 		return
 	if abilities.has(definition.id):
 		push_error("Duplicate AbilityDefinition id: %s" % definition.id)

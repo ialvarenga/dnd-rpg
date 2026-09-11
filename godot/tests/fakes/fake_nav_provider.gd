@@ -4,9 +4,11 @@ extends NavProvider
 var blocked_destinations: Array[Vector3] = []
 var paths: Dictionary = {}
 var snapped_destinations: Dictionary = {}
+var find_path_calls: int = 0
 
 
 func find_path(from: Vector3, to: Vector3) -> PackedVector3Array:
+	find_path_calls += 1
 	if blocked_destinations.has(to):
 		return PackedVector3Array()
 	var key := _key(from, to)

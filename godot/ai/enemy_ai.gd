@@ -87,7 +87,8 @@ func _candidate_commands(snapshot: BattleState, actor: ActorState, targets: Arra
 			continue
 		var attack_range := AbilityTargeting.attack_range(definitions, ability_id)
 		var is_ranged := _ability_is_ranged(ability) or EquipmentRules.is_ranged_weapon(actor, definitions)
-		for target in targets:
+		var ability_targets := _prioritized_targets(snapshot, actor, ability)
+		for target in ability_targets:
 			if actor.position.distance_to(target.position) <= attack_range + SCORE_EPSILON and (is_ranged or _has_formation_space(snapshot, actor)):
 				var attack := Command.create(ability_id, actor.id)
 				attack.target_id = target.id
@@ -124,13 +125,17 @@ func _ability_is_ranged(ability: AbilityDefinition) -> bool:
 	return false
 
 
-func _prioritized_targets(snapshot: BattleState, actor: ActorState) -> Array[ActorState]:
+func _prioritized_targets(snapshot: BattleState, actor: ActorState, ability: AbilityDefinition = null) -> Array[ActorState]:
 	var targets: Array[ActorState] = []
 	for actor_id_variant in snapshot.actors.keys():
 		if not snapshot.active_combatant_ids.is_empty() and not snapshot.active_combatant_ids.has(int(actor_id_variant)):
 			continue
 		var target: ActorState = snapshot.actors[actor_id_variant]
-		if target.side != actor.side and target.is_alive():
+		# A null ability is the generic enemy approach query, whose existing
+		# behavior is nearest living opposing actor. Actor-targeted abilities
+		# always take the data-defined filter path below.
+		var is_valid := target.side != actor.side and target.is_alive() if ability == null else AbilityTargeting.is_valid_target(actor, target, ability)
+		if is_valid:
 			targets.append(target)
 	targets.sort_custom(func(a: ActorState, b: ActorState) -> bool:
 		var a_distance := actor.position.distance_to(a.position)

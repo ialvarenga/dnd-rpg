@@ -27,7 +27,10 @@ extends RefCounted
 ## ability scores, proficiency, and equipment instead of authored per actor;
 ## unarmed strikes deal 1 + Strength; attack events name their modifier parts
 ## and every advantage/disadvantage source.
-const RULES_VERSION: int = 10
+## Bump 11: actor-targeted abilities apply their authored target_filter while
+## preserving the living-target requirement.
+## Bump 12: exploration_only abilities, including Talk, are rejected in combat.
+const RULES_VERSION: int = 12
 
 const ATTACK_RANGE_METERS := 1.5
 const THREAT_RANGE_METERS := 1.5
@@ -303,7 +306,7 @@ static func _resolve_ability_command(state: BattleState, cmd: Command, los: LosP
 	if ability.targeting == &"actor":
 		if not state.actors.has(cmd.target_id): return _rejected(result, cmd, RejectionReasonRules.UNKNOWN_TARGET)
 		target = state.actors[cmd.target_id]
-		if cmd.target_id == cmd.actor_id or actor.side == target.side or not target.is_alive():
+		if not AbilityTargetingRules.is_valid_target(actor, target, ability):
 			return _rejected(result, cmd, RejectionReasonRules.INVALID_TARGET)
 		var authored_range := AbilityTargetingRules.target_range(definitions, ability.id)
 		var command_range := maxf(authored_range, float(cmd.metadata.get("range_meters", authored_range)))

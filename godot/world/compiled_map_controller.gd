@@ -145,9 +145,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		if _targeting_ability_id != &"":
 			_clear_interactable_highlight()
-			_update_target_highlight(_hostile_at_screen_position(event.position))
+			_update_target_highlight(_hostile_at_screen_position(event.position, _targeting_ability_id))
 			return
-		var hovered := _hostile_at_screen_position(event.position)
+		var hovered := _hostile_at_screen_position(event.position, TALK_ABILITY)
 		if hovered != null and _dialog_id_for_actor(hovered.actor_id) != &"":
 			_clear_interactable_highlight()
 			_clear_path_preview()
@@ -176,7 +176,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_cancel_pending_interaction()
 		_pending_targeted_action.clear()
 		_clear_interactable_highlight()
-		var hostile := _hostile_at_screen_position(event.position)
+		var hovered_ability := _targeting_ability_id if _targeting_ability_id != &"" else TALK_ABILITY
+		var hostile := _hostile_at_screen_position(event.position, hovered_ability)
 		if _targeting_ability_id != &"":
 			if hostile != null:
 				_submit_targeted_ability(hostile.actor_id)
@@ -532,12 +533,19 @@ func _start_encounter(start: Command, capture_checkpoint: bool) -> void:
 		_save_game(AUTOSAVE_SLOT, "Autosaved at encounter start.")
 
 
-func _hostile_at_screen_position(screen_position: Vector2) -> CharacterView:
+func _hostile_at_screen_position(screen_position: Vector2, ability_id: StringName = &"") -> CharacterView:
 	var query := PhysicsRayQueryParameters3D.create(camera.project_ray_origin(screen_position), camera.project_ray_origin(screen_position) + camera.project_ray_normal(screen_position) * 250.0, 2)
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
 	var collider := hit.get("collider") as Node
-	if collider is CharacterView and (collider as CharacterView).actor_id != 1:
-		return collider as CharacterView
+	if collider is CharacterView and (collider as CharacterView).actor_id != character.actor_id:
+		var view := collider as CharacterView
+		if ability_id == &"":
+			return view
+		var source: ActorState = battle_state.actors.get(character.actor_id)
+		var target: ActorState = battle_state.actors.get(view.actor_id)
+		var ability := DefinitionLibrary.get_default().get_ability(ability_id)
+		if AbilityTargetingRules.is_valid_target(source, target, ability):
+			return view
 	return null
 
 
@@ -1027,6 +1035,13 @@ func _submit_targeted_ability(target_id: int) -> void:
 	_cancel_pending_interaction()
 	_clear_interactable_highlight()
 	var ability_id := _targeting_ability_id
+	var definitions := DefinitionLibrary.get_default()
+	var ability := definitions.get_ability(ability_id)
+	var source: ActorState = battle_state.actors.get(character.actor_id)
+	var target: ActorState = battle_state.actors.get(target_id)
+	if not AbilityTargetingRules.is_valid_target(source, target, ability):
+		_clear_targeting()
+		return
 	var plan = session.plan_targeted_ability(character.actor_id, ability_id, target_id)
 	if not plan.can_execute or not plan.requires_movement:
 		var immediate: ResolutionResult = session.submit_ability(character.actor_id, ability_id, target_id, Vector3.INF)

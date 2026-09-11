@@ -16,4 +16,5 @@ costs_action = false
 targeting = &"actor"
 target_range_meters = 3.0
 usable_in_exploration = true
+exploration_only = true
 effects = Array[ExtResource("2")]([SubResource("Effect_talk")])

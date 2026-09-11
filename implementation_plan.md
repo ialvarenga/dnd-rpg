@@ -1,7 +1,8 @@
 # Plano Técnico — RPG Tático 3D em Godot
 
 **Versão:** 3.1
-**Status:** Marcos A–D concluídos (D4.4 adiado); Marco E em andamento (E0 concluído).
+**Status:** Marcos A–D concluídos (D4.4 adiado); Marco E em andamento (E0 e o
+primeiro item de E1 concluídos).
 **Princípio condutor:** ter algo **jogável** antes de ter algo **inteligente**
 ou **bonito**.
 
@@ -117,7 +118,7 @@ próxima iteração de IA ainda não começaram.
 
 #### E1 — D&D action vocabulary
 
-- Add `AbilityDefinition.target_filter` (`hostile`, `ally`, `self`, `any`) to
+- [x] Add `AbilityDefinition.target_filter` (`hostile`, `ally`, `self`, `any`) to
   Resolver, targeting rules, and planners.
 - Add Help and reusable "next attack against" condition expiration. Use it
   for Help, Vex, and Sap.

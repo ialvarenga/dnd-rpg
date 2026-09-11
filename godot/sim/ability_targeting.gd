@@ -7,6 +7,27 @@ extends RefCounted
 ## fallback for existing/custom definitions.
 
 const RANGE_EPSILON := 0.001
+const TARGET_FILTERS: Array[StringName] = [&"hostile", &"ally", &"self", &"any"]
+
+
+## Pure actor-target legality shared by Resolver, previews, planners, and AI.
+## "hostile" is opposing side, deliberately independent from ActorState's
+## social disposition. All filters require a living target; downed-target
+## abilities such as stabilize and potion use belong to Marco F.
+static func is_valid_target(actor: ActorState, target: ActorState, ability: AbilityDefinition) -> bool:
+	if actor == null or target == null or ability == null or not target.is_alive():
+		return false
+	match ability.target_filter:
+		&"hostile":
+			return actor.id != target.id and actor.side != target.side
+		&"ally":
+			return actor.id != target.id and actor.side == target.side
+		&"self":
+			return actor.id == target.id
+		&"any":
+			return true
+		_:
+			return false
 
 
 static func target_range(definitions: DefinitionLibrary, ability_id: StringName) -> float:

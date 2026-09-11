@@ -17,6 +17,13 @@ extends Resource
 ## none | actor | ground_point
 @export var targeting: StringName = &"none"
 
+## actor target relationship: hostile | ally | self | any. "hostile" means
+## the opposing combat side, not hostile disposition, so Talk still works on
+## neutral enemy-side NPCs. Applies only when targeting == &"actor"; every
+## actor target must still be alive. Downed-target abilities (stabilize,
+## potion) are deferred to Marco F.
+@export var target_filter: StringName = &"hostile"
+
 ## Maximum distance from the actor to an actor/ground target. A negative value
 ## preserves legacy definitions whose perform_attack effect owns the range.
 ## Keeping range at the ability boundary lets movement-assisted targeting work
@@ -27,6 +34,11 @@ extends Resource
 ## stays behind the combat turn-ownership gate, so this defaults false and
 ## existing content keeps its exact rejection order.
 @export var usable_in_exploration: bool = false
+
+## True when this ability is only legal during exploration. This is separate
+## from usable_in_exploration because most abilities are combat actions that
+## may optionally be exposed outside combat; Talk is exploration-only.
+@export var exploration_only: bool = false
 
 ## Activations available before a recharge. -1 means unlimited, which is what
 ## every ability without a per-rest budget wants, so existing content keeps its

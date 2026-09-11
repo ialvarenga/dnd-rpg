@@ -278,6 +278,7 @@ static func _test_talk_ability_is_authored_for_exploration(failures: Array[Strin
 	if talk == null:
 		return
 	_expect(talk.usable_in_exploration, "talk must be usable outside combat or an NPC can never be addressed", failures)
+	_expect(talk.exploration_only, "talk must be exploration-only and unavailable once combat starts", failures)
 	_expect(not talk.costs_action, "talking should not cost an action", failures)
 	_expect(is_zero_approx(talk.movement_cost), "talk must not declare a movement cost, or drifting movement would start rejecting it", failures)
 	_expect(talk.targeting == &"actor" and is_equal_approx(talk.target_range_meters, 3.0), "talk should be an actor-targeted ability with an authored range", failures)

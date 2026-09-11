@@ -81,6 +81,17 @@ static func _test_action_tooltip_projection(failures: Array[String]) -> void:
 	var talk_availability := ActionAvailability.evaluate(state, 1, &"talk", definitions)
 	var talk := HudViewModel.action_presentation(knight, talk_availability, definitions)
 	_expect(String(talk.get("tooltip", "")).contains("No action cost") and String(talk.get("tooltip", "")).contains("Range 3 m") and String(talk.get("tooltip", "")).contains("Exploration"), "talk tooltip omitted its cost, range, or phase", failures)
+	var ally_ability := AbilityDefinition.new()
+	ally_ability.id = &"ally_action"
+	ally_ability.targeting = &"actor"
+	ally_ability.target_filter = &"ally"
+	ally_ability.target_range_meters = 3.0
+	definitions.add_ability(ally_ability)
+	var ally_presentation := HudViewModel.action_presentation(knight, ActionAvailability.evaluate(state, 1, ally_ability.id, definitions), definitions)
+	_expect(String(ally_presentation.get("tooltip", "")).contains("Target: ally"), "non-hostile target filter was missing from the HUD tooltip", failures)
+	ally_ability.target_filter = &"self"
+	var self_presentation := HudViewModel.action_presentation(knight, ActionAvailability.evaluate(state, 1, ally_ability.id, definitions), definitions)
+	_expect(String(self_presentation.get("tooltip", "")).contains("Self"), "self target filter was missing from the HUD tooltip", failures)
 
 	var potion_availability := ActionAvailability.evaluate(state, 1, &"quaff_healing_potion", definitions)
 	var potion := HudViewModel.action_presentation(knight, potion_availability, definitions)

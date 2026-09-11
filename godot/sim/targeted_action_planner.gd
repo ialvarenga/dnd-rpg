@@ -34,6 +34,11 @@ static func plan(state: BattleState, actor_id: int, ability_id: StringName, targ
 	if ability.targeting != &"actor":
 		result.rejection_reason = RejectionReasonRules.INVALID_TARGET
 		return result
+	var actor: ActorState = state.actors[actor_id]
+	var target: ActorState = state.actors[target_id]
+	if not AbilityTargetingRules.is_valid_target(actor, target, ability):
+		result.rejection_reason = RejectionReasonRules.INVALID_TARGET
+		return result
 
 	var ability_command := _ability_command(actor_id, ability_id, target_id)
 	var immediate := Resolver.resolve(state, ability_command, nav, los, defs)
@@ -49,12 +54,10 @@ static func plan(state: BattleState, actor_id: int, ability_id: StringName, targ
 	var target_range := AbilityTargetingRules.target_range(defs, ability_id)
 	if target_range < 0.0:
 		return result
-	var actor: ActorState = state.actors[actor_id]
 	# Exploration moves ignore the combat movement budget (Resolver does too),
 	# so walking up to talk is limited only by navigation, like interactables.
 	if state.phase == &"combat" and actor.movement_remaining <= EPSILON:
 		return result
-	var target: ActorState = state.actors[target_id]
 	var best := _best_direct_path_candidate(state, ability_command, actor, target, nav, los, defs)
 	var radial := _best_radial_candidate(state, ability_command, actor, target, target_range, nav, los, defs)
 	if not radial.is_empty() and (best.is_empty() or float(radial["movement_cost"]) < float(best["movement_cost"])):

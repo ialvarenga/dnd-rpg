@@ -13,6 +13,7 @@ static func run() -> Dictionary:
 	_test_plan_reserves_declared_ability_movement_cost(failures)
 	_test_planning_does_not_mutate_state(failures)
 	_test_exploration_ignores_combat_movement_budget(failures)
+	_test_illegal_target_rejects_before_navigation(failures)
 	return {"name": "unit/test_targeted_action_planner", "failures": failures}
 
 
@@ -96,6 +97,22 @@ static func _test_planning_does_not_mutate_state(failures: Array[String]) -> voi
 	var before := JSON.stringify(state.stable_snapshot())
 	TargetedActionPlannerScript.plan(state, 1, &"basic_attack", 2, FakeNavProvider.new(), FakeLosProvider.new())
 	_expect(JSON.stringify(state.stable_snapshot()) == before, "targeted-action planning mutated BattleState", failures)
+
+
+static func _test_illegal_target_rejects_before_navigation(failures: Array[String]) -> void:
+	var definitions := DefinitionLibrary.new()
+	var ally_ability := AbilityDefinition.new()
+	ally_ability.id = &"ally_action"
+	ally_ability.targeting = &"actor"
+	ally_ability.target_filter = &"ally"
+	ally_ability.target_range_meters = 10.0
+	ally_ability.costs_action = true
+	definitions.add_ability(ally_ability)
+	var state := TestHelpers.make_battle()
+	var nav := FakeNavProvider.new()
+	var plan = TargetedActionPlannerScript.plan(state, 1, ally_ability.id, 2, nav, FakeLosProvider.new(), definitions)
+	_expect(not plan.can_execute and plan.rejection_reason == &"invalid_target", "planner did not reject an illegal ally target with INVALID_TARGET", failures)
+	_expect(nav.find_path_calls == 0, "planner searched for movement before rejecting an illegal target", failures)
 
 
 static func _expect(condition: bool, message: String, failures: Array[String]) -> void:

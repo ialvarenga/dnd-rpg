@@ -147,6 +147,8 @@ static func action_mechanics(actor: ActorState, ability: AbilityDefinition, defs
 
 	if not has_attack and ability.targeting == &"actor" and ability.target_range_meters >= 0.0:
 		mechanics.append("Range %s m" % format_number(AbilityTargetingRules.target_range(defs, ability.id)))
+	if ability.targeting == &"actor" and ability.target_filter != &"hostile":
+		mechanics.append("Self" if ability.target_filter == &"self" else "Target: %s" % ability.target_filter)
 	if has_self_effect and ability.targeting == &"none":
 		mechanics.insert(1, "Self")
 	if ability.usable_in_exploration:

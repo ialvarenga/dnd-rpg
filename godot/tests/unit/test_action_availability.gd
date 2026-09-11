@@ -22,6 +22,7 @@ static func run() -> Dictionary:
 	_test_unknown_ability_agrees_with_resolver(failures)
 	_test_unknown_actor_is_unavailable(failures)
 	_test_exploration_ability_is_available_and_agrees_with_resolver(failures)
+	_test_exploration_only_ability_is_rejected_in_combat(failures)
 	return {"name": "unit/test_action_availability", "failures": failures}
 
 
@@ -138,6 +139,13 @@ static func _test_exploration_ability_is_available_and_agrees_with_resolver(fail
 
 	var dash_evaluation := ActionAvailability.evaluate(state, 1, &"dash")
 	_assert_agrees_with_resolver(state, 1, &"dash", dash_evaluation, &"not_in_combat", failures)
+
+
+static func _test_exploration_only_ability_is_rejected_in_combat(failures: Array[String]) -> void:
+	var state := TestHelpers.make_battle()
+	(state.actors[2] as ActorState).dialog_id = &"emberwatch_toll"
+	var talk_evaluation := ActionAvailability.evaluate(state, 1, &"talk")
+	_assert_agrees_with_resolver(state, 1, &"talk", talk_evaluation, &"combat_already_active", failures)
 
 
 static func _assert_agrees_with_resolver(state: BattleState, actor_id: int, ability_id: StringName, evaluation: Dictionary, expected_reason: StringName, failures: Array[String], defs: DefinitionLibrary = null) -> void:

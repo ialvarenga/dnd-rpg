@@ -26,10 +26,13 @@ static func rejection_for_combat_turn(state: BattleState, actor_id: int) -> Stri
 
 ## Phase gate for an ability command. An ability that declares
 ## usable_in_exploration resolves outside combat without owning a turn;
-## everything else falls through to the shared combat turn gate unchanged.
+## exploration_only abilities are rejected once combat starts; everything else
+## falls through to the shared combat turn gate unchanged.
 static func rejection_for_ability(state: BattleState, actor_id: int, ability: AbilityDefinition) -> StringName:
 	if state.phase == EncounterRules.EXPLORATION and ability != null and ability.usable_in_exploration:
 		return &""
+	if state.phase == EncounterRules.COMBAT and ability != null and ability.exploration_only:
+		return RejectionReasonRules.COMBAT_ALREADY_ACTIVE
 	return rejection_for_combat_turn(state, actor_id)
 
 

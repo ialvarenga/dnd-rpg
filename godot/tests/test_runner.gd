@@ -11,6 +11,7 @@ const TestGameplayOutcomeRuntimeScript = preload("res://tests/integration/test_g
 const TestConsumablesScript = preload("res://tests/unit/test_consumables.gd")
 const TestAbilityUsesScript = preload("res://tests/unit/test_ability_uses.gd")
 const TestTargetedActionPlannerScript = preload("res://tests/unit/test_targeted_action_planner.gd")
+const TestAbilityTargetingScript = preload("res://tests/unit/test_ability_targeting.gd")
 const TestInteractableActionPlannerScript = preload("res://tests/unit/test_interactable_action_planner.gd")
 const TestPathPreviewRendererScript = preload("res://tests/unit/test_path_preview_renderer.gd")
 const TestDialogRuntimeScript = preload("res://tests/integration/test_dialog_runtime.gd")
@@ -21,7 +22,7 @@ func _init() -> void:
 
 func _run() -> void:
 	var failure_count := 0
-	var suites := [TestSimulation, TestDefinitions, TestActionAvailability, TestHudViewModel, TestCharacterSheetViewModel, TestEquipment, TestAttackMath, TestGameplayRules, TestInteractables, TestAssetCatalog, TestTerrainProviderScript, TestMapCompilerScript, TestCharacterAnimatorScript, TestEnemyAI, TestConsumablesScript, TestAbilityUsesScript, TestTargetedActionPlannerScript, TestInteractableActionPlannerScript, TestPathPreviewRendererScript, TestAbilityCheck, TestDialogSession, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion, TestEncounterSession]
+	var suites := [TestSimulation, TestDefinitions, TestActionAvailability, TestHudViewModel, TestCharacterSheetViewModel, TestEquipment, TestAttackMath, TestGameplayRules, TestInteractables, TestAssetCatalog, TestTerrainProviderScript, TestMapCompilerScript, TestCharacterAnimatorScript, TestEnemyAI, TestConsumablesScript, TestAbilityUsesScript, TestTargetedActionPlannerScript, TestAbilityTargetingScript, TestInteractableActionPlannerScript, TestPathPreviewRendererScript, TestAbilityCheck, TestDialogSession, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion, TestEncounterSession]
 	for suite in suites:
 		var report: Dictionary = suite.run()
 		var failures: Array = report["failures"]
