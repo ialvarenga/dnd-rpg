@@ -191,7 +191,7 @@ func _initialize_exploration_state() -> void:
 	var knight := DefinitionLibrary.get_default().get_actor(&"knight")
 	var player := ActorState.from_definition(knight, character.actor_id, &"heroes", character.global_position)
 	battle_state.actors[player.id] = player
-	character.held_weapon_model_path = Equipment.held_weapon_model_path(player, DefinitionLibrary.get_default())
+	character.configure_weapon_presentation(Equipment.weapon(player, DefinitionLibrary.get_default()))
 
 	var chest := InteractableState.new()
 	chest.id = "chest_a"

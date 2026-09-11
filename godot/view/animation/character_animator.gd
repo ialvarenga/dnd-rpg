@@ -14,6 +14,9 @@ signal state_finished(state: StringName)
 @export var animation_set: ActorAnimationSet = DEFAULT_ANIMATION_SET
 @export_range(0.0, 1.0, 0.01) var blend_seconds := 0.15
 
+## Set by CharacterView from the wielded weapon: a ranged wielder's combat
+## stance is the bow at the ready rather than the melee guard.
+var ranged_stance := false
 var current_state: StringName = &"idle"
 var current_clip: StringName = &""
 var _players: Array[AnimationPlayer] = []
@@ -61,7 +64,7 @@ func present_attack() -> void:
 
 
 func present_combat_ready() -> void:
-	request_state(&"combat_ready")
+	request_state(&"ranged_ready" if ranged_stance and has_clip(&"ranged_ready") else &"combat_ready")
 
 
 func present_combat_ended() -> void:

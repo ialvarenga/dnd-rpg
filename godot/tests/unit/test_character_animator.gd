@@ -11,15 +11,32 @@ static func run() -> Dictionary:
 	_test_no_available_clip_is_safe(failures)
 	_test_state_finished_reports_only_the_current_clip(failures)
 	_test_hold_pose_relabels_without_changing_clip(failures)
+	_test_ranged_stance_selects_bow_ready(failures)
 	return {"name": "unit/test_character_animator", "failures": failures}
+
+
+static func _test_ranged_stance_selects_bow_ready(failures: Array[String]) -> void:
+	var melee := _animator_with(PackedStringArray(["Idle", "CombatReady", "BowReady"]))
+	melee.present_combat_ready()
+	_expect(melee.current_state == &"combat_ready" and melee.current_clip == &"CombatReady", "a melee wielder should keep the melee guard as its combat stance", failures)
+	var archer := _animator_with(PackedStringArray(["Idle", "CombatReady", "BowReady"]))
+	archer.ranged_stance = true
+	archer.present_combat_ready()
+	_expect(archer.current_state == &"ranged_ready" and archer.current_clip == &"BowReady", "a ranged wielder should hold the bow at the ready in combat", failures)
+	var archer_without_clip := _animator_with(PackedStringArray(["Idle", "CombatReady"]))
+	archer_without_clip.ranged_stance = true
+	archer_without_clip.present_combat_ready()
+	_expect(archer_without_clip.current_state == &"combat_ready", "a ranged wielder without the bow clip should fall back to the melee guard", failures)
 
 
 static func _test_stable_verb_vocabulary(failures: Array[String]) -> void:
 	var animation_set := ActorAnimationSet.new()
-	for verb in [&"idle", &"locomotion", &"jump", &"crouch", &"dodge", &"interact", &"attack", &"combat_ready", &"block", &"hit", &"death", &"shove", &"knockdown", &"prone", &"stand_up"]:
+	for verb in [&"idle", &"locomotion", &"jump", &"crouch", &"dodge", &"interact", &"attack", &"combat_ready", &"block", &"hit", &"death", &"shove", &"knockdown", &"prone", &"stand_up", &"ranged_ready", &"ranged_draw", &"ranged_release"]:
 		_expect(animation_set.clip_for(verb) != &"", "animation set has no clip mapping for %s" % verb, failures)
 	_expect(animation_set.clip_for(&"unknown") == &"", "animation set mapped an unknown verb", failures)
 	_expect(is_equal_approx(animation_set.speed_scale_for(&"stand_up"), 1.4) and is_equal_approx(animation_set.speed_scale_for(&"idle"), 1.0), "animation set did not scale only the stand-up clip", failures)
+	_expect(animation_set.clip_for(&"ranged_ready") == &"Ranged_Bow_Idle" and animation_set.clip_for(&"ranged_draw") == &"Ranged_Bow_Draw" and animation_set.clip_for(&"ranged_release") == &"Ranged_Bow_Release", "the ranged verbs should map to KayKit's bow clips", failures)
+	_expect(animation_set.animation_library_paths.has("res://assets/kaykit_character_animations/Rig_Medium_CombatRanged.glb"), "the default set should load the CombatRanged library for the bow clips", failures)
 
 
 static func _test_state_finished_reports_only_the_current_clip(failures: Array[String]) -> void:
@@ -85,6 +102,7 @@ static func _animator_with(clips: PackedStringArray) -> CharacterAnimator:
 	animation_set.death = &"Death"
 	animation_set.knockdown = &"Fall"
 	animation_set.prone = &"Lie"
+	animation_set.ranged_ready = &"BowReady"
 	var player := AnimationPlayer.new()
 	var library := AnimationLibrary.new()
 	for clip in clips:

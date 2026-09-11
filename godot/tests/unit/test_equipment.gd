@@ -13,7 +13,26 @@ static func run() -> Dictionary:
 	_test_equipment_resolves_slots_to_items(failures)
 	_test_resolver_attack_uses_derived_statistics(failures)
 	_test_actor_content_serialization_round_trip(failures)
+	_test_weapon_presentation_follows_the_wielded_item(failures)
 	return {"name": "unit/test_equipment", "failures": failures}
+
+
+## The bow, its hand, and its arrow belong to the shortbow, so only its wielder
+## (the archer stat block) shows them; melee weapons stay in the right hand
+## with nothing to shoot.
+static func _test_weapon_presentation_follows_the_wielded_item(failures: Array[String]) -> void:
+	var defs := DefinitionLibrary.get_default()
+	var archer := ActorState.from_definition(defs.get_actor(&"archer"), 3, &"enemies", Vector3.ZERO)
+	var bow := Equipment.weapon(archer, defs)
+	_expect(bow != null and bow.id == &"shortbow", "the archer should wield the shortbow", failures)
+	if bow != null:
+		_expect(bow.held_bone == &"handslot.l", "the bow should be held in the off (left) hand", failures)
+		# KayKit authors the bow with its string away from the hand's palm side.
+		_expect(bow.held_rotation_degrees == Vector3(0, 0, 180), "the bow should be rolled so its string faces the archer", failures)
+		_expect(ResourceLoader.exists(bow.held_model_path) and ResourceLoader.exists(bow.projectile_model_path), "the shortbow's held bow and arrow models should exist", failures)
+	for item_id in [&"longsword", &"scimitar", &"dagger"]:
+		var item := defs.get_item(item_id)
+		_expect(item.held_bone == &"handslot.r" and item.projectile_model_path.is_empty() and ResourceLoader.exists(item.held_model_path), "%s should be held in the right hand with no projectile" % item_id, failures)
 
 
 static func _test_default_library_has_ordered_knight_content(failures: Array[String]) -> void:

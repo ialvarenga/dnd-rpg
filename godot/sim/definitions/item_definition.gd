@@ -40,6 +40,17 @@ extends Resource
 ## Weapon-only, presentation-facing. Path to the held model CharacterView
 ## attaches to the wielder's hand bone; empty means nothing is shown.
 @export var held_model_path: String = ""
+## Weapon-only, presentation-facing. Skeleton bone the held model attaches to:
+## a bow sits in the off hand (&"handslot.l"), everything else in the right.
+@export var held_bone: StringName = &"handslot.r"
+## Weapon-only, presentation-facing. Rotation applied to the held model on its
+## bone, for props authored facing the other way (the bow's string must face
+## the archer, not the target).
+@export var held_rotation_degrees: Vector3 = Vector3.ZERO
+## Weapon-only, presentation-facing. Model EventPlayer flies from the wielder
+## to the target of a ranged attack; empty means the attack is narrated with
+## no projectile.
+@export var projectile_model_path: String = ""
 
 ## Ability granted when this carried item is used. Empty means the item is not
 ## consumable.

@@ -30,26 +30,37 @@ extends Resource
 @export var knockdown: StringName = &"Death_A"
 @export var prone: StringName = &"Lie_Idle"
 @export var stand_up: StringName = &"Lie_StandUp"
+# A ranged-weapon wielder (CharacterAnimator.ranged_stance) holds the bow at
+# the ready instead of Melee_Blocking, then draws and looses to attack.
+@export var ranged_ready: StringName = &"Ranged_Bow_Idle"
+@export var ranged_draw: StringName = &"Ranged_Bow_Draw"
+@export var ranged_release: StringName = &"Ranged_Bow_Release"
 
 ## Seconds from the start of the shove clip to the moment it makes contact, so
 ## the target's fall (or stagger) lands on the push rather than with its windup.
 @export_range(0.0, 2.0, 0.01) var shove_impact_seconds := 0.4
 
+## Seconds from the start of the (speed-scaled) draw clip to the loose, when
+## the release clip starts and the arrow leaves the bow.
+@export_range(0.0, 2.0, 0.01) var ranged_release_seconds := 0.8
+
 ## verb -> playback speed. Lie_StandUp is paced for idle scenes, which is too
-## slow to hold up an enemy's turn.
-@export var clip_speed_scales: Dictionary = {&"stand_up": 1.4}
+## slow to hold up an enemy's turn; the bow clips likewise, so a shot takes
+## about as long as a sword swing.
+@export var clip_speed_scales: Dictionary = {&"stand_up": 1.4, &"ranged_draw": 1.6, &"ranged_release": 1.4}
 
 ## MovementBasic ships Jump_Idle even when the optional General idle clip is
 ## unavailable.  Individual actor resources can replace this safe fallback.
 @export var idle_fallback_clips := PackedStringArray(["Jump_Idle", "T-Pose"])
 
-## Paths are loaded lazily.  General, MovementAdvanced, CombatMelee, and
-## Simulation are optional KayKit downloads, so their absence must not make a
-## scene invalid.
+## Paths are loaded lazily.  General, MovementAdvanced, CombatMelee,
+## CombatRanged, and Simulation are optional KayKit downloads, so their
+## absence must not make a scene invalid.
 @export var animation_library_paths := PackedStringArray([
 	"res://assets/kaykit_character_animations/Rig_Medium_General.glb",
 	"res://assets/kaykit_character_animations/Rig_Medium_MovementAdvanced.glb",
 	"res://assets/kaykit_character_animations/Rig_Medium_CombatMelee.glb",
+	"res://assets/kaykit_character_animations/Rig_Medium_CombatRanged.glb",
 	"res://assets/kaykit_character_animations/Rig_Medium_MovementBasic.glb",
 	"res://assets/kaykit_character_animations/Rig_Medium_Simulation.glb",
 ])
@@ -72,6 +83,9 @@ func clip_for(verb: StringName) -> StringName:
 		&"knockdown": return knockdown
 		&"prone": return prone
 		&"stand_up": return stand_up
+		&"ranged_ready": return ranged_ready
+		&"ranged_draw": return ranged_draw
+		&"ranged_release": return ranged_release
 	return &""
 
 

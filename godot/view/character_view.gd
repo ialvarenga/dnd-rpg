@@ -5,23 +5,42 @@ extends CharacterBody3D
 ## never creates commands, performs navigation queries, or mutates BattleState.
 
 signal movement_completed(actor_id: int)
+## The bow was loosed: EventPlayer launches the arrow from projectile_origin().
+signal ranged_released(actor_id: int)
 
 @export var actor_id := 1
 @export var movement_speed := 5.0
 @export var turn_speed := 12.0
 @export var target_tolerance := 0.3
 
-## Set by the composition root (from Equipment.held_weapon_model_path) before
+## Set by the composition root through configure_weapon_presentation() before
 ## this node's deferred _initialize_animations runs. Empty means unarmed.
 ## The model itself is only attached once combat starts (present_combat_ready).
 @export var held_weapon_model_path: String = ""
+@export var held_weapon_bone: StringName = &"handslot.r"
+@export var held_weapon_rotation_degrees: Vector3 = Vector3.ZERO
+## The wielded weapon's projectile (the shortbow's arrow). Empty means a ranged
+## attack from this actor is narrated like a melee one, with nothing in flight.
+@export var projectile_model_path: String = ""
+@export var wields_ranged_weapon := false
 
-const WEAPON_HAND_BONE := &"handslot.r"
 const ATTACK_SOUNDS: Array[AudioStream] = [
 	preload("res://assets/sfx/combat/Sword_Swing_Long_01.ogg"),
 	preload("res://assets/sfx/combat/Sword_Swing_Long_03.ogg"),
 	preload("res://assets/sfx/combat/Sword_Swing_Long_05.ogg"),
 ]
+const BOW_DRAW_SOUNDS: Array[AudioStream] = [
+	preload("res://assets/sfx/combat/Bow_Draw_01.ogg"),
+	preload("res://assets/sfx/combat/Bow_Draw_03.ogg"),
+	preload("res://assets/sfx/combat/Bow_Draw_05.ogg"),
+]
+const BOW_RELEASE_SOUNDS: Array[AudioStream] = [
+	preload("res://assets/sfx/combat/Bow_Release_01.ogg"),
+	preload("res://assets/sfx/combat/Bow_Release_03.ogg"),
+	preload("res://assets/sfx/combat/Bow_Release_05.ogg"),
+]
+## Where the arrow leaves from when no bow is attached to aim it from.
+const PROJECTILE_FALLBACK_HEIGHT := 0.4
 const HURT_SOUNDS: Array[AudioStream] = [
 	preload("res://assets/sfx/characters/hurt_01.mp3"),
 	preload("res://assets/sfx/characters/hurt_05.mp3"),
@@ -47,8 +66,11 @@ var _knockdown_pending := false
 var _stand_pending := false
 var _standing_up := false
 var _pending_movement: Dictionary = {}
+# A bow is being drawn; cleared at the loose (_on_release).
+var _shot_pending := false
 # Bumped whenever presentation is reset or ends in death, so a delayed impact
-# scheduled against the previous presentation never fires into the new one.
+# or loose scheduled against the previous presentation never fires into the
+# new one.
 var _presentation_generation := 0
 @onready var animator: CharacterAnimator = get_node_or_null("CharacterAnimator") as CharacterAnimator
 @onready var combat_sfx: AudioStreamPlayer3D = get_node_or_null("CombatSfx") as AudioStreamPlayer3D
@@ -108,7 +130,7 @@ func is_moving() -> bool:
 ## must wait for: a walk, or a fall/stand-up an attack clip would stomp. Lying
 ## still in the prone loop is not busy -- an actor with no Speed stays there.
 func is_presentation_busy() -> bool:
-	return is_moving() or _knockdown_pending or _stand_pending or _standing_up or (animator != null and animator.current_state == &"knockdown")
+	return is_moving() or _shot_pending or _knockdown_pending or _stand_pending or _standing_up or (animator != null and animator.current_state == &"knockdown")
 
 
 func synchronize_to_authoritative_position(position: Vector3) -> void:
@@ -186,9 +208,23 @@ func _initialize_animations() -> void:
 		return
 	_model_root = model_root
 	if animator != null:
+		animator.ranged_stance = wields_ranged_weapon
 		animator.configure_model(model_root)
 		if _locomotion.is_active():
 			animator.locomotion_started()
+
+
+## Everything the view shows of a weapon comes from the wielded item, never
+## from the character art: a MapSpec archetype only picks the model, and the
+## same model can carry any stat block. `weapon` may be null (unarmed).
+func configure_weapon_presentation(weapon: ItemDefinition) -> void:
+	held_weapon_model_path = weapon.held_model_path if weapon != null else ""
+	held_weapon_bone = weapon.held_bone if weapon != null else &"handslot.r"
+	held_weapon_rotation_degrees = weapon.held_rotation_degrees if weapon != null else Vector3.ZERO
+	projectile_model_path = weapon.projectile_model_path if weapon != null else ""
+	wields_ranged_weapon = weapon != null and weapon.is_ranged_weapon
+	if animator != null:
+		animator.ranged_stance = wields_ranged_weapon
 
 
 ## Sheathed until combat starts: called from present_combat_ready() rather
@@ -206,9 +242,12 @@ func _attach_held_weapon() -> void:
 		return
 	var attachment := BoneAttachment3D.new()
 	attachment.name = "HeldWeapon"
-	attachment.bone_name = WEAPON_HAND_BONE
+	attachment.bone_name = held_weapon_bone
 	skeleton.add_child(attachment)
-	attachment.add_child(weapon_scene.instantiate())
+	var weapon_model := weapon_scene.instantiate()
+	if weapon_model is Node3D:
+		(weapon_model as Node3D).rotation_degrees = held_weapon_rotation_degrees
+	attachment.add_child(weapon_model)
 	_weapon_attached = true
 
 
@@ -233,6 +272,51 @@ func present_attack() -> void:
 	if animator != null:
 		animator.present_attack()
 	_play_combat_sound(ATTACK_SOUNDS)
+
+
+## Only an actor whose weapon has a projectile model can narrate a shot; any
+## other ranged attack (say, a thrown dagger) keeps the melee presentation.
+func can_present_ranged_attack() -> bool:
+	return not projectile_model_path.is_empty() and not _is_dead
+
+
+## The simulation already settled the attack. Turn toward the target, draw,
+## and loose after ranged_release_seconds, emitting ranged_released so the
+## EventPlayer can launch the arrow. Without an animator it looses at once.
+func present_ranged_attack(target_position: Vector3) -> void:
+	if not can_present_ranged_attack():
+		return
+	_shot_pending = true
+	# A prone archer still looses, but a standing draw would pop it upright.
+	if not _is_grounded():
+		_face_toward(target_position)
+		if animator != null:
+			animator.present(&"ranged_draw")
+	_play_combat_sound(BOW_DRAW_SOUNDS)
+	var delay := animator.animation_set.ranged_release_seconds if animator != null and animator.animation_set != null else 0.0
+	if delay <= 0.0 or not is_inside_tree():
+		_on_release(_presentation_generation)
+		return
+	get_tree().create_timer(delay).timeout.connect(_on_release.bind(_presentation_generation))
+
+
+## Where the arrow leaves from: the bow hand once the bow is attached.
+func projectile_origin() -> Vector3:
+	var skeleton := _model_root.find_child("Skeleton3D", true, false) as Skeleton3D if _model_root != null else null
+	var attachment := skeleton.find_child("HeldWeapon", true, false) as Node3D if skeleton != null else null
+	if attachment != null:
+		return attachment.global_position
+	return global_position + Vector3.UP * PROJECTILE_FALLBACK_HEIGHT
+
+
+func _on_release(generation: int) -> void:
+	if generation != _presentation_generation or _is_dead:
+		return
+	_shot_pending = false
+	if animator != null and not _is_grounded():
+		animator.present(&"ranged_release")
+	_play_combat_sound(BOW_RELEASE_SOUNDS)
+	ranged_released.emit(actor_id)
 
 
 func present_combat_ready() -> void:
@@ -336,6 +420,8 @@ func _is_grounded() -> bool:
 
 func _clear_knockdown_sequence() -> void:
 	_presentation_generation += 1
+	# The generation bump orphans a pending loose too.
+	_shot_pending = false
 	_is_prone = false
 	_knockdown_pending = false
 	_stand_pending = false
@@ -379,6 +465,10 @@ func _on_animator_state_finished(state: StringName) -> void:
 			_on_knockdown_landed()
 		&"stand_up":
 			_finish_stand_up()
+		&"ranged_release":
+			# Settle back into the bow at the ready once the follow-through ends.
+			if _in_combat and animator != null and not _is_grounded():
+				animator.present_combat_ready()
 
 
 func _on_knockdown_landed() -> void:

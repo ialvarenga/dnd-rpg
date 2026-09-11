@@ -36,7 +36,10 @@ adapted; see `reuse-audit.md` for the immutable source and decision.
   standalone sound-effect redistribution.
 - Files used: `Sword_Swing_Long_01.ogg`, `Sword_Swing_Long_03.ogg`, and
   `Sword_Swing_Long_05.ogg`, copied unmodified into
-  `godot/assets/sfx/combat/` for the basic-attack presentation.
+  `godot/assets/sfx/combat/` for the basic-attack presentation;
+  `Bow_Draw_01.ogg`, `Bow_Draw_03.ogg`, `Bow_Draw_05.ogg`,
+  `Bow_Release_01.ogg`, `Bow_Release_03.ogg`, and `Bow_Release_05.ogg`, copied
+  unmodified into the same folder for the ranged-attack draw and loose.
 
 ### Hurt Sound Effects (C6)
 
@@ -107,10 +110,10 @@ them by stable UI id; no icon is gameplay authority.
 - Author: Kay Lousberg, www.kaylousberg.com
 - License: CC0 1.0 (Creative Commons Zero / public domain).
 - Files used: `Rig_Medium_MovementBasic.glb`, `Rig_Medium_CombatMelee.glb`,
-  `Rig_Medium_General.glb`, `Rig_Medium_MovementAdvanced.glb`, and
-  `Rig_Medium_Simulation.glb`, copied unmodified into
-  `godot/assets/kaykit_character_animations/` (only the Simulation import
-  settings loop `Lie_Idle`). On the
+  `Rig_Medium_General.glb`, `Rig_Medium_MovementAdvanced.glb`,
+  `Rig_Medium_Simulation.glb`, and `Rig_Medium_CombatRanged.glb`, copied
+  unmodified into `godot/assets/kaykit_character_animations/` (only the import
+  settings loop `Lie_Idle` and `Ranged_Bow_Idle`). On the
   compatible `Rig_Medium` skeleton used by the knight/raider: `Walking_A`
   plays while a character follows a resolved movement path;
   `Melee_1H_Attack_Slice_Horizontal` plays after a resolved basic attack;
@@ -118,7 +121,9 @@ them by stable UI id; no icon is gameplay authority.
   narrates a missed incoming attack; `Melee_Blocking` is the weapon-ready
   pose entered when combat starts. A Shove plays `Melee_Block_Attack`; its
   target falls with `Death_A`, lies in `Lie_Idle` while Prone, and gets up
-  with `Lie_StandUp`.
+  with `Lie_StandUp`. A ranged-weapon wielder idles in `Ranged_Bow_Idle`
+  during combat and narrates a ranged attack with `Ranged_Bow_Draw` then
+  `Ranged_Bow_Release`.
 - This shared animation library is not a placeable catalog asset, so its audit
   record lives here rather than in `assets.csv`.
 
@@ -155,4 +160,12 @@ them by stable UI id; no icon is gameplay authority.
   `BoneAttachment3D`. The models are visual only; combat statistics come from
   the item definitions. Not a placeable catalog asset, so its audit record
   lives here rather than in `assets.csv`.
+- Ranged props `bow_withString.gltf`/`.bin` and `arrow_bow.gltf`/`.bin`
+  (+ `ranger_texture.png`, which both reference), from the FREE archive's
+  `Assets/gltf/`, copied unmodified into
+  `godot/assets/kaykit_adventurers_weapons/`. The shortbow's wielder (the
+  `archer` stat block, dressed as `Ranger.glb` on `test_map`) holds the bow on
+  `handslot.l`; `arrow_bow` is the visual-only projectile tweened from the bow
+  to the target. `quiver.gltf` is deliberately not copied: `Ranger.glb`
+  already carries its own `Ranger_Quiver` mesh.
 - See `assets.csv` for the full per-asset audit trail of the character models.

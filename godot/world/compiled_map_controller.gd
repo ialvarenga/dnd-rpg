@@ -136,7 +136,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		# move or attack from the world below it does not.
 		get_viewport().set_input_as_handled()
 		return
-	if battle_state.phase == &"combat" and character.is_presentation_busy():
+	if battle_state.phase == &"combat" and _presentation_busy(character):
 		# The simulation commits movement immediately, while the CharacterView
 		# catches up over several frames. Keep combat input behind that visual
 		# barrier so an attack cannot appear to land from the old position.
@@ -229,7 +229,7 @@ func _setup_player() -> void:
 	var knight := DefinitionLibrary.get_default().get_actor(&"knight")
 	var actor := ActorState.from_definition(knight, 1, &"heroes", character.global_position)
 	battle_state.actors[1] = actor
-	character.held_weapon_model_path = Equipment.held_weapon_model_path(actor, DefinitionLibrary.get_default())
+	character.configure_weapon_presentation(Equipment.weapon(actor, DefinitionLibrary.get_default()))
 	_attach_world_health_bar(character)
 
 
@@ -396,7 +396,7 @@ func _setup_hostiles(spec: Dictionary) -> void:
 		hostile_actor.disposition = StringName(str(raw_actor.get("initial_disposition", "hostile")))
 		hostile_actor.dialog_id = StringName(str(raw_actor.get("dialog", "")))
 		battle_state.actors[actor_id] = hostile_actor
-		hostile.held_weapon_model_path = Equipment.held_weapon_model_path(hostile_actor, definitions)
+		hostile.configure_weapon_presentation(Equipment.weapon(hostile_actor, definitions))
 		_attach_world_health_bar(hostile)
 		actor_id += 1
 
@@ -506,10 +506,17 @@ func _check_hostile_detection() -> void:
 				return
 
 
+## A view still catching up to the simulation (walking, falling, drawing) or
+## an arrow still in flight: the next command waits for either, so nothing is
+## narrated out of order.
+func _presentation_busy(view: CharacterView) -> bool:
+	return (view != null and view.is_presentation_busy()) or (event_player != null and event_player.is_busy())
+
+
 func _take_enemy_turn() -> void:
 	var actor_id := battle_state.current_actor_id()
 	var hostile_view := hostile_views.get(actor_id) as CharacterView
-	if hostile_view == null or hostile_view.is_presentation_busy():
+	if hostile_view == null or _presentation_busy(hostile_view):
 		# Authoritative movement is applied before its presentation completes.
 		# Do not resolve the enemy's next action against that still-distant view,
 		# nor attack while its turn-start stand-up is still playing.
@@ -759,7 +766,7 @@ func _setup_music(settings: Dictionary) -> void:
 
 
 func _on_hud_ability_requested(ability_id: StringName) -> void:
-	if character != null and character.is_presentation_busy():
+	if _presentation_busy(character):
 		return
 	_cancel_pending_interaction()
 	_pending_targeted_action.clear()
@@ -778,7 +785,7 @@ func _on_hud_ability_requested(ability_id: StringName) -> void:
 
 
 func _on_inventory_item_requested(item_id: StringName) -> void:
-	if character != null and character.is_presentation_busy():
+	if _presentation_busy(character):
 		return
 	_cancel_pending_interaction()
 	_pending_targeted_action.clear()
@@ -791,7 +798,7 @@ func _on_inventory_item_requested(item_id: StringName) -> void:
 
 
 func _on_hud_end_turn_requested() -> void:
-	if character != null and character.is_presentation_busy():
+	if _presentation_busy(character):
 		return
 	_cancel_pending_interaction()
 	_clear_interactable_highlight()
@@ -1030,7 +1037,7 @@ func _encounter_id_for_actor(actor_id: int) -> String:
 
 
 func _submit_targeted_ability(target_id: int) -> void:
-	if character.is_presentation_busy() or not battle_state.actors.has(character.actor_id) or not battle_state.actors.has(target_id):
+	if _presentation_busy(character) or not battle_state.actors.has(character.actor_id) or not battle_state.actors.has(target_id):
 		return
 	_cancel_pending_interaction()
 	_clear_interactable_highlight()
