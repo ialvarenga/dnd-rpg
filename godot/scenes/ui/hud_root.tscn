@@ -12,6 +12,8 @@
 [ext_resource type="PackedScene" path="res://view/ui/outcome_overlay.tscn" id="12_outcome"]
 [ext_resource type="PackedScene" path="res://view/ui/dialog_panel.tscn" id="13_dialog"]
 [ext_resource type="PackedScene" path="res://view/ui/character_sheet.tscn" id="14_sheet"]
+[ext_resource type="Texture2D" path="res://assets/game_icons/gear-hammer.svg" id="15_gear"]
+[ext_resource type="Texture2D" path="res://assets/game_icons/info.svg" id="16_info"]
 
 [sub_resource type="StyleBoxTexture" id="StyleBox_hud_panel"]
 texture = ExtResource("8_panel")
@@ -19,8 +21,6 @@ texture_margin_left = 8.0
 texture_margin_top = 8.0
 texture_margin_right = 8.0
 texture_margin_bottom = 8.0
-
-[sub_resource type="ButtonGroup" id="TabGroup"]
 
 [node name="HudRoot" type="CanvasLayer"]
 script = ExtResource("1_root")
@@ -89,8 +89,24 @@ theme_override_constants/separation = 14
 [node name="ActorPortrait" parent="Margin/Layout" instance=ExtResource("2_portrait")]
 size_flags_vertical = 4
 
-[node name="ResourcePips" parent="Margin/Layout" instance=ExtResource("3_pips")]
+[node name="MovementControls" type="VBoxContainer" parent="Margin/Layout"]
 size_flags_vertical = 4
+alignment = 2
+theme_override_constants/separation = 2
+
+[node name="Character" type="Button" parent="Margin/Layout/MovementControls"]
+theme_type_variation = &"CircleButton"
+mouse_filter = 0
+focus_mode = 0
+custom_minimum_size = Vector2(28, 28)
+icon = ExtResource("16_info")
+icon_alignment = 1
+theme_override_constants/icon_max_width = 14
+tooltip_text = "Character (C) · Inventory (I)"
+
+[node name="ResourcePips" parent="Margin/Layout/MovementControls" instance=ExtResource("3_pips")]
+size_flags_vertical = 4
+alignment = 1
 
 [node name="HotbarPanel" type="PanelContainer" parent="Margin/Layout"]
 size_flags_vertical = 4
@@ -106,7 +122,7 @@ theme_override_constants/margin_bottom = 6
 theme_override_constants/separation = 4
 
 [node name="Groups" type="HBoxContainer" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows"]
-theme_override_constants/separation = 8
+theme_override_constants/separation = 2
 
 [node name="AbilityHotbar" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups" instance=ExtResource("4_hotbar")]
 
@@ -115,36 +131,36 @@ theme_override_constants/separation = 8
 [node name="SpellSlots" type="GridContainer" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups"]
 mouse_filter = 2
 columns = 3
-theme_override_constants/h_separation = 4
-theme_override_constants/v_separation = 4
+theme_override_constants/h_separation = 2
+theme_override_constants/v_separation = 2
 
 [node name="Slot1" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
-custom_minimum_size = Vector2(56, 56)
+custom_minimum_size = Vector2(48, 48)
 disabled = true
 tooltip_text = "Spells — not yet implemented"
 
 [node name="Slot2" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
-custom_minimum_size = Vector2(56, 56)
+custom_minimum_size = Vector2(48, 48)
 disabled = true
 tooltip_text = "Spells — not yet implemented"
 
 [node name="Slot3" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
-custom_minimum_size = Vector2(56, 56)
+custom_minimum_size = Vector2(48, 48)
 disabled = true
 tooltip_text = "Spells — not yet implemented"
 
 [node name="Slot4" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
-custom_minimum_size = Vector2(56, 56)
+custom_minimum_size = Vector2(48, 48)
 disabled = true
 tooltip_text = "Spells — not yet implemented"
 
 [node name="Slot5" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
-custom_minimum_size = Vector2(56, 56)
+custom_minimum_size = Vector2(48, 48)
 disabled = true
 tooltip_text = "Spells — not yet implemented"
 
 [node name="Slot6" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/SpellSlots"]
-custom_minimum_size = Vector2(56, 56)
+custom_minimum_size = Vector2(48, 48)
 disabled = true
 tooltip_text = "Spells — not yet implemented"
 
@@ -152,82 +168,51 @@ tooltip_text = "Spells — not yet implemented"
 
 [node name="ItemSlots" type="GridContainer" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups"]
 mouse_filter = 2
-columns = 2
-theme_override_constants/h_separation = 4
-theme_override_constants/v_separation = 4
+columns = 3
+theme_override_constants/h_separation = 2
+theme_override_constants/v_separation = 2
 
 [node name="ItemSlot1" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
-custom_minimum_size = Vector2(56, 56)
+custom_minimum_size = Vector2(48, 48)
 expand_icon = true
 disabled = true
-theme_override_constants/icon_max_width = 28
+theme_override_constants/icon_max_width = 24
 tooltip_text = "Items — not yet implemented"
 
 [node name="ItemSlot2" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
-custom_minimum_size = Vector2(56, 56)
+custom_minimum_size = Vector2(48, 48)
 expand_icon = true
 disabled = true
-theme_override_constants/icon_max_width = 28
+theme_override_constants/icon_max_width = 24
 tooltip_text = "Items — not yet implemented"
 
 [node name="ItemSlot3" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
-custom_minimum_size = Vector2(56, 56)
+custom_minimum_size = Vector2(48, 48)
 expand_icon = true
 disabled = true
-theme_override_constants/icon_max_width = 28
+theme_override_constants/icon_max_width = 24
 tooltip_text = "Items — not yet implemented"
 
 [node name="ItemSlot4" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
-custom_minimum_size = Vector2(56, 56)
+custom_minimum_size = Vector2(48, 48)
 expand_icon = true
 disabled = true
-theme_override_constants/icon_max_width = 28
+theme_override_constants/icon_max_width = 24
 tooltip_text = "Items — not yet implemented"
 
-[node name="Tabs" type="HBoxContainer" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows"]
-alignment = 1
-theme_override_constants/separation = 4
+[node name="ItemSlot5" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
+custom_minimum_size = Vector2(48, 48)
+expand_icon = true
+disabled = true
+theme_override_constants/icon_max_width = 24
+tooltip_text = "Items — not yet implemented"
 
-[node name="TabComum" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Tabs"]
-custom_minimum_size = Vector2(70, 22)
-theme_type_variation = &"HudTab"
-toggle_mode = true
-button_group = SubResource("TabGroup")
-text = "Comum"
-tooltip_text = "Category filters — coming soon"
-
-[node name="TabMago" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Tabs"]
-custom_minimum_size = Vector2(70, 22)
-theme_type_variation = &"HudTab"
-toggle_mode = true
-button_group = SubResource("TabGroup")
-text = "Mago"
-tooltip_text = "Category filters — coming soon"
-
-[node name="TabItens" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Tabs"]
-custom_minimum_size = Vector2(70, 22)
-theme_type_variation = &"HudTab"
-toggle_mode = true
-button_group = SubResource("TabGroup")
-text = "Itens"
-tooltip_text = "Category filters — coming soon"
-
-[node name="TabPassivas" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Tabs"]
-custom_minimum_size = Vector2(70, 22)
-theme_type_variation = &"HudTab"
-toggle_mode = true
-button_group = SubResource("TabGroup")
-text = "Passivas"
-tooltip_text = "Category filters — coming soon"
-
-[node name="TabPersonalizado" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Tabs"]
-custom_minimum_size = Vector2(88, 22)
-theme_type_variation = &"HudTab"
-toggle_mode = true
-button_pressed = true
-button_group = SubResource("TabGroup")
-text = "Personalizado"
-tooltip_text = "Current loadout"
+[node name="ItemSlot6" type="Button" parent="Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/ItemSlots"]
+custom_minimum_size = Vector2(48, 48)
+expand_icon = true
+disabled = true
+theme_override_constants/icon_max_width = 24
+tooltip_text = "Items — not yet implemented"
 
 [node name="EndTurn" type="Button" parent="Margin/Layout"]
 theme_type_variation = &"CircleButton"
@@ -239,20 +224,23 @@ icon_alignment = 1
 theme_override_constants/icon_max_width = 28
 tooltip_text = "End Turn (Space)"
 
-[node name="Character" type="Button" parent="Margin/Layout"]
-theme_type_variation = &"CircleButton"
-text = "CHAR"
-mouse_filter = 0
-focus_mode = 0
-custom_minimum_size = Vector2(48, 48)
-size_flags_vertical = 4
-tooltip_text = "Character (C) · Inventory (I)"
+[node name="TopRightControls" type="HBoxContainer" parent="Margin"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -48.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = 48.0
+grow_horizontal = 0
+theme_override_constants/separation = 6
 
-[node name="Settings" type="Button" parent="Margin/Layout"]
+[node name="Settings" type="Button" parent="Margin/TopRightControls"]
 theme_type_variation = &"CircleButton"
-text = "MENU"
-custom_minimum_size = Vector2(48, 48)
-size_flags_vertical = 4
+icon = ExtResource("15_gear")
+icon_alignment = 1
+theme_override_constants/icon_max_width = 18
+custom_minimum_size = Vector2(32, 32)
 tooltip_text = "Pause menu"
 
 [node name="CharacterSheet" parent="." instance=ExtResource("14_sheet")]

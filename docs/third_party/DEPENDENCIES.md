@@ -42,7 +42,7 @@ and `NOTICE.md` for attribution.
 | Name | Version / pin | License | Why used | Update strategy |
 | --- | --- | --- | --- | --- |
 | Kenney UI Pack - Adventure | 1.0 (2024) | CC0 1.0 | One nine-sliced brown panel texture for the actor HUD panel | Re-download from the source archive; keep only HUD textures assigned in scenes |
-| game-icons.net | `game-icons/icons` `82d948812bfe3f269ef8f731dcdb07b08160edc4` | CC BY 3.0 | Thirteen view-side SVG icons for HUD ability, item, and end-turn presentation | Re-audit each icon's artist, URL, and license before adding or replacing an SVG |
+| game-icons.net | `game-icons/icons` `82d948812bfe3f269ef8f731dcdb07b08160edc4` | CC BY 3.0 | Sixteen view-side SVG icons for HUD ability, item, end-turn, character, and settings presentation | Re-audit each icon's artist, URL, and license before adding or replacing an SVG |
 
 The C5 UI assets are presentation-only. `godot/data/ui/hud_icons.tres` maps
 stable view ids to textures; it is not gameplay content and is never read by

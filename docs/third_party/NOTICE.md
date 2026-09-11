@@ -104,6 +104,8 @@ them by stable UI id; no icon is gameplay authority.
 | `godot/assets/game_icons/leather-armor.svg` | Leather Armor | Delapouite | https://game-icons.net/1x1/delapouite/leather-armor.html |
 | `godot/assets/game_icons/chain-mail.svg` | Chain Mail | Willdabeast | https://game-icons.net/1x1/willdabeast/chain-mail.html |
 | `godot/assets/game_icons/healing.svg` | Healing | Delapouite | https://game-icons.net/1x1/delapouite/healing.html |
+| `godot/assets/game_icons/gear-hammer.svg` | Gear Hammer | Lorc | https://game-icons.net/1x1/lorc/gear-hammer.html |
+| `godot/assets/game_icons/info.svg` | Info | Delapouite | https://game-icons.net/1x1/delapouite/info.html |
 
 ### KayKit Character Animations 1.1
 

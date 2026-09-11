@@ -54,7 +54,7 @@ func _test_hud_runtime(controller: TestArenaController, hud: HudRoot, player: Ch
 	var before := (controller.battle_state.actors[player.actor_id] as ActorState).movement_remaining
 	controller.session.submit_move(player.actor_id, player.global_position + Vector3(0.5, 0.0, 0.0), player.global_position)
 	await get_tree().process_frame
-	var move: ProgressBar = hud.get_node("Margin/Layout/ResourcePips/Move")
+	var move: ProgressBar = hud.get_node("Margin/Layout/MovementControls/ResourcePips/Move")
 	_expect(move.value <= 100.0 and (controller.battle_state.actors[player.actor_id] as ActorState).movement_remaining <= before, "HUD did not sync pips after state_changed", failures)
 	var end_turn: Button = hud.get_node("Margin/Layout/EndTurn")
 	_expect(end_turn.mouse_filter == Control.MOUSE_FILTER_STOP, "HUD controls must consume clicks before terrain input", failures)

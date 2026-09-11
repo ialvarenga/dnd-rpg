@@ -25,7 +25,7 @@ var session: EncounterSession
 var actor_id := -1
 
 @onready var portrait: ActorPortrait = $Margin/Layout/ActorPortrait
-@onready var resources: ResourcePips = $Margin/Layout/ResourcePips
+@onready var resources: ResourcePips = $Margin/Layout/MovementControls/ResourcePips
 @onready var hotbar: AbilityHotbar = $Margin/Layout/HotbarPanel/PanelMargin/Rows/Groups/AbilityHotbar
 @onready var turns: TurnOrderBar = $Margin/TopBar/TurnOrder
 @onready var conditions: ConditionStrip = $Margin/TopBar/Conditions
@@ -44,9 +44,9 @@ func _ready() -> void:
 	hotbar.ability_requested.connect(func(id): ability_requested.emit(id))
 	$Margin/Layout/EndTurn.icon = hotbar.icon_set.texture_for(&"end_turn") if hotbar.icon_set != null else null
 	$Margin/Layout/EndTurn.pressed.connect(func(): end_turn_requested.emit())
-	$Margin/Layout/Settings.disabled = false
-	$Margin/Layout/Settings.pressed.connect(_toggle_pause_menu)
-	$Margin/Layout/Character.pressed.connect(func(): toggle_character_sheet(CharacterSheetScript.TAB_STATS))
+	$Margin/TopRightControls/Settings.disabled = false
+	$Margin/TopRightControls/Settings.pressed.connect(_toggle_pause_menu)
+	$Margin/Layout/MovementControls/Character.pressed.connect(func(): toggle_character_sheet(CharacterSheetScript.TAB_STATS))
 	$PauseMenu/Panel/Rows/Resume.pressed.connect(func(): _set_pause_menu_visible(false))
 	$PauseMenu/Panel/Rows/QuickSave.pressed.connect(func(): quicksave_requested.emit())
 	$PauseMenu/Panel/Rows/QuickLoad.pressed.connect(func(): quickload_requested.emit())
