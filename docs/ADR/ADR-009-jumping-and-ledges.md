@@ -119,6 +119,12 @@ character sheet all read it.
 - `CharacterView` flies the shared `JumpArc` with collision bypassed, using
   KayKit's `Jump_Start` / looping `Jump_Idle` / `Jump_Land`. A hard landing
   plays the existing knockdown instead.
+- `JumpArc` is a ballistic parabola sized by the leap rather than a fixed hop:
+  its apex is 0.25 m per metre jumped (floor 0.6 m, ceiling 1.6 m), a climb
+  passes 0.5 m over the lip it lands on, a drop pushes off 0.3 m above the
+  ledge it leaves, and `duration` is the free-fall time for that apex under a
+  stylised 17.6 m/s². The original fixed 0.4 m apex, flown in 0.44 s, left the
+  KayKit rigs — two heads tall on 0.53 m legs — shuffling rather than leaping.
 - Takeoff, landing, and hard-landing sounds play on a separate `MovementSfx`
   player, so the thud survives the hurt grunt.
 - The path preview draws jumps as arcs and labels the first hurtful one, for

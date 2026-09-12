@@ -17,6 +17,11 @@ signal state_finished(state: StringName)
 ## Set by CharacterView from the wielded weapon: a ranged wielder's combat
 ## stance is the bow at the ready rather than the melee guard.
 var ranged_stance := false
+## Metres per second the view travels while moving, set by CharacterView from
+## its own movement_speed. It selects the locomotion clip and its playback speed
+## (ActorAnimationSet.locomotion_for). Zero means unknown: clips play at 1x, as
+## they did before the view had a speed to match.
+var locomotion_speed_mps := 0.0
 var current_state: StringName = &"idle"
 var current_clip: StringName = &""
 var _players: Array[AnimationPlayer] = []
@@ -102,8 +107,12 @@ func hold_pose(state: StringName) -> void:
 
 
 func request_state(verb: StringName) -> void:
-	var requested_clip := animation_set.clip_for(verb) if animation_set != null else &""
-	var resolved := _resolve_clip(requested_clip)
+	# Locomotion resolves through the speed the view moves at; every other verb
+	# maps to one authored clip.
+	var locomotion_choice := _resolve_locomotion() if verb == &"locomotion" else {}
+	var resolved: Dictionary = locomotion_choice.get("resolved", {})
+	if resolved.is_empty():
+		resolved = _resolve_clip(animation_set.clip_for(verb) if animation_set != null else &"")
 	var resolved_state := verb
 	if resolved.is_empty() and verb != &"idle":
 		resolved = _resolve_idle_clip()
@@ -121,11 +130,27 @@ func request_state(verb: StringName) -> void:
 	# AnimationPlayer keys may be qualified (for example "movement/Walk"),
 	# while this component exposes the data-facing clip name to views and tests.
 	current_clip = StringName(String(selected_clip).get_file())
-	_play(selected, selected_clip, animation_set.speed_scale_for(resolved_state) if animation_set != null else 1.0)
+	var speed_scale := animation_set.speed_scale_for(resolved_state) if animation_set != null else 1.0
+	if resolved_state == &"locomotion" and locomotion_choice.has("speed_scale"):
+		speed_scale = float(locomotion_choice["speed_scale"])
+	_play(selected, selected_clip, speed_scale)
 
 
 func has_clip(verb: StringName) -> bool:
 	return not _resolve_clip(animation_set.clip_for(verb) if animation_set != null else &"").is_empty()
+
+
+## The best-fitting locomotion clip this rig ships, with the playback speed that
+## keeps its feet with the ground: {resolved, speed_scale}, or empty when the
+## view has no speed yet or the rig ships neither clip.
+func _resolve_locomotion() -> Dictionary:
+	if animation_set == null or locomotion_speed_mps <= 0.0:
+		return {}
+	for candidate in animation_set.locomotion_for(locomotion_speed_mps):
+		var resolved := _resolve_clip(candidate["clip"])
+		if not resolved.is_empty():
+			return {"resolved": resolved, "speed_scale": candidate["speed_scale"]}
+	return {}
 
 
 func _resolve_idle_clip() -> Dictionary:

@@ -241,7 +241,7 @@ func _test_knockdown_sequence(controller: TestArenaController, player: Character
 func _configure_knockdown_clips(view: CharacterView) -> AnimationPlayer:
 	var clip_player := AnimationPlayer.new()
 	var library := AnimationLibrary.new()
-	for clip in PackedStringArray(["Idle_A", "Walking_A", "Melee_Blocking", "Melee_Block_Attack", "Death_A", "Lie_Idle", "Lie_StandUp", "Hit_A"]):
+	for clip in PackedStringArray(["Idle_A", "Walking_A", "Running_A", "Melee_Blocking", "Melee_Block_Attack", "Death_A", "Lie_Idle", "Lie_StandUp", "Hit_A"]):
 		var animation := Animation.new()
 		animation.length = 0.1
 		animation.loop_mode = Animation.LOOP_LINEAR if clip == "Lie_Idle" else Animation.LOOP_NONE
@@ -263,7 +263,7 @@ func _wait_for_animator_state(view: CharacterView, state: StringName, max_frames
 func _configure_event_animation_clips(animator: CharacterAnimator) -> void:
 	var player := AnimationPlayer.new()
 	var library := AnimationLibrary.new()
-	for clip in PackedStringArray(["Idle_A", "Walking_A", "Melee_1H_Attack_Slice_Horizontal", "Hit_A", "Interact", "Death_A"]):
+	for clip in PackedStringArray(["Idle_A", "Walking_A", "Running_A", "Melee_1H_Attack_Slice_Horizontal", "Hit_A", "Interact", "Death_A"]):
 		library.add_animation(clip, Animation.new())
 	player.add_animation_library(&"test", library)
 	animator.configure_players([player])

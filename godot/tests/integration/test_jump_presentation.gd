@@ -7,7 +7,7 @@ extends Node
 ## ground rather than in mid-air.
 
 const LANDING_TIMEOUT_MSEC := 3000
-const JUMP_CLIPS := ["Idle_A", "Walking_A", "Jump_Start", "Jump_Idle", "Jump_Land", "Death_A", "Lie_Idle", "Lie_StandUp"]
+const JUMP_CLIPS := ["Idle_A", "Walking_A", "Running_A", "Jump_Start", "Jump_Idle", "Jump_Land", "Death_A", "Lie_Idle", "Lie_StandUp"]
 
 
 func run() -> Dictionary:

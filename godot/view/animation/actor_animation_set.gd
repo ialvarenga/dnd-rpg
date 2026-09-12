@@ -6,6 +6,10 @@ extends Resource
 
 @export var idle: StringName = &"Idle_A"
 @export var locomotion: StringName = &"Walking_A"
+## Every rig ships a walk and a run. The view moves at metres per second set by
+## its own tuning, not at either clip's pace, so locomotion_for() picks whichever
+## of the two needs the least stretching and stretches only that much.
+@export var locomotion_run: StringName = &"Running_A"
 # A ledge jump (ADR-009) plays in three parts from KayKit's MovementBasic:
 # the crouch-and-push takeoff, the airborne hang (looped on import, so a tall
 # drop never freezes on a last frame), and the landing absorb. There is no
@@ -53,6 +57,19 @@ extends Resource
 ## Seconds from the start of the (speed-scaled) takeoff clip to the push-off,
 ## when the view leaves the ledge and the airborne hang begins.
 @export_range(0.0, 2.0, 0.01) var jump_takeoff_seconds := 0.2
+
+## Ground each locomotion clip covers per second at 1x playback, measured from
+## the foot bone's travel in KayKit's Rig_Medium: Walking_A steps 0.40 m per
+## 1.07 s cycle, Running_A 0.73 m per 0.80 s. These are the numbers that keep
+## feet on the ground -- a clip played at its own pace while the view slides
+## along at several metres per second is what reads as skating.
+@export var locomotion_meters_per_second := 0.75
+@export var locomotion_run_meters_per_second := 1.8
+
+## How far a locomotion clip may be stretched before the mismatch is left
+## visible: below the floor a character mimes in place, above the ceiling its
+## legs blur. The chibi rigs take a brisk cadence better than they take a slide.
+@export var locomotion_speed_scale_limits := Vector2(0.6, 2.5)
 
 ## verb -> playback speed. Lie_StandUp is paced for idle scenes, which is too
 ## slow to hold up an enemy's turn; the bow clips likewise, so a shot takes
@@ -104,3 +121,25 @@ func clip_for(verb: StringName) -> StringName:
 
 func speed_scale_for(verb: StringName) -> float:
 	return float(clip_speed_scales.get(verb, 1.0))
+
+
+## Locomotion clips that can carry `speed_mps`, each with the playback speed
+## that keeps its feet with the ground, closest fit first. The animator walks
+## this list and takes the first clip the rig in hand actually ships, so a
+## custom actor with only a walk still moves.
+func locomotion_for(speed_mps: float) -> Array[Dictionary]:
+	var candidates: Array[Dictionary] = []
+	for option in [[locomotion, locomotion_meters_per_second], [locomotion_run, locomotion_run_meters_per_second]]:
+		var clip: StringName = option[0]
+		var natural := float(option[1])
+		if clip == &"" or natural <= 0.0:
+			continue
+		candidates.append({
+			"clip": clip,
+			"speed_scale": clampf(speed_mps / natural, locomotion_speed_scale_limits.x, locomotion_speed_scale_limits.y),
+			# Ranked by how far the clip is stretched either way, so a run asked
+			# to crawl loses to a walk asked to hurry by the same factor.
+			"stretch": absf(log(maxf(speed_mps, 0.01) / natural)),
+		})
+	candidates.sort_custom(func(first: Dictionary, second: Dictionary) -> bool: return float(first["stretch"]) < float(second["stretch"]))
+	return candidates

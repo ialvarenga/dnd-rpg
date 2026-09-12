@@ -13,7 +13,42 @@ static func run() -> Dictionary:
 	_test_hold_pose_relabels_without_changing_clip(failures)
 	_test_ranged_stance_selects_bow_ready(failures)
 	_test_jump_verbs_resolve_to_real_rig_clips(failures)
+	_test_locomotion_is_paced_by_the_view_speed(failures)
+	_test_locomotion_falls_back_to_the_clip_the_rig_ships(failures)
 	return {"name": "unit/test_character_animator", "failures": failures}
+
+
+## A clip played at its own pace while the view slides along at metres per
+## second is what reads as skating: the walk covers 0.75 m/s and the run
+## 1.8 m/s, so the view's speed has to pick between them and stretch the one it
+## picks. Without a speed (0) nothing is stretched.
+static func _test_locomotion_is_paced_by_the_view_speed(failures: Array[String]) -> void:
+	var animation_set := ActorAnimationSet.new()
+	var strolling: Dictionary = animation_set.locomotion_for(0.8)[0]
+	_expect(strolling["clip"] == animation_set.locomotion and is_equal_approx(float(strolling["speed_scale"]), 0.8 / animation_set.locomotion_meters_per_second), "a stroll did not walk at its own pace", failures)
+	var travelling: Dictionary = animation_set.locomotion_for(4.0)[0]
+	_expect(travelling["clip"] == animation_set.locomotion_run and is_equal_approx(float(travelling["speed_scale"]), 4.0 / animation_set.locomotion_run_meters_per_second), "travelling at 4 m/s did not pick the run and pace it to the ground", failures)
+	var sprinting: Dictionary = animation_set.locomotion_for(40.0)[0]
+	_expect(is_equal_approx(float(sprinting["speed_scale"]), animation_set.locomotion_speed_scale_limits.y), "an absurd speed was not capped to the authored stretch limit", failures)
+
+	var animator := _animator_with(PackedStringArray(["Idle", "Walk", "Run"]))
+	animator.locomotion_speed_mps = 4.0
+	animator.locomotion_started()
+	_expect(animator.current_state == &"locomotion" and animator.current_clip == &"Run", "a view moving at 4 m/s did not run", failures)
+	animator.locomotion_stopped()
+	animator.locomotion_speed_mps = 0.8
+	animator.locomotion_started()
+	_expect(animator.current_state == &"locomotion" and animator.current_clip == &"Walk", "a view moving at 0.8 m/s did not walk", failures)
+
+
+static func _test_locomotion_falls_back_to_the_clip_the_rig_ships(failures: Array[String]) -> void:
+	var walk_only := _animator_with(PackedStringArray(["Idle", "Walk"]))
+	walk_only.locomotion_speed_mps = 4.0
+	walk_only.locomotion_started()
+	_expect(walk_only.current_state == &"locomotion" and walk_only.current_clip == &"Walk", "a rig without a run clip did not keep moving on its walk", failures)
+	var unpaced := _animator_with(PackedStringArray(["Idle", "Walk", "Run"]))
+	unpaced.locomotion_started()
+	_expect(unpaced.current_state == &"locomotion" and unpaced.current_clip == &"Walk", "a view with no speed set did not keep the authored locomotion clip", failures)
 
 
 static func _test_ranged_stance_selects_bow_ready(failures: Array[String]) -> void:
@@ -118,6 +153,7 @@ static func _animator_with(clips: PackedStringArray) -> CharacterAnimator:
 	var animation_set := ActorAnimationSet.new()
 	animation_set.idle = &"Idle"
 	animation_set.locomotion = &"Walk"
+	animation_set.locomotion_run = &"Run"
 	animation_set.attack = &"Attack"
 	animation_set.combat_ready = &"CombatReady"
 	animation_set.hit = &"Hit"

@@ -126,8 +126,9 @@ them by stable UI id; no icon is gameplay authority.
   `Rig_Medium_Simulation.glb`, and `Rig_Medium_CombatRanged.glb`, copied
   unmodified into `godot/assets/kaykit_character_animations/` (only the import
   settings loop `Lie_Idle` and `Ranged_Bow_Idle`). On the
-  compatible `Rig_Medium` skeleton used by the knight/raider: `Walking_A`
-  plays while a character follows a resolved movement path;
+  compatible `Rig_Medium` skeleton used by the knight/raider: `Walking_A` or
+  `Running_A` plays while a character follows a resolved movement path,
+  whichever covers the view's speed with the least playback stretching;
   `Melee_1H_Attack_Slice_Horizontal` plays after a resolved basic attack;
   `Idle_A`/`Hit_A`/`Death_A` narrate idle/damage-taken/death; `Dodge_Backward`
   narrates a missed incoming attack; `Melee_Blocking` is the weapon-ready

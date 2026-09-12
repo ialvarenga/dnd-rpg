@@ -12,7 +12,11 @@ signal ranged_released(actor_id: int)
 signal jump_landed(actor_id: int)
 
 @export var actor_id := 1
-@export var movement_speed := 5.0
+## Metres per second a walking view travels. It paces the locomotion clip as
+## well (CharacterAnimator.locomotion_speed_mps): KayKit's run cycle covers
+## 1.8 m/s on its own, so this is what it is stretched from -- past roughly
+## 4.5 m/s the legs cannot keep up and the feet start to skate.
+@export var movement_speed := 4.0
 @export var turn_speed := 12.0
 @export var target_tolerance := 0.3
 
@@ -109,6 +113,7 @@ func _ready() -> void:
 	_locomotion.speed = movement_speed
 	_locomotion.waypoint_tolerance = target_tolerance
 	if animator != null:
+		animator.locomotion_speed_mps = movement_speed
 		animator.state_finished.connect(_on_animator_state_finished)
 	# AssetCatalog dresses the character from its parent's _ready. Deferring lets
 	# this presentation layer find the KayKit model after that replacement.
@@ -128,6 +133,8 @@ func play_movement(path: PackedVector3Array, target: Vector3) -> bool:
 		return true
 	_locomotion.speed = movement_speed
 	_locomotion.waypoint_tolerance = target_tolerance
+	if animator != null:
+		animator.locomotion_speed_mps = movement_speed
 	destination = target
 	var result: Dictionary = _locomotion.begin_path(path, target)
 	if not bool(result["accepted"]):

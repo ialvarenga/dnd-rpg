@@ -19,6 +19,7 @@ const TestRangedAttackPresentationScript = preload("res://tests/integration/test
 const TestHelpAndAttackConditionsScript = preload("res://tests/unit/test_help_and_attack_conditions.gd")
 const TestCombatDepthScript = preload("res://tests/unit/test_combat_depth.gd")
 const TestJumpingScript = preload("res://tests/unit/test_jumping.gd")
+const TestJumpArcScript = preload("res://tests/unit/test_jump_arc.gd")
 const TestJumpNavigationScript = preload("res://tests/integration/test_jump_navigation.gd")
 const TestJumpPresentationScript = preload("res://tests/integration/test_jump_presentation.gd")
 
@@ -28,7 +29,7 @@ func _init() -> void:
 
 func _run() -> void:
 	var failure_count := 0
-	var suites := [TestSimulation, TestDefinitions, TestActionAvailability, TestHudViewModel, TestCharacterSheetViewModel, TestEquipment, TestAttackMath, TestGameplayRules, TestInteractables, TestAssetCatalog, TestTerrainProviderScript, TestMapCompilerScript, TestCharacterAnimatorScript, TestEnemyAI, TestConsumablesScript, TestAbilityUsesScript, TestTargetedActionPlannerScript, TestAbilityTargetingScript, TestInteractableActionPlannerScript, TestPathPreviewRendererScript, TestAbilityCheck, TestDialogSession, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion, TestEncounterSession, TestHelpAndAttackConditionsScript, TestCombatDepthScript, TestJumpingScript]
+	var suites := [TestSimulation, TestDefinitions, TestActionAvailability, TestHudViewModel, TestCharacterSheetViewModel, TestEquipment, TestAttackMath, TestGameplayRules, TestInteractables, TestAssetCatalog, TestTerrainProviderScript, TestMapCompilerScript, TestCharacterAnimatorScript, TestEnemyAI, TestConsumablesScript, TestAbilityUsesScript, TestTargetedActionPlannerScript, TestAbilityTargetingScript, TestInteractableActionPlannerScript, TestPathPreviewRendererScript, TestAbilityCheck, TestDialogSession, TestReplay, TestSaveGame, TestReplayLog, TestHeadlessContract, TestSaveLoadService, TestPrototypeLocomotion, TestEncounterSession, TestHelpAndAttackConditionsScript, TestCombatDepthScript, TestJumpingScript, TestJumpArcScript]
 	for suite in suites:
 		var report: Dictionary = suite.run()
 		var failures: Array = report["failures"]
